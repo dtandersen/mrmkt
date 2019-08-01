@@ -1,49 +1,13 @@
 import unittest
 
 from balance_sheet import BalanceSheet
+from buffet import Buffet
+from financial import InMemoryFinancialGateway
 from income_statement import IncomeStatement
-
-
-class Analysis():
-    def __init__(self):
-        self.bookValue = None
-        self.eps = None
-        self.equity = None
-        self.pe = None
-
-    pass
-
-
-class Buffet():
-    def analyze(self, inc: IncomeStatement, bal: BalanceSheet) -> Analysis:
-        analysis = Analysis()
-        analysis.equity = bal.totalAssets - bal.totalLiabilities
-        analysis.eps = inc.netIncome / inc.waso
-        analysis.bookValue = analysis.equity / inc.waso
-        analysis.pe = analysis.bookValue / analysis.eps
-        return analysis
-
-
-class Dbxxx():
-    balances = {}
-    incomes = {}
-
-    def addBalanceSheet(self, bal : BalanceSheet):
-        self.balances[bal.symbol] = bal
-
-    def getBalanceSheet(self, symbol):
-        return self.balances[symbol]
-
-    def addIncome(self, param : IncomeStatement):
-        self.incomes[param.symbol] = param
-
-    def getIncomeStatement(self, symbol):
-        return self.incomes[symbol]
-
 
 class TestStringMethods(unittest.TestCase):
     def setUp(self):
-        self.q = Dbxxx()
+        self.q = InMemoryFinancialGateway()
         self.q.addIncome(IncomeStatement(
             symbol='ICECREAM',
             netIncome=20000,
