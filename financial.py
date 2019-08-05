@@ -3,25 +3,35 @@ from income_statement import IncomeStatement
 
 
 class FinancialGateway():
-    def getBalanceSheet(self, symbol) -> BalanceSheet:
+    def balance_sheet(self, symbol) -> BalanceSheet:
         pass
 
-    def getIncomeStatement(self, symbol) -> IncomeStatement:
+    def income_statement(self, symbol) -> IncomeStatement:
+        pass
+
+    def closing_price(self, symbol, date) -> IncomeStatement:
         pass
 
 
 class InMemoryFinancialGateway(FinancialGateway):
     balances = {}
     incomes = {}
+    close = {}
 
     def addBalanceSheet(self, bal : BalanceSheet):
         self.balances[bal.symbol] = bal
 
-    def getBalanceSheet(self, symbol) -> BalanceSheet:
+    def balance_sheet(self, symbol) -> BalanceSheet:
         return self.balances[symbol]
+
+    def closing_price(self, symbol, date) -> IncomeStatement:
+        return self.close[f'{symbol}-{date}']
 
     def addIncome(self, param : IncomeStatement):
         self.incomes[param.symbol] = param
 
-    def getIncomeStatement(self, symbol) -> IncomeStatement:
+    def income_statement(self, symbol) -> IncomeStatement:
         return self.incomes[symbol]
+
+    def add_close_price(self, symbol, date, close_price):
+        self.close[f'{symbol}-{date}'] = close_price
