@@ -10,7 +10,7 @@ from income_statement import IncomeStatement
 class TestStringMethods(unittest.TestCase):
     @requests_mock.Mocker()
     def test_get(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/AAPL', text=Path('fmp/aapl-balance-sheet.json').read_text())
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/AAPL?period=annual', text=Path('fmp/aapl-balance-sheet.json').read_text())
         fmp = FMPFinancialGateway()
         resp = fmp.balance_sheet('AAPL')
         self.assertEqual(resp.symbol, 'AAPL')
@@ -20,7 +20,7 @@ class TestStringMethods(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_nvda_balance_sheet(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/NVDA', text=Path('fmp/NVDA-balance-sheet.json').read_text())
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/NVDA?period=annual', text=Path('fmp/NVDA-balance-sheet.json').read_text())
         fmp = FMPFinancialGateway()
         resp = fmp.balance_sheet('NVDA')
         self.assertEqual(resp.symbol, 'NVDA')
@@ -30,7 +30,7 @@ class TestStringMethods(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_income(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL', text=Path('fmp/aapl-income.json').read_text())
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL?period=annual', text=Path('fmp/aapl-income.json').read_text())
         fmp = FMPFinancialGateway()
         resp = fmp.income_statement('AAPL')
         self.assertEqual(resp.symbol, 'AAPL')
@@ -40,7 +40,7 @@ class TestStringMethods(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_nvda_income_statement(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/NVDA', text=Path('fmp/NVDA-income-statement.json').read_text())
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/NVDA?period=annual', text=Path('fmp/NVDA-income-statement.json').read_text())
         fmp = FMPFinancialGateway()
         resp = fmp.income_statement('NVDA')
         self.assertEqual(resp.symbol, 'NVDA')
