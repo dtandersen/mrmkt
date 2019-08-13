@@ -6,7 +6,21 @@ from income_statement import IncomeStatement
 import requests
 
 
-class FmpApi(object):
+class FmpApi:
+    def get_balance_sheet_statement(self, symbol, period='annual'):
+        pass
+
+    def get_income_statement(self, symbol, period='annual'):
+        pass
+
+    def get_enterprise_value(self, symbol, period='annual'):
+        pass
+
+    def get_historical_price_full(self, symbol):
+        pass
+
+
+class DefaultFmpApi(FmpApi):
     def get_balance_sheet_statement(self, symbol, period='annual'):
         json = requests \
             .get(f'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/{symbol}?period={period}') \
@@ -37,10 +51,11 @@ class FmpApi(object):
 
 
 class FMPFinancialGateway(FinancialGateway):
-    fmi_api = FmpApi()
+    def __init__(self, fmp_api: FmpApi):
+        self.fmp_api = fmp_api
 
     def balance_sheet(self, symbol) -> BalanceSheet:
-        json = self.fmi_api.get_balance_sheet_statement(symbol)
+        json = self.fmp_api.get_balance_sheet_statement(symbol)
         financials = json['financials'][0]
         return BalanceSheet(
             symbol=symbol,
@@ -50,7 +65,7 @@ class FMPFinancialGateway(FinancialGateway):
         )
 
     def income_statement(self, symbol) -> IncomeStatement:
-        json = self.fmi_api.get_income_statement(symbol)
+        json = self.fmp_api.get_income_statement(symbol)
         financials = json['financials'][0]
         return IncomeStatement(
             symbol=symbol,
@@ -60,7 +75,7 @@ class FMPFinancialGateway(FinancialGateway):
         )
 
     def closing_price(self, symbol, date):
-        json = self.fmi_api.get_historical_price_full(symbol)
+        json = self.fmp_api.get_historical_price_full(symbol)
         # print(date)
         # print(json)
         dd1 = date

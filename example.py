@@ -1,7 +1,7 @@
 from buffet import Buffet
 from fmp import FMPFinancialGateway
 
-symbol = 'ALB'
+symbol = 'alb'
 fmp = FMPFinancialGateway()
 bal = fmp.balance_sheet(symbol)
 inc = fmp.income_statement(symbol)
