@@ -1,15 +1,13 @@
 from psycopg2.pool import SimpleConnectionPool
-from sql import SqlConverter, SqlClient
+from sql import SqlGenerator, SqlClient
 
 
 class PostgresSqlClient(SqlClient):
-    def __init__(self, converter: SqlConverter, pool: SimpleConnectionPool):
+    def __init__(self, converter: SqlGenerator, pool: SimpleConnectionPool):
         self.converter = converter
         self.pool = pool
 
     def insert(self, table: str, values: any):
-        conn = self.pool.getconn()
-
-        cur = conn.cursor()
-        cur.execute(self.converter.to_insert(table, values))
-        cur.close()
+        with self.pool.getconn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(self.converter.to_insert(table, values))

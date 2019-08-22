@@ -15,12 +15,12 @@ class MockSqlClient(SqlClient):
         self.inserts.append({"table": table, "values": values})
 
 
-class SqlConverter:
+class SqlGenerator:
     def to_insert(self, table: str, params: any) -> str:
         pass
 
 
-class InsecureSqlConverter:
+class InsecureSqlGenerator:
     def to_insert(self, table: str, params: any) -> str:
         if dataclasses.is_dataclass(params):
             d = asdict(params)
@@ -29,7 +29,7 @@ class InsecureSqlConverter:
 
         keys = d.keys()
         columns = ", ".join(keys)
-        values = ", ".join(list(map(lambda k: InsecureSqlConverter.to_value(d[k]), keys)))
+        values = ", ".join(list(map(lambda k: InsecureSqlGenerator.to_value(d[k]), keys)))
         query = f"insert into {table} ({columns}) values ({values})"
 
         return query
