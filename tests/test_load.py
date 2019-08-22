@@ -2,50 +2,8 @@ import unittest
 
 from balance_sheet import BalanceSheet
 from financial import FinancialGateway, InMemoryFinancialGateway
-from fmp import FMPFinancialGateway, FmpApi
 from income_statement import IncomeStatement
-
-
-class FinancialRepository:
-    def add_income(self, income_statement: IncomeStatement) -> None:
-        pass
-
-    def add_balance_sheet(self, balance_sheet: BalanceSheet):
-        pass
-
-
-class InMemoryFinDb(FinancialRepository):
-    income_statements = {}
-    balance_sheets = {}
-
-    def get_income_statement(self, symbol: str) -> IncomeStatement:
-        return self.income_statements[symbol]
-
-    def add_income(self, income_statement: IncomeStatement) -> None:
-        self.income_statements[income_statement.symbol] = income_statement
-
-    def add_balance_sheet(self, balance_sheet: BalanceSheet):
-        self.balance_sheets[balance_sheet.symbol] = balance_sheet
-
-    def get_balance_sheet(self, symbol: str) -> BalanceSheet:
-        return self.balance_sheets[symbol]
-
-
-# class InMemoryFinancialGateway(FinancialGateway):
-#     income_statements = {}
-#     balance_sheets = {}
-#
-#     def add_income(self, income_statement: IncomeStatement) -> None:
-#         self.income_statements[income_statement.symbol] = income_statement
-#
-#     def income_statement(self, symbol) -> IncomeStatement:
-#         return self.income_statements[symbol]
-#
-#     def add_balance_sheet(self, balance_sheet: BalanceSheet):
-#         self.balance_sheets[balance_sheet.symbol] = balance_sheet
-#
-#     def balance_sheet(self, symbol) -> BalanceSheet:
-#         return self.balance_sheets[symbol]
+from findb import FinancialRepository, InMemoryFinDb
 
 
 class StockLoader(object):
