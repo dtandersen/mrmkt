@@ -1,0 +1,14 @@
+{
+    "symbolsList": [
+        {
+            "symbol": "SPY",
+            "name": "SPDR S&P 500",
+            "price": 292.57
+        },
+        {
+            "symbol": "CMCSA",
+            "name": "Comcast Corporation Class A Common Stock",
+            "price": 43.79
+        }
+    ]
+}

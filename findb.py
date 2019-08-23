@@ -44,6 +44,15 @@ class SqlFinancialRepository(FinancialRepository):
         )
         self.sql_client.insert("balance_sheet", row)
 
+    def add_income(self, income_statement: IncomeStatement):
+        row = IncomeStatementRow(
+            symbol=income_statement.symbol,
+            date=income_statement.date,
+            net_income=income_statement.netIncome,
+            waso=income_statement.waso
+        )
+        self.sql_client.insert("income_stmt", row)
+
 
 @dataclass
 class BalanceSheetRow:
@@ -51,3 +60,11 @@ class BalanceSheetRow:
     date: str
     total_assets: float
     total_liabilities: float
+
+
+@dataclass
+class IncomeStatementRow:
+    symbol: str
+    date: str
+    net_income: float
+    waso: int

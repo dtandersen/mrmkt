@@ -1,3 +1,5 @@
+import logging
+
 from psycopg2.pool import SimpleConnectionPool
 from sql import SqlGenerator, SqlClient
 
@@ -10,4 +12,6 @@ class PostgresSqlClient(SqlClient):
     def insert(self, table: str, values: any):
         with self.pool.getconn() as conn:
             with conn.cursor() as cur:
-                cur.execute(self.converter.to_insert(table, values))
+                sql = self.converter.to_insert(table, values)
+                logging.debug(sql)
+                cur.execute(sql)

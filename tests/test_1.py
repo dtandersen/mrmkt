@@ -8,39 +8,40 @@ from income_statement import IncomeStatement
 
 class TestStringMethods(unittest.TestCase):
     def setUp(self):
-        self.q = InMemoryFinancialGateway()
-        self.q.addIncome(IncomeStatement(
+        self.fin_gtwy = InMemoryFinancialGateway()
+        # self.fin_gtwy.stocks = ['ICECREAM', 'PIZZA']
+        self.fin_gtwy.addIncome(IncomeStatement(
             symbol='ICECREAM',
             date='2019-08-04',
             netIncome=20000,
             waso=10000
         ))
-        self.q.addBalanceSheet(BalanceSheet(
+        self.fin_gtwy.addBalanceSheet(BalanceSheet(
             symbol='ICECREAM',
             date='2019-08-04',
             totalAssets=44000,
             totalLiabilities=37000
         ))
-        self.q.add_close_price('ICECREAM', '2019-08-04', 10)
+        self.fin_gtwy.add_close_price('ICECREAM', '2019-08-04', 10)
 
-        self.q.addIncome(IncomeStatement(
+        self.fin_gtwy.addIncome(IncomeStatement(
             symbol='PIZZA',
             date='2020-02-20',
             netIncome=15000,
             waso=1000
         ))
-        self.q.addBalanceSheet(BalanceSheet(
+        self.fin_gtwy.addBalanceSheet(BalanceSheet(
             symbol='PIZZA',
             date='2020-02-20',
             totalAssets=5000,
             totalLiabilities=12500
         ))
-        self.q.add_close_price('PIZZA', '2020-02-20', 5)
+        self.fin_gtwy.add_close_price('PIZZA', '2020-02-20', 5)
 
     def test_upper(self):
-        inc = self.q.income_statement('ICECREAM')
-        bal = self.q.balance_sheet('ICECREAM')
-        buf = Buffet(self.q)
+        inc = self.fin_gtwy.income_statement('ICECREAM')
+        bal = self.fin_gtwy.balance_sheet('ICECREAM')
+        buf = Buffet(self.fin_gtwy)
         res = buf.analyze(inc, bal)
         self.assertEqual('ICECREAM', res.symbol)
         self.assertEqual('2019-08-04', res.date)
@@ -57,9 +58,9 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(10000, res.sharesOutstanding)
 
     def test_2(self):
-        inc = self.q.income_statement('PIZZA')
-        bal = self.q.balance_sheet('PIZZA')
-        buf = Buffet(self.q)
+        inc = self.fin_gtwy.income_statement('PIZZA')
+        bal = self.fin_gtwy.balance_sheet('PIZZA')
+        buf = Buffet(self.fin_gtwy)
         res = buf.analyze(inc, bal)
         self.assertEqual('PIZZA', res.symbol)
         self.assertEqual('2020-02-20', res.date)

@@ -13,8 +13,8 @@ class TestRow:
 class TestStringMethods(unittest.TestCase):
     def test_insert_dict(self):
         converter = InsecureSqlGenerator()
-        insert = converter.to_insert('table', {"a": "z", "b": 1})
-        self.assertEqual("insert into table (a, b) values ('z', 1)", insert)
+        insert = converter.to_insert('table', {"a": "z", "b": 1, "c": 2.1})
+        self.assertEqual("insert into table (a, b, c) values ('z', 1, 2.1)", insert)
 
     def test_insert_database(self):
         converter = InsecureSqlGenerator()

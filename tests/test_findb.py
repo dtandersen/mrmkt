@@ -1,6 +1,7 @@
 import unittest
 from balance_sheet import BalanceSheet
-from findb import SqlFinancialRepository, BalanceSheetRow
+from findb import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow
+from income_statement import IncomeStatement
 from sql import MockSqlClient
 
 
@@ -25,4 +26,22 @@ class TestStringMethods(unittest.TestCase):
                 total_assets=10,
                 total_liabilities=25
               )
+          }])
+
+    def test_insert_income_stmt(self):
+        self.db.add_income(IncomeStatement(
+            symbol='AAPL',
+            date='20190813',
+            netIncome=10,
+            waso=50,
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "income_stmt",
+            "values": IncomeStatementRow(
+                symbol='AAPL',
+                date='20190813',
+                net_income=10,
+                waso=50,
+            )
           }])

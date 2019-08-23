@@ -1,13 +1,23 @@
-CREATE TABLE public.feature
+CREATE TABLE public.income_stmt
 (
-    feature text COLLATE pg_catalog."default" NOT NULL,
-    value text COLLATE pg_catalog."default",
-    CONSTRAINT feature_pkey PRIMARY KEY (feature)
+    symbol character varying,
+    date character varying,
+    net_income double precision,
+    waso bigint,
+    PRIMARY KEY (symbol, date)
 )
 WITH (
     OIDS = FALSE
-)
-TABLESPACE pg_default;
+);
 
-ALTER TABLE public.feature
-    OWNER to postgres;
+CREATE TABLE public.balance_sheet
+(
+    symbol character varying,
+    date character varying,
+    total_assets double precision,
+    total_liabilities double precision,
+    PRIMARY KEY (symbol, date)
+)
+WITH (
+    OIDS = FALSE
+);

@@ -9,7 +9,10 @@ class SqlClient:
 
 
 class MockSqlClient(SqlClient):
-    inserts: List[dict] = []
+    inserts: List[dict]
+
+    def __init__(self):
+        self.inserts = []
 
     def insert(self, table: str, values: any):
         self.inserts.append({"table": table, "values": values})
@@ -20,7 +23,8 @@ class SqlGenerator:
         pass
 
 
-class InsecureSqlGenerator:
+# @author little bobby tables
+class InsecureSqlGenerator(SqlGenerator):
     def to_insert(self, table: str, params: any) -> str:
         if dataclasses.is_dataclass(params):
             d = asdict(params)
@@ -37,6 +41,8 @@ class InsecureSqlGenerator:
     @staticmethod
     def to_value(value: any):
         if str.isdigit(str(value)):
+            return str(value)
+        elif isinstance(value, float):
             return str(value)
         else:
             return f"'{value}'"
