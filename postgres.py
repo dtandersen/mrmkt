@@ -10,19 +10,15 @@ class PostgresSqlClient(SqlClient):
         self.pool = pool
 
     def insert(self, table: str, values: any):
-        conn = None
-        cur = None
+        conn = self.pool.getconn()
         try:
-            conn = self.pool.getconn()
-            cur = conn.cursor()
-            sql = self.converter.to_insert(table, values)
-            logging.debug(sql)
-            try:
-                cur.execute(sql)
-            except psycopg2.errors.UniqueViolation as err:
-                raise Duplicate(err)
+            with conn:
+                with conn.cursor() as cur:
+                    sql = self.converter.to_insert(table, values)
+                    logging.debug(sql)
+                    try:
+                        cur.execute(sql)
+                    except psycopg2.errors.UniqueViolation as err:
+                        raise Duplicate(err)
         finally:
-            if conn is not None:
-                self.pool.putconn(conn)
-            # if cur is not None:
-            #     cur.close()
+            self.pool.putconn(conn)
