@@ -66,33 +66,39 @@ class FMPFinancialGateway(FinancialGateway):
     def __init__(self, fmp_api: FmpApi):
         self.fmp_api = fmp_api
 
-    def balance_sheet(self, symbol) -> Optional[BalanceSheet]:
+    def balance_sheet(self, symbol) -> List[BalanceSheet]:
         json = self.fmp_api.get_balance_sheet_statement(symbol)
         if 'financials' not in json:
-            return None
+            return []
 
-        financials = json['financials'][0]
+        return list(map(lambda b: self.cnvt_balance(symbol, b), json['financials']))
+
+    def cnvt_balance(self, symbol: str, balance_sheet_json) -> BalanceSheet:
         return BalanceSheet(
             symbol=symbol,
-            date=financials['date'],
-            totalAssets=float(financials['Total assets']),
-            totalLiabilities=float(financials['Total liabilities'])
-        )
+            date=balance_sheet_json['date'],
+            totalAssets=float(balance_sheet_json['Total assets']),
+            totalLiabilities=float(balance_sheet_json['Total liabilities']))
 
-    def income_statement(self, symbol) -> Optional[IncomeStatement]:
+    def income_statement(self, symbol) -> List[IncomeStatement]:
         json = self.fmp_api.get_income_statement(symbol)
         if 'financials' not in json:
-            return None
+            return []
 
-        financials = json['financials'][0]
-        if 'Weighted Average Shs Out (Dil)' in financials and financials['Weighted Average Shs Out (Dil)'] is not "":
-            waso2 = float(financials['Weighted Average Shs Out (Dil)'])
+        return list(map(lambda i: self.cnvt_income(symbol, i), json['financials']))
+
+    def cnvt_income(self, symbol: str, income_stmt_json) -> IncomeStatement:
+        if 'Weighted Average Shs Out (Dil)' in income_stmt_json and income_stmt_json['Weighted Average Shs Out (Dil)'] is not "":
+            waso2 = float(income_stmt_json['Weighted Average Shs Out (Dil)'])
+        elif 'Weighted Average Shs Out' in income_stmt_json and income_stmt_json['Weighted Average Shs Out'] is not "":
+            waso2 = float(income_stmt_json['Weighted Average Shs Out'])
         else:
-            waso2 = float(financials['Weighted Average Shs Out'])
+            waso2 = 0
+
         return IncomeStatement(
             symbol=symbol,
-            date=financials['date'],
-            netIncome=float(financials['Net Income']),
+            date=income_stmt_json['date'],
+            netIncome=float(income_stmt_json['Net Income']),
             waso=waso2
         )
 

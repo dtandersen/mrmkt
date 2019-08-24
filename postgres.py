@@ -1,7 +1,7 @@
 import logging
-
+import psycopg2
 from psycopg2.pool import SimpleConnectionPool
-from sql import SqlGenerator, SqlClient
+from sql import SqlGenerator, SqlClient, Duplicate
 
 
 class PostgresSqlClient(SqlClient):
@@ -10,8 +10,19 @@ class PostgresSqlClient(SqlClient):
         self.pool = pool
 
     def insert(self, table: str, values: any):
-        with self.pool.getconn() as conn:
-            with conn.cursor() as cur:
-                sql = self.converter.to_insert(table, values)
-                logging.debug(sql)
+        conn = None
+        cur = None
+        try:
+            conn = self.pool.getconn()
+            cur = conn.cursor()
+            sql = self.converter.to_insert(table, values)
+            logging.debug(sql)
+            try:
                 cur.execute(sql)
+            except psycopg2.errors.UniqueViolation as err:
+                raise Duplicate(err)
+        finally:
+            if conn is not None:
+                self.pool.putconn(conn)
+            # if cur is not None:
+            #     cur.close()

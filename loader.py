@@ -1,10 +1,10 @@
 import psycopg2
 import logging
 from financial import FinancialGateway
-from findb import FinancialRepository, SqlFinancialRepository
-from fmp import DefaultFmpApi, FMPFinancialGateway
+from finrepo import FinancialRepository, SqlFinancialRepository
+from fingtwy import DefaultFmpApi, FMPFinancialGateway
 from postgres import PostgresSqlClient
-from sql import InsecureSqlGenerator
+from sql import InsecureSqlGenerator, Duplicate
 
 
 class StockLoader(object):
@@ -14,13 +14,19 @@ class StockLoader(object):
 
     def load_all(self):
         for symbol in self.fin_gate.get_stocks():
-            income_statement = self.fin_gate.income_statement(symbol)
-            if income_statement:
-                self.fin_db.add_income(income_statement)
+            income_statements = self.fin_gate.income_statement(symbol)
+            for i in income_statements:
+                try:
+                    self.fin_db.add_income(i)
+                except Duplicate:
+                    pass
 
-            balance_sheet = self.fin_gate.balance_sheet(symbol)
-            if balance_sheet:
-                self.fin_db.add_balance_sheet(balance_sheet)
+            balance_sheets = self.fin_gate.balance_sheet(symbol)
+            for b in balance_sheets:
+                try:
+                    self.fin_db.add_balance_sheet(b)
+                except Duplicate:
+                    pass
 
 
 def main():

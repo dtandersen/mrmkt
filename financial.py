@@ -5,10 +5,10 @@ from income_statement import IncomeStatement
 
 
 class FinancialGateway():
-    def balance_sheet(self, symbol) -> Optional[BalanceSheet]:
+    def balance_sheet(self, symbol) -> List[BalanceSheet]:
         pass
 
-    def income_statement(self, symbol) -> Optional[IncomeStatement]:
+    def income_statement(self, symbol) -> List[IncomeStatement]:
         pass
 
     def closing_price(self, symbol, date) -> Optional[IncomeStatement]:
@@ -25,30 +25,23 @@ class InMemoryFinancialGateway(FinancialGateway):
         self.close = dict()
         self.stocks = []
 
-    def addBalanceSheet(self, bal: BalanceSheet):
-        self.balances[bal.symbol] = bal
+    def addBalanceSheet(self, balance_sheet: BalanceSheet):
+        self.balances[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
 
-    def balance_sheet(self, symbol: str) -> Optional[BalanceSheet]:
-        if symbol not in self.balances:
-            return None
-
-        return self.balances[symbol]
+    def balance_sheet(self, symbol: str) -> List[BalanceSheet]:
+        return list(filter(lambda b: b.symbol == symbol, self.balances.values()))
 
     def closing_price(self, symbol, date) -> Optional[float]:
         return self.close[f'{symbol}-{date}']
 
-    def addIncome(self, param : IncomeStatement):
-        self.incomes[param.symbol] = param
+    def addIncome(self, income_statement : IncomeStatement):
+        self.incomes[f"{income_statement.symbol}-{income_statement.date}"] = income_statement
 
-    def income_statement(self, symbol: str) -> Optional[IncomeStatement]:
-        if symbol not in self.incomes:
-            return None
-
-        return self.incomes[symbol]
+    def income_statement(self, symbol: str) -> List[IncomeStatement]:
+        return list(filter(lambda i: i.symbol == symbol, self.incomes.values()))
 
     def add_close_price(self, symbol, date, close_price):
         self.close[f'{symbol}-{date}'] = close_price
 
     def get_stocks(self) -> Optional[List[str]]:
-        # stocks = [income_statement.symbol for income_statement in self.incomes.values()]
         return self.stocks

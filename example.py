@@ -1,5 +1,5 @@
 from buffet import Buffet
-from fmp import FMPFinancialGateway
+from fingtwy import FMPFinancialGateway
 
 symbol = 'alb'
 fmp = FMPFinancialGateway()

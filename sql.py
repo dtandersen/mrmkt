@@ -46,3 +46,8 @@ class InsecureSqlGenerator(SqlGenerator):
             return str(value)
         else:
             return f"'{value}'"
+
+
+class Duplicate(Exception):
+    def __init__(self, message):
+        self.message = message

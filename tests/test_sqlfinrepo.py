@@ -1,6 +1,6 @@
 import unittest
 from balance_sheet import BalanceSheet
-from findb import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow
+from finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow
 from income_statement import IncomeStatement
 from sql import MockSqlClient
 

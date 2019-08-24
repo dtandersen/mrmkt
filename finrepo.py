@@ -1,34 +1,43 @@
-import dataclasses
 from dataclasses import dataclass
-
 from balance_sheet import BalanceSheet
 from income_statement import IncomeStatement
 from postgres import SqlClient
+from sql import Duplicate
 
 
 class FinancialRepository:
     def add_income(self, income_statement: IncomeStatement) -> None:
         pass
 
-    def add_balance_sheet(self, balance_sheet: BalanceSheet):
+    def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
         pass
 
 
-class InMemoryFinDb(FinancialRepository):
-    income_statements = {}
-    balance_sheets = {}
+class InMemoryFinancialRepository(FinancialRepository):
+    def __init__(self):
+        self.income_statements = {}
+        self.balance_sheets = {}
 
-    def get_income_statement(self, symbol: str) -> IncomeStatement:
-        return self.income_statements[symbol]
+    def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
+        return self.income_statements[f"{symbol}-{date}"]
 
     def add_income(self, income_statement: IncomeStatement) -> None:
-        self.income_statements[income_statement.symbol] = income_statement
+        if self.key(income_statement.symbol, income_statement.date) in self.income_statements:
+            raise Duplicate("Duplicate: " + self.key(income_statement.symbol, income_statement.date))
 
-    def add_balance_sheet(self, balance_sheet: BalanceSheet):
-        self.balance_sheets[balance_sheet.symbol] = balance_sheet
+        self.income_statements[f"{income_statement.symbol}-{income_statement.date}"] = income_statement
 
-    def get_balance_sheet(self, symbol: str) -> BalanceSheet:
-        return self.balance_sheets[symbol]
+    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
+        return self.balance_sheets[f"{symbol}-{date}"]
+
+    def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
+        if self.key(balance_sheet.symbol, balance_sheet.date) in self.balance_sheets:
+            raise Duplicate("Duplicate: " + self.key(balance_sheet.symbol, balance_sheet.date))
+
+        self.balance_sheets[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
+
+    def key(self, symbol: str, date: str) -> str:
+        return f"{symbol}-{date}"
 
 
 class SqlFinancialRepository(FinancialRepository):
