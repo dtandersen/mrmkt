@@ -1,11 +1,11 @@
 import logging
 import psycopg2
-from psycopg2.pool import SimpleConnectionPool
+from psycopg2.pool import AbstractConnectionPool
 from sql import SqlGenerator, SqlClient, Duplicate
 
 
 class PostgresSqlClient(SqlClient):
-    def __init__(self, converter: SqlGenerator, pool: SimpleConnectionPool):
+    def __init__(self, converter: SqlGenerator, pool: AbstractConnectionPool):
         self.converter = converter
         self.pool = pool
 
