@@ -1,6 +1,4 @@
-from balance_sheet import BalanceSheet
-from financial import FinancialGateway
-from income_statement import IncomeStatement
+from finrepo import FinancialRepository
 
 
 class Analysis():
@@ -22,12 +20,26 @@ class Analysis():
     pass
 
 
-class Buffet():
-    def __init__(self, fin: FinancialGateway):
+class Buffet:
+    def __init__(self, fin: FinancialRepository):
         self.fin = fin
 
-    def analyze(self, inc: IncomeStatement, bal: BalanceSheet) -> Analysis:
-        close = self.fin.closing_price(inc.symbol, inc.date)
+    def analyze(self, symbol: str) -> Analysis:
+        inc2 = self.fin.get_income_statements(symbol)
+        bal2 = self.fin.get_balance_sheets(symbol)
+
+        res = []
+        for i in range(len(inc2)):
+            inc = inc2[i]
+            bal = next((x for x in bal2 if x.date == inc.date), None)
+            close = self.fin.get_closing_price(inc.symbol, inc.date)
+
+            analysis = self.anlz(bal, close, inc)
+            res.append(analysis)
+
+        return res
+
+    def anlz(self, bal, close, inc):
         analysis = Analysis()
         analysis.symbol = inc.symbol
         analysis.date = inc.date
@@ -43,4 +55,5 @@ class Buffet():
         analysis.buffetNumber = analysis.priceToBookValue * analysis.pe
         market_cap = (close * inc.waso)
         analysis.marginOfSafety = analysis.equity / market_cap
+
         return analysis

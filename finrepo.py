@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from typing import List
+
 from balance_sheet import BalanceSheet
 from income_statement import IncomeStatement
 from postgres import SqlClient
@@ -6,10 +8,28 @@ from sql import Duplicate
 
 
 class FinancialRepository:
+    def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
+        pass
+
+    def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
+        pass
+
     def add_income(self, income_statement: IncomeStatement) -> None:
         pass
 
+    def get_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
+        pass
+
+    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
+        pass
+
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
+        pass
+
+    def get_closing_price(self, symbol, date: str) -> float:
+        pass
+
+    def add_close_price(self, symbol: str, date: str, price_close: float) -> None:
         pass
 
 
@@ -17,6 +37,10 @@ class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
         self.income_statements = {}
         self.balance_sheets = {}
+        self.closing_prices = {}
+
+    def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
+        return list(filter(lambda i: i.symbol == symbol, self.income_statements.values()))
 
     def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
         return self.income_statements[f"{symbol}-{date}"]
@@ -27,6 +51,9 @@ class InMemoryFinancialRepository(FinancialRepository):
 
         self.income_statements[f"{income_statement.symbol}-{income_statement.date}"] = income_statement
 
+    def get_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
+        return list(filter(lambda i: i.symbol == symbol, self.balance_sheets.values()))
+
     def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
         return self.balance_sheets[f"{symbol}-{date}"]
 
@@ -35,6 +62,15 @@ class InMemoryFinancialRepository(FinancialRepository):
             raise Duplicate("Duplicate: " + self.key(balance_sheet.symbol, balance_sheet.date))
 
         self.balance_sheets[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
+
+    def get_closing_price(self, symbol, date: str):
+        return self.closing_prices[self.key(symbol, date)]
+
+    def add_close_price(self, symbol: str, date: str, price_close: float):
+        if self.key(symbol, date) in self.closing_prices:
+            raise Duplicate("Duplicate: " + self.key(symbol, date))
+
+        self.closing_prices[f"{symbol}-{date}"] = price_close
 
     def key(self, symbol: str, date: str) -> str:
         return f"{symbol}-{date}"
