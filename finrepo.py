@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from balance_sheet import BalanceSheet
+from entity import Analysis
 from income_statement import IncomeStatement
 from postgres import SqlClient
 from sql import Duplicate
@@ -32,12 +33,16 @@ class FinancialRepository:
     def add_close_price(self, symbol: str, date: str, price_close: float) -> None:
         pass
 
+    def add_analysis(self, analysis: Analysis):
+        pass
+
 
 class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
         self.income_statements = {}
         self.balance_sheets = {}
         self.closing_prices = {}
+        self.analysis = {}
 
     def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
         return list(filter(lambda i: i.symbol == symbol, self.income_statements.values()))
@@ -71,6 +76,12 @@ class InMemoryFinancialRepository(FinancialRepository):
             raise Duplicate("Duplicate: " + self.key(symbol, date))
 
         self.closing_prices[f"{symbol}-{date}"] = price_close
+
+    def get_analysis(self, symbol: str) -> List[Analysis]:
+        return [analysis for analysis in self.analysis.values() if analysis.symbol == symbol]
+
+    def add_analysis(self, analysis: Analysis):
+        self.analysis[self.key(analysis.symbol, analysis.date)] = analysis
 
     def key(self, symbol: str, date: str) -> str:
         return f"{symbol}-{date}"

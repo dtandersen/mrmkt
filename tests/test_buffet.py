@@ -54,7 +54,9 @@ class TestStringMethods(unittest.TestCase):
         self.buf = Buffet(self.finrepo)
 
     def test_upper(self):
-        res = self.buf.analyze('ICECREAM')
+        self.buf.analyze('ICECREAM')
+
+        res = self.finrepo.get_analysis('ICECREAM')
 
         self.assertEqual(vars(res[0]), {
             "symbol": 'ICECREAM',
@@ -88,7 +90,9 @@ class TestStringMethods(unittest.TestCase):
             'symbol': 'ICECREAM'})
 
     def test_2(self):
-        res = self.buf.analyze('PIZZA')
+        self.buf.analyze('PIZZA')
+
+        res = self.finrepo.get_analysis('PIZZA')
 
         self.assertEqual(vars(res[0]), {
             "symbol": 'PIZZA',
