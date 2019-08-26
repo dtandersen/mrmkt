@@ -98,6 +98,7 @@ class SqlFinancialRepository(FinancialRepository):
             total_assets=balance_sheet.totalAssets,
             total_liabilities=balance_sheet.totalLiabilities
         )
+
         self.sql_client.insert("balance_sheet", row)
 
     def add_income(self, income_statement: IncomeStatement):
@@ -107,7 +108,27 @@ class SqlFinancialRepository(FinancialRepository):
             net_income=income_statement.netIncome,
             waso=income_statement.waso
         )
+
         self.sql_client.insert("income_stmt", row)
+
+    def add_analysis(self, analysis: Analysis):
+        row = AnalysisRow(
+            symbol=analysis.symbol,
+            date=analysis.date,
+            net_income=analysis.netIncome,
+            buffet_number=analysis.buffetNumber,
+            price_to_book_value=analysis.priceToBookValue,
+            shares_outstanding=analysis.sharesOutstanding,
+            liabilities=analysis.liabilities,
+            assets=analysis.assets,
+            margin_of_safety=analysis.marginOfSafety,
+            book_value=analysis.bookValue,
+            eps=analysis.eps,
+            equity=analysis.equity,
+            pe=analysis.pe
+        )
+
+        self.sql_client.insert("analysis", row)
 
 
 @dataclass
@@ -124,3 +145,20 @@ class IncomeStatementRow:
     date: str
     net_income: float
     waso: int
+
+
+@dataclass
+class AnalysisRow:
+    symbol: str
+    date: str
+    net_income: float
+    buffet_number: float
+    price_to_book_value: float
+    shares_outstanding: float
+    liabilities: float
+    assets: float
+    margin_of_safety: float
+    book_value: float
+    eps: float
+    equity: float
+    pe: float

@@ -21,20 +21,26 @@ class Buffet:
             self.fin.add_analysis(analysis)
 
     def anlz(self, bal, close, inc) -> Analysis:
-        analysis = Analysis()
-        analysis.symbol = inc.symbol
-        analysis.date = inc.date
-        analysis.assets = bal.totalAssets
-        analysis.liabilities = bal.totalLiabilities
-        analysis.sharesOutstanding = inc.waso
-        analysis.netIncome = inc.netIncome
-        analysis.equity = bal.totalAssets - bal.totalLiabilities
-        analysis.eps = inc.netIncome / inc.waso
-        analysis.bookValue = analysis.equity / inc.waso
-        analysis.pe = close / analysis.eps
-        analysis.priceToBookValue = close / analysis.bookValue
-        analysis.buffetNumber = analysis.priceToBookValue * analysis.pe
         market_cap = (close * inc.waso)
-        analysis.marginOfSafety = analysis.equity / market_cap
+        equity = bal.totalAssets - bal.totalLiabilities
+        eps = inc.netIncome / inc.waso
+        bookValue = equity / inc.waso
+        priceToBookValue = close / bookValue
+        pe = close / eps
+        analysis = Analysis(
+            symbol=inc.symbol,
+            date=inc.date,
+            assets=bal.totalAssets,
+            liabilities=bal.totalLiabilities,
+            sharesOutstanding=inc.waso,
+            netIncome=inc.netIncome,
+            equity=equity,
+            eps=inc.netIncome / inc.waso,
+            bookValue=bookValue,
+            pe=close / eps,
+            priceToBookValue=close / bookValue,
+            buffetNumber=priceToBookValue * pe,
+            marginOfSafety=equity / market_cap
+        )
 
         return analysis
