@@ -1,5 +1,3 @@
-from typing import List
-
 from entity import Analysis
 from finrepo import FinancialRepository
 

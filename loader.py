@@ -7,26 +7,29 @@ from postgres import PostgresSqlClient
 from sql import InsecureSqlGenerator, Duplicate
 
 
-class StockLoader(object):
+class FinancialLoader(object):
     def __init__(self, fin_gate: FinancialGateway, fin_db: FinancialRepository):
         self.fin_db = fin_db
         self.fin_gate = fin_gate
 
+    def load(self, symbol: str):
+        income_statements = self.fin_gate.income_statement(symbol)
+        for i in income_statements:
+            try:
+                self.fin_db.add_income(i)
+            except Duplicate:
+                pass
+
+        balance_sheets = self.fin_gate.balance_sheet(symbol)
+        for b in balance_sheets:
+            try:
+                self.fin_db.add_balance_sheet(b)
+            except Duplicate:
+                pass
+
     def load_all(self):
         for symbol in self.fin_gate.get_stocks():
-            income_statements = self.fin_gate.income_statement(symbol)
-            for i in income_statements:
-                try:
-                    self.fin_db.add_income(i)
-                except Duplicate:
-                    pass
-
-            balance_sheets = self.fin_gate.balance_sheet(symbol)
-            for b in balance_sheets:
-                try:
-                    self.fin_db.add_balance_sheet(b)
-                except Duplicate:
-                    pass
+            self.load(symbol)
 
 
 def main():
@@ -41,7 +44,7 @@ def main():
                                               database = "mrmkt")
     sql = PostgresSqlClient(cnv, pool)
     pg = SqlFinancialRepository(sql)
-    loader = StockLoader(fin_gtwy, pg)
+    loader = FinancialLoader(fin_gtwy, pg)
     loader.load_all()
 
 

@@ -19,11 +19,13 @@ class FinancialGateway():
 
 
 class InMemoryFinancialGateway(FinancialGateway):
+    balances: dict
+    incomes: dict
+    close: dict
+    stocks: List[str]
+
     def __init__(self):
-        self.balances = dict()
-        self.incomes = dict()
-        self.close = dict()
-        self.stocks = []
+        self.clear()
 
     def addBalanceSheet(self, balance_sheet: BalanceSheet):
         self.balances[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
@@ -45,3 +47,19 @@ class InMemoryFinancialGateway(FinancialGateway):
 
     def get_stocks(self) -> Optional[List[str]]:
         return self.stocks
+
+    def delete_symbols(self, symbols: List[str]):
+        for symbol in symbols:
+            try:
+                self.stocks.remove(symbol)
+            except ValueError:
+                pass
+
+    def keep_symbols(self, symbols: List[str]):
+        self.stocks = list(symbol for symbol in self.stocks if symbol in symbols)
+
+    def clear(self):
+        self.balances = dict()
+        self.incomes = dict()
+        self.close = dict()
+        self.stocks = []
