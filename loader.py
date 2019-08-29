@@ -33,7 +33,7 @@ class FinancialLoader(object):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
     api = DefaultFmpApi()
     fin_gtwy = FMPFinancialGateway(api)
     cnv = InsecureSqlGenerator()
@@ -45,7 +45,7 @@ def main():
     sql = PostgresSqlClient(cnv, pool)
     pg = SqlFinancialRepository(sql)
     loader = FinancialLoader(fin_gtwy, pg)
-    loader.load_all()
+    loader.load('ENPH')
 
 
 if __name__ == "__main__":
