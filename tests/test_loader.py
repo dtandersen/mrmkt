@@ -1,23 +1,29 @@
 import unittest
+from typing import List
 
 from balance_sheet import BalanceSheet
 from financial import InMemoryFinancialGateway
 from income_statement import IncomeStatement
 from finrepo import InMemoryFinancialRepository
-from loader import FinancialLoader
+from loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
 
 
 class TestStringMethods(unittest.TestCase):
+    symbols: List[str]
+
     def setUp(self) -> None:
         self.fin_gate = InMemoryFinancialGateway()
         self.db = InMemoryFinancialRepository()
         self.loader = FinancialLoader(self.fin_gate, self.db)
+        self.symbols = []
 
     def test_load_multiple_symbols(self):
         self.addGoogleFinancials()
         self.addNvidiaFinancials()
 
-        self.loader.load_all()
+        self.execute()
+
+        self.assertEqual(self.symbols, ['GOOG', 'NVDA'])
 
         self.assertEqual(vars(IncomeStatement(
             symbol='GOOG',
@@ -50,7 +56,7 @@ class TestStringMethods(unittest.TestCase):
     def test_load_multiple_annual_statements(self):
         self.addAppleFinancials()
 
-        self.loader.load_all()
+        self.execute()
 
         self.assertEqual(vars(IncomeStatement(
             symbol='AAPL',
@@ -83,21 +89,7 @@ class TestStringMethods(unittest.TestCase):
     def test_dont_collide_with_existing(self):
         self.addAppleFinancials()
 
-        self.db.add_income(IncomeStatement(
-            symbol='AAPL',
-            date='2018-09-29',
-            netIncome=59531000000.0,
-            waso=5000109000.0
-        ))
-
-        self.db.add_balance_sheet(BalanceSheet(
-            symbol='AAPL',
-            date='2018-09-29',
-            totalAssets=365725000000.0,
-            totalLiabilities=258578000000.0
-        ))
-
-        self.loader.load_all()
+        self.execute()
 
         self.assertEqual(vars(IncomeStatement(
             symbol='AAPL',
@@ -116,7 +108,7 @@ class TestStringMethods(unittest.TestCase):
     def test_spy_has_no_financials(self):
         self.addSpyFinancials()
 
-        self.loader.load_all()
+        self.execute()
 
         self.assertEqual(self.db.income_statements, {})
         self.assertEqual(self.db.balance_sheets, {})
@@ -124,7 +116,7 @@ class TestStringMethods(unittest.TestCase):
     def test_load_goog(self):
         self.addGoogleFinancials()
 
-        self.loader.load('GOOG')
+        self.execute(symbol='GOOG')
 
         self.assertEqual(vars(IncomeStatement(
             symbol='GOOG',
@@ -139,6 +131,14 @@ class TestStringMethods(unittest.TestCase):
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
         )), vars(self.db.get_balance_sheet('GOOG', '2018-12')))
+
+    def execute(self, symbol: str = None):
+        self.result = FinancialLoaderResult()
+        self.result.on_load_symbol = self.capture_symbol
+        self.loader.run(FinancialLoaderRequest(symbol=symbol), self.result)
+
+    def capture_symbol(self, symbol: str):
+        self.symbols.append(symbol)
 
     def addGoogleFinancials(self):
         self.fin_gate.stocks.append('GOOG')
