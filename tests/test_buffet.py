@@ -1,9 +1,9 @@
 import unittest
 
-from balance_sheet import BalanceSheet
-from buffet import Buffet
-from finrepo import InMemoryFinancialRepository
-from income_statement import IncomeStatement
+from entity.balance_sheet import BalanceSheet
+from usecase.buffet import Buffet
+from common.finrepo import InMemoryFinancialRepository
+from entity.income_statement import IncomeStatement
 
 
 class TestStringMethods(unittest.TestCase):

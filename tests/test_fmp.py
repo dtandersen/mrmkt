@@ -2,9 +2,9 @@ import unittest
 from pathlib import Path
 import requests_mock
 
-from balance_sheet import BalanceSheet
-from fingtwy import FMPFinancialGateway, DefaultFmpApi
-from income_statement import IncomeStatement
+from entity.balance_sheet import BalanceSheet
+from ext.fmp import FMPFinancialGateway, DefaultFmpApi
+from entity.income_statement import IncomeStatement
 
 
 class TestFMPFinancialGateway(unittest.TestCase):

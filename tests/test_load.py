@@ -4,11 +4,11 @@ import io
 from contextlib import redirect_stdout
 
 from bootstrapper import CommandFactoryInjector
-from financial import TestFinancialGateway
-from finrepo import InMemoryFinancialRepository
+from common.financial import TestFinancialGateway
+from common.finrepo import InMemoryFinancialRepository
 from loader_app import LoaderApp
-from runner import AppRunner
-from command import TestMrMktCommandFactory
+from apprunner.runner import AppRunner
+from command_factory import TestMrMktCommandFactory
 
 
 class TestLoad(unittest.TestCase):

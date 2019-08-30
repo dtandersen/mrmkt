@@ -1,11 +1,11 @@
 import unittest
 from typing import List
 
-from balance_sheet import BalanceSheet
-from financial import TestFinancialGateway
-from income_statement import IncomeStatement
-from finrepo import InMemoryFinancialRepository
-from loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
+from entity.balance_sheet import BalanceSheet
+from common.financial import TestFinancialGateway
+from entity.income_statement import IncomeStatement
+from common.finrepo import InMemoryFinancialRepository
+from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
 
 
 class TestStringMethods(unittest.TestCase):

@@ -1,5 +1,5 @@
-from entity import Analysis
-from finrepo import FinancialRepository
+from common.finrepo import FinancialRepository
+from entity.analysis import Analysis
 
 
 class Buffet:

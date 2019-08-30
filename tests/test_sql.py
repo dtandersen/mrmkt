@@ -1,7 +1,7 @@
 import unittest
 from dataclasses import dataclass
 
-from sql import InsecureSqlGenerator
+from common.sql import InsecureSqlGenerator
 
 
 @dataclass

@@ -2,9 +2,9 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from balance_sheet import BalanceSheet
-from financial import FinancialGateway
-from income_statement import IncomeStatement
+from entity.balance_sheet import BalanceSheet
+from common.financial import FinancialGateway
+from entity.income_statement import IncomeStatement
 import requests
 
 

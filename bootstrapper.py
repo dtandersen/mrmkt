@@ -2,12 +2,12 @@ from typing import Type, List
 
 import psycopg2
 
-from fingtwy import DefaultFmpApi, FMPFinancialGateway
-from finrepo import SqlFinancialRepository
-from postgres import PostgresSqlClient
-from runner import App, AppRunner, Injector
-from sql import InsecureSqlGenerator
-from command import TestMrMktCommandFactory, MrMktCommandFactory
+from ext.fmp import DefaultFmpApi, FMPFinancialGateway
+from common.finrepo import SqlFinancialRepository
+from ext.postgres import PostgresSqlClient
+from apprunner.runner import App, AppRunner, Injector
+from common.sql import InsecureSqlGenerator
+from command_factory import TestMrMktCommandFactory, MrMktCommandFactory
 
 
 def prod_injector() -> Injector:

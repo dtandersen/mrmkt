@@ -1,7 +1,7 @@
 import logging
 import psycopg2
 from psycopg2.pool import AbstractConnectionPool
-from sql import SqlGenerator, SqlClient, Duplicate
+from common.sql import SqlGenerator, SqlClient, Duplicate
 
 
 class PostgresSqlClient(SqlClient):

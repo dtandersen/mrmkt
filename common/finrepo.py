@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import List
 
-from balance_sheet import BalanceSheet
-from entity import Analysis
-from income_statement import IncomeStatement
-from postgres import SqlClient
-from sql import Duplicate
+from entity.balance_sheet import BalanceSheet
+from entity.analysis import Analysis
+from entity.income_statement import IncomeStatement
+from ext.postgres import SqlClient
+from common.sql import Duplicate
 
 
 class FinancialRepository:

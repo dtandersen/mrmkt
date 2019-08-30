@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from balance_sheet import BalanceSheet
-from income_statement import IncomeStatement
+from entity.balance_sheet import BalanceSheet
+from entity.income_statement import IncomeStatement
 
 
 class FinancialGateway():

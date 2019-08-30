@@ -1,9 +1,9 @@
 import unittest
-from balance_sheet import BalanceSheet
-from entity import Analysis
-from finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow
-from income_statement import IncomeStatement
-from sql import MockSqlClient
+from entity.balance_sheet import BalanceSheet
+from common.finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow
+from entity.analysis import Analysis
+from entity.income_statement import IncomeStatement
+from common.sql import MockSqlClient
 
 
 class TestStringMethods(unittest.TestCase):
