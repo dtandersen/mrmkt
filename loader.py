@@ -1,11 +1,17 @@
+import logging
+
+import psycopg2
+import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List
+from typing import List, Type
 
 from financial import FinancialGateway
-from finrepo import FinancialRepository
+from fingtwy import FMPFinancialGateway, DefaultFmpApi
+from finrepo import FinancialRepository, SqlFinancialRepository
+from postgres import PostgresSqlClient
 from runner import App, AppRunner, Injector
-from sql import Duplicate
+from sql import Duplicate, InsecureSqlGenerator
 
 
 @dataclass
@@ -53,22 +59,31 @@ class FinancialLoader(object):
             self.load(symbol)
 
 
-class CommandFactory:
+class MrMktCommandFactory:
     @abstractmethod
     def loader(self) -> FinancialLoader:
         pass
 
 
-class MyInjector(Injector):
-    def __init__(self, commandFactory: CommandFactory):
-        self.commandFactory = commandFactory
+@dataclass
+class TestMrMktCommandFactory(MrMktCommandFactory):
+    fingate: FinancialGateway
+    findb: FinancialRepository
 
-    def inject(self, object):
-        object.commandFactory = self.commandFactory
+    def loader(self):
+        return FinancialLoader(self.fingate, self.findb)
+
+
+class CommandFactoryInjector(Injector):
+    def __init__(self, command_factory: MrMktCommandFactory):
+        self.commandFactory = command_factory
+
+    def inject(self, obj):
+        obj.commandFactory = self.commandFactory
 
 
 class LoaderMain(App):
-    commandFactory: CommandFactory
+    commandFactory: MrMktCommandFactory
 
     def run(self, args: List[str]):
         loader = self.commandFactory.loader()
@@ -85,8 +100,31 @@ class LoaderMain(App):
         print(f"Fetching {symbol}...")
 
 
+def prod_injector() -> Injector:
+    api = DefaultFmpApi()
+    fin_gtwy = FMPFinancialGateway(api)
+    cnv = InsecureSqlGenerator()
+    pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",
+                                              password="local",
+                                              host="127.0.0.1",
+                                              port="5432",
+                                              database="mrmkt")
+    sql = PostgresSqlClient(cnv, pool)
+    pg = SqlFinancialRepository(sql)
+    f = TestMrMktCommandFactory(fin_gtwy, pg)
+    injector = CommandFactoryInjector(f)
+    return injector
+
+
+def bootstrap(app: Type[App], args: List[str]):
+    runner = AppRunner(prod_injector())
+    runner.run(app, args)
+
+
 def main():
-    runner = AppRunner()
+    # logging.basicConfig(level=logging.DEBUG)
+    bootstrap(LoaderMain, sys.argv[1:])
+
 
 if __name__ == "__main__":
     main()

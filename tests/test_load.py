@@ -11,19 +11,10 @@ from finrepo import InMemoryFinancialRepository, FinancialRepository
 from runner import AppRunner
 
 
-@dataclass
-class TestCommandFactory(loader.CommandFactory):
-    fingate: FinancialGateway
-    findb: FinancialRepository
-
-    def loader(self):
-        return loader.FinancialLoader(self.fingate, self.findb)
-
-
 class TestLoad(unittest.TestCase):
     def test_appl(self):
         fingate = TestFinancialGateway()
-        injector = loader.MyInjector(TestCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
+        injector = loader.CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
         f = io.StringIO()
@@ -36,7 +27,7 @@ class TestLoad(unittest.TestCase):
         fingate = TestFinancialGateway()
         fingate.addGoogleFinancials()
         fingate.addNvidiaFinancials()
-        injector = loader.MyInjector(TestCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
+        injector = loader.CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
         f = io.StringIO()
