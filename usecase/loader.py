@@ -14,7 +14,11 @@ class FinancialLoaderResult:
         pass
 
 
-class FinancialLoader(object):
+class UseCase:
+    result: object
+
+
+class FinancialLoader(UseCase):
     result: FinancialLoaderResult
 
     def __init__(self, fin_gate: FinancialGateway, fin_db: FinancialRepository):
