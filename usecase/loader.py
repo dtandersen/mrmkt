@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from common.financial import FinancialGateway
+from common.fingate import FinancialGateway
 from common.finrepo import FinancialRepository
 from common.sql import Duplicate
 

@@ -4,8 +4,7 @@ from typing import List
 from entity.balance_sheet import BalanceSheet
 from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
-from ext.postgres import SqlClient
-from common.sql import Duplicate
+from common.sql import Duplicate, SqlClient
 
 
 class FinancialRepository:

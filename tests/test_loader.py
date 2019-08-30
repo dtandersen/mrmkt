@@ -2,7 +2,7 @@ import unittest
 from typing import List
 
 from entity.balance_sheet import BalanceSheet
-from common.financial import TestFinancialGateway
+from common.fingate import TestFinancialGateway
 from entity.income_statement import IncomeStatement
 from common.finrepo import InMemoryFinancialRepository
 from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult

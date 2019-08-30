@@ -2,7 +2,7 @@ from typing import Type, List
 
 import psycopg2
 
-from ext.fmp import DefaultFmpApi, FMPFinancialGateway
+from ext.fmp import FMPFinancialGateway, FmpApi
 from common.finrepo import SqlFinancialRepository
 from ext.postgres import PostgresSqlClient
 from apprunner.runner import App, AppRunner, Injector
@@ -11,7 +11,7 @@ from command_factory import TestMrMktCommandFactory, MrMktCommandFactory
 
 
 def prod_injector() -> Injector:
-    api = DefaultFmpApi()
+    api = FmpApi()
     fin_gtwy = FMPFinancialGateway(api)
     cnv = InsecureSqlGenerator()
     pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",

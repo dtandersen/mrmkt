@@ -4,7 +4,7 @@ import io
 from contextlib import redirect_stdout
 
 from bootstrapper import CommandFactoryInjector
-from common.financial import TestFinancialGateway
+from common.fingate import TestFinancialGateway
 from common.finrepo import InMemoryFinancialRepository
 from loader_app import LoaderApp
 from apprunner.runner import AppRunner

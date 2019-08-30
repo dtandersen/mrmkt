@@ -3,7 +3,7 @@ from pathlib import Path
 import requests_mock
 
 from entity.balance_sheet import BalanceSheet
-from ext.fmp import FMPFinancialGateway, DefaultFmpApi
+from ext.fmp import FMPFinancialGateway, FmpApi
 from entity.income_statement import IncomeStatement
 
 
@@ -11,7 +11,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_multiple_balance_sheets(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/AAPL?period=annual', text=Path('fmp/aapl-balance-sheet.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.balance_sheet('AAPL')
         self.assertEqual(vars(resp[0]), vars(BalanceSheet(
             symbol='AAPL',
@@ -24,7 +24,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_nvda_balance_sheet(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/NVDA?period=annual', text=Path('fmp/NVDA-balance-sheet.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.balance_sheet('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, '2019-01-27')
@@ -34,14 +34,14 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_spy_has_no_balance_sheet(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/SPY?period=annual', text="{}")
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.balance_sheet('SPY')
         self.assertEqual(resp, [])
 
     @requests_mock.Mocker()
     def test_multiple_income_sheets(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL?period=annual', text=Path('fmp/aapl-income.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('AAPL')
         self.assertEqual(vars(resp[0]),
             vars(IncomeStatement(
@@ -64,7 +64,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_nvda_income_statement(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/NVDA?period=annual', text=Path('fmp/NVDA-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, '2019-01-27')
@@ -74,14 +74,14 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_spy_has_no_income_statement(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/SPY?period=annual', text="{}")
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('SPY')
         self.assertEqual(resp, [])
 
     @requests_mock.Mocker()
     def test_cmcsa_has_no_waso_dil(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/CMCSA?period=annual',  text=Path('fmp/CMCSA-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('CMCSA')
         self.assertEqual(resp[0].symbol, 'CMCSA')
         self.assertEqual(resp[0].date, '2018-12-31')
@@ -91,7 +91,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_kmi_has_no_waso(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/KMI?period=annual',  text=Path('fmp/KMI-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('KMI')
         self.assertEqual(resp[0].symbol, 'KMI')
         self.assertEqual(resp[0].date, '2009-12-31')
@@ -101,20 +101,20 @@ class TestFMPFinancialGateway(unittest.TestCase):
     @requests_mock.Mocker()
     def test_price(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?serietype=line', text=Path('fmp/AAPL-historical.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         price = fmp.closing_price('AAPL', '2018-09-29')
         self.assertEqual(price, 223.1351)
 
     @requests_mock.Mocker()
     def test_price2(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA?serietype=line', text=Path('fmp/NVDA-historical.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         price = fmp.closing_price('NVDA', '2014-06-16')
         self.assertEqual(price, 18.6516)
 
     @requests_mock.Mocker()
     def test_get_stocks(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/company/stock/list', text=Path('fmp/symbols.json').read_text())
-        fmp = FMPFinancialGateway(DefaultFmpApi())
+        fmp = FMPFinancialGateway(FmpApi())
         symbols = fmp.get_stocks()
         self.assertEqual(symbols, ['SPY', 'CMCSA'])

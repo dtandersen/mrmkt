@@ -3,29 +3,29 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from entity.balance_sheet import BalanceSheet
-from common.financial import FinancialGateway
+from common.fingate import FinancialGateway
 from entity.income_statement import IncomeStatement
 import requests
 
 
+# class FmpApi:
+#     def get_balance_sheet_statement(self, symbol, period='annual'):
+#         pass
+#
+#     def get_income_statement(self, symbol, period='annual'):
+#         pass
+#
+#     def get_enterprise_value(self, symbol, period='annual'):
+#         pass
+#
+#     def get_historical_price_full(self, symbol):
+#         pass
+#
+#     def get_stocks(self) -> dict:
+#         pass
+
+
 class FmpApi:
-    def get_balance_sheet_statement(self, symbol, period='annual'):
-        pass
-
-    def get_income_statement(self, symbol, period='annual'):
-        pass
-
-    def get_enterprise_value(self, symbol, period='annual'):
-        pass
-
-    def get_historical_price_full(self, symbol):
-        pass
-
-    def get_stocks(self) -> dict:
-        pass
-
-
-class DefaultFmpApi(FmpApi):
     def get_balance_sheet_statement(self, symbol, period='annual'):
         json = requests \
             .get(f'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/{symbol}?period={period}') \

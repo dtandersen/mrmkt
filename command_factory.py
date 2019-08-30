@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from common.financial import FinancialGateway
+from common.fingate import FinancialGateway
 from common.finrepo import FinancialRepository
 from usecase.loader import FinancialLoader
 
