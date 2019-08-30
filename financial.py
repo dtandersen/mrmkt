@@ -63,3 +63,70 @@ class InMemoryFinancialGateway(FinancialGateway):
         self.incomes = dict()
         self.close = dict()
         self.stocks = []
+
+
+class TestFinancialGateway(InMemoryFinancialGateway):
+    def addGoogleFinancials(self):
+        self.stocks.append('GOOG')
+        self.addIncome(IncomeStatement(
+            symbol='GOOG',
+            date='2018-12',
+            netIncome=30736000000.0,
+            waso=750000000.0
+        ))
+
+        self.addBalanceSheet(BalanceSheet(
+            symbol='GOOG',
+            date='2018-12',
+            totalAssets=232792000000.0,
+            totalLiabilities=1264000000.0
+        ))
+
+    def addNvidiaFinancials(self):
+        self.stocks.append('NVDA')
+        self.addIncome(IncomeStatement(
+            symbol='NVDA',
+            date='2019-01-27',
+            netIncome=4141000000.0,
+            waso=625000000.0
+        ))
+
+        self.addBalanceSheet(BalanceSheet(
+            symbol='NVDA',
+            date='2019-01-27',
+            totalAssets=13292000000.0,
+            totalLiabilities=3950000000.0
+        ))
+
+    def addAppleFinancials(self):
+        self.stocks.append('AAPL')
+        self.addIncome(IncomeStatement(
+            symbol='AAPL',
+            date='2018-09-29',
+            netIncome=59531000000.0,
+            waso=5000109000.0
+        ))
+
+        self.addBalanceSheet(BalanceSheet(
+            symbol='AAPL',
+            date='2018-09-29',
+            totalAssets=365725000000.0,
+            totalLiabilities=258578000000.0
+        ))
+
+        self.addIncome(IncomeStatement(
+            symbol='AAPL',
+            date='2017-09-30',
+            netIncome=48351000000.0,
+            waso=5251692000.0
+        ))
+
+        self.addBalanceSheet(BalanceSheet(
+            symbol='AAPL',
+            date='2017-09-30',
+            totalAssets=375319000000.0,
+            totalLiabilities=241272000000.0
+        ))
+
+    def addSpyFinancials(self):
+        self.stocks.append('SPY')

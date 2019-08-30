@@ -1,12 +1,11 @@
+from abc import abstractmethod
 from dataclasses import dataclass
+from typing import List
 
-import psycopg2
-import logging
 from financial import FinancialGateway
-from finrepo import FinancialRepository, SqlFinancialRepository
-from fingtwy import DefaultFmpApi, FMPFinancialGateway
-from postgres import PostgresSqlClient
-from sql import InsecureSqlGenerator, Duplicate
+from finrepo import FinancialRepository
+from runner import App, AppRunner, Injector
+from sql import Duplicate
 
 
 @dataclass
@@ -54,23 +53,40 @@ class FinancialLoader(object):
             self.load(symbol)
 
 
-class LoaderMain:
-    def run(self):
-        logging.basicConfig(level=logging.DEBUG)
-        api = DefaultFmpApi()
-        fin_gtwy = FMPFinancialGateway(api)
-        cnv = InsecureSqlGenerator()
-        pool = psycopg2.pool.SimpleConnectionPool(1, 20,user = "postgres",
-                                                  password = "local",
-                                                  host = "127.0.0.1",
-                                                  port = "5432",
-                                                  database = "mrmkt")
-        sql = PostgresSqlClient(cnv, pool)
-        pg = SqlFinancialRepository(sql)
-        loader = FinancialLoader(fin_gtwy, pg)
-        loader.run(FinancialLoaderRequest(symbol='ENPH'), FinancialLoaderResult())
+class CommandFactory:
+    @abstractmethod
+    def loader(self) -> FinancialLoader:
+        pass
 
 
-# if __name__ == "__main__":
-#     lm = LoaderMain()
-#     lm.run()
+class MyInjector(Injector):
+    def __init__(self, commandFactory: CommandFactory):
+        self.commandFactory = commandFactory
+
+    def inject(self, object):
+        object.commandFactory = self.commandFactory
+
+
+class LoaderMain(App):
+    commandFactory: CommandFactory
+
+    def run(self, args: List[str]):
+        loader = self.commandFactory.loader()
+        result = FinancialLoaderResult()
+        result.on_load_symbol = self.print_symbol
+        if len(args) > 0:
+            symbol = args[0]
+        else:
+            symbol = None
+        loader.run(FinancialLoaderRequest(symbol=symbol), result)
+
+    @staticmethod
+    def print_symbol(symbol: str):
+        print(f"Fetching {symbol}...")
+
+
+def main():
+    runner = AppRunner()
+
+if __name__ == "__main__":
+    main()
