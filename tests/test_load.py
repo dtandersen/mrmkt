@@ -1,25 +1,25 @@
 import unittest
 import io
-from dataclasses import dataclass
-from typing import List, Type
 
-import loader
 from contextlib import redirect_stdout
 
-from financial import TestFinancialGateway, FinancialGateway
-from finrepo import InMemoryFinancialRepository, FinancialRepository
+from bootstrapper import CommandFactoryInjector
+from financial import TestFinancialGateway
+from finrepo import InMemoryFinancialRepository
+from loader_app import LoaderApp
 from runner import AppRunner
+from command import TestMrMktCommandFactory
 
 
 class TestLoad(unittest.TestCase):
     def test_appl(self):
         fingate = TestFinancialGateway()
-        injector = loader.CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
+        injector = CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
         f = io.StringIO()
         with redirect_stdout(f):
-            runner.run(loader.LoaderMain, ['AAPL'])
+            runner.run(LoaderApp, ['AAPL'])
 
         self.assertEqual("Fetching AAPL...\n", f.getvalue())
 
@@ -27,12 +27,12 @@ class TestLoad(unittest.TestCase):
         fingate = TestFinancialGateway()
         fingate.addGoogleFinancials()
         fingate.addNvidiaFinancials()
-        injector = loader.CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
+        injector = CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
         f = io.StringIO()
         with redirect_stdout(f):
-            runner.run(loader.LoaderMain, [])
+            runner.run(LoaderApp, [])
 
         self.assertEqual("Fetching GOOG...\n" +
                          "Fetching NVDA...\n",
