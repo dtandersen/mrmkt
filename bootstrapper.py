@@ -7,7 +7,7 @@ from common.finrepo import SqlFinancialRepository
 from ext.postgres import PostgresSqlClient
 from apprunner.runner import App, AppRunner, Injector
 from common.sql import InsecureSqlGenerator
-from command_factory import TestMrMktCommandFactory, MrMktCommandFactory
+from use_case_factory import TestMrMktUseCaseFactory, MrMktUseCaseFactory
 
 
 def prod_injector() -> Injector:
@@ -21,8 +21,8 @@ def prod_injector() -> Injector:
                                               database="mrmkt")
     sql = PostgresSqlClient(cnv, pool)
     pg = SqlFinancialRepository(sql)
-    f = TestMrMktCommandFactory(fin_gtwy, pg)
-    injector = CommandFactoryInjector(f)
+    f = TestMrMktUseCaseFactory(fin_gtwy, pg)
+    injector = UseCaseFactoryInjector(f)
     return injector
 
 
@@ -31,9 +31,9 @@ def bootstrap(app: Type[App], args: List[str]):
     runner.run(app, args)
 
 
-class CommandFactoryInjector(Injector):
-    def __init__(self, command_factory: MrMktCommandFactory):
+class UseCaseFactoryInjector(Injector):
+    def __init__(self, command_factory: MrMktUseCaseFactory):
         self.commandFactory = command_factory
 
     def inject(self, obj):
-        obj.commandFactory = self.commandFactory
+        obj.use_case_factory = self.commandFactory

@@ -135,7 +135,7 @@ class TestStringMethods(unittest.TestCase):
     def execute(self, symbol: str = None):
         self.result = FinancialLoaderResult()
         self.result.on_load_symbol = self.capture_symbol
-        self.loader.run(FinancialLoaderRequest(symbol=symbol), self.result)
+        self.loader.execute(FinancialLoaderRequest(symbol=symbol), self.result)
 
     def capture_symbol(self, symbol: str):
         self.symbols.append(symbol)

@@ -1,39 +1,61 @@
+import inspect
+import textwrap
 import unittest
 import io
 
 from contextlib import redirect_stdout
+from typing import List
 
-from bootstrapper import CommandFactoryInjector
+from bootstrapper import UseCaseFactoryInjector
 from common.fingate import TestFinancialGateway
 from common.finrepo import InMemoryFinancialRepository
-from loader_app import LoaderApp
+from fetch import FetchFinancialsApp
 from apprunner.runner import AppRunner
-from command_factory import TestMrMktCommandFactory
+from use_case_factory import TestMrMktUseCaseFactory
 
 
 class TestLoad(unittest.TestCase):
-    def test_appl(self):
-        fingate = TestFinancialGateway()
-        injector = CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
+    def setUp(self):
+        self.fingate = TestFinancialGateway()
+
+    def test_fetch_apple(self):
+        self.execute(['AAPL'])
+
+        self.thenConsoleIs('''\
+                           Fetching AAPL...
+                           ''')
+
+    def test_fetch_nvidia_and_google(self):
+        self.givenGoogleFinancials()
+        self.givenNvidiaFinancials()
+
+        self.execute()
+
+        self.thenConsoleIs('''\
+                           Fetching GOOG...
+                           Fetching NVDA...
+                           ''')
+
+    def givenNvidiaFinancials(self):
+        self.fingate.addNvidiaFinancials()
+
+    def givenGoogleFinancials(self):
+        self.fingate.addGoogleFinancials()
+
+    def execute(self, args: List[str] = None):
+        if args is None:
+            args = []
+
+        injector = UseCaseFactoryInjector(TestMrMktUseCaseFactory(
+            fingate=self.fingate,
+            findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
-        f = io.StringIO()
-        with redirect_stdout(f):
-            runner.run(LoaderApp, ['AAPL'])
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            runner.run(FetchFinancialsApp, args)
 
-        self.assertEqual("Fetching AAPL...\n", f.getvalue())
+        self.console = stdout.getvalue()
 
-    def test_nvda_goog(self):
-        fingate = TestFinancialGateway()
-        fingate.addGoogleFinancials()
-        fingate.addNvidiaFinancials()
-        injector = CommandFactoryInjector(TestMrMktCommandFactory(fingate=fingate, findb=InMemoryFinancialRepository()))
-        runner = AppRunner(injector)
-
-        f = io.StringIO()
-        with redirect_stdout(f):
-            runner.run(LoaderApp, [])
-
-        self.assertEqual("Fetching GOOG...\n" +
-                         "Fetching NVDA...\n",
-                         f.getvalue())
+    def thenConsoleIs(self, expected: str):
+        self.assertEqual(self.console, textwrap.dedent(expected))

@@ -4,11 +4,11 @@ from typing import List
 from bootstrapper import bootstrap
 from usecase.loader import FinancialLoaderResult, FinancialLoaderRequest
 from apprunner.runner import App
-from command_factory import MrMktCommandFactory
+from use_case_factory import MrMktUseCaseFactory
 
 
-class LoaderApp(App):
-    commandFactory: MrMktCommandFactory
+class FetchFinancialsApp(App):
+    use_case_factory: MrMktUseCaseFactory
 
     def run(self, args: List[str]):
         result = FinancialLoaderResult()
@@ -18,8 +18,8 @@ class LoaderApp(App):
         else:
             symbol = None
 
-        loader = self.commandFactory.loader()
-        loader.run(FinancialLoaderRequest(symbol=symbol), result)
+        usecase = self.use_case_factory.fetch_financials()
+        usecase.execute(FinancialLoaderRequest(symbol=symbol), result)
 
     @staticmethod
     def print_symbol(symbol: str):
@@ -27,7 +27,7 @@ class LoaderApp(App):
 
 
 def main():
-    bootstrap(LoaderApp, sys.argv[1:])
+    bootstrap(FetchFinancialsApp, sys.argv[1:])
 
 
 if __name__ == "__main__":

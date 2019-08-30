@@ -21,7 +21,7 @@ class FinancialLoader(object):
         self.fin_db = fin_db
         self.fin_gate = fin_gate
 
-    def run(self, request: FinancialLoaderRequest, result: FinancialLoaderResult):
+    def execute(self, request: FinancialLoaderRequest, result: FinancialLoaderResult):
         self.result = result
         if request.symbol is not None:
             self.load(request.symbol)

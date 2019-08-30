@@ -6,16 +6,16 @@ from common.finrepo import FinancialRepository
 from usecase.loader import FinancialLoader
 
 
-class MrMktCommandFactory:
+class MrMktUseCaseFactory:
     @abstractmethod
-    def loader(self) -> FinancialLoader:
+    def fetch_financials(self) -> FinancialLoader:
         pass
 
 
 @dataclass
-class TestMrMktCommandFactory(MrMktCommandFactory):
+class TestMrMktUseCaseFactory(MrMktUseCaseFactory):
     fingate: FinancialGateway
     findb: FinancialRepository
 
-    def loader(self):
+    def fetch_financials(self):
         return FinancialLoader(self.fingate, self.findb)
