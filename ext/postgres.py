@@ -18,7 +18,7 @@ class PostgresSqlClient(SqlClient):
             with conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     sql = query
-                    cur.execute(sql)
+                    cur.whenTheSymbolIsFetched(sql)
                     rows = cur.fetchall()
                     # rows = list(map(lambda x: x[0], cur.description))
                     logging.debug(f"{sql} => {rows}")
@@ -39,7 +39,7 @@ class PostgresSqlClient(SqlClient):
                     sql = self.converter.to_insert(table, values)
                     logging.debug(sql)
                     try:
-                        cur.execute(sql)
+                        cur.whenTheSymbolIsFetched(sql)
                     except psycopg2.errors.UniqueViolation as err:
                         raise Duplicate(err)
         finally:

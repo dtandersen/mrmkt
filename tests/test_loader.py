@@ -6,6 +6,7 @@ from common.fingate import TestFinancialGateway
 from entity.income_statement import IncomeStatement
 from common.finrepo import InMemoryFinancialRepository
 from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
+from hamcrest import *
 
 
 class TestStringMethods(unittest.TestCase):
@@ -18,124 +19,136 @@ class TestStringMethods(unittest.TestCase):
         self.symbols = []
 
     def test_load_multiple_symbols(self):
-        self.fin_gate.addGoogleFinancials()
-        self.fin_gate.addNvidiaFinancials()
+        self.givenGoogleFinancials()
+        self.givenNvidiaFinancials()
 
-        self.execute()
+        # self.fin_gate.add_prices()
+
+        self.whenTheSymbolIsFetched()
 
         self.assertEqual(self.symbols, ['GOOG', 'NVDA'])
 
-        self.assertEqual(vars(IncomeStatement(
+        assert_that(self.incomeStatementFor('GOOG', '2018-12'), equal_to(IncomeStatement(
             symbol='GOOG',
             date='2018-12',
             netIncome=30736000000.0,
-            waso=750000000.0
-        )), vars(self.db.get_income_statement('GOOG', '2018-12')))
+            waso=750000000)))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('GOOG', '2018-12'), equal_to(BalanceSheet(
             symbol='GOOG',
             date='2018-12',
             totalAssets=232792000000.0,
-            totalLiabilities=1264000000.0
-        )), vars(self.db.get_balance_sheet('GOOG', '2018-12')))
+            totalLiabilities=1264000000.0)))
 
-        self.assertEqual(vars(IncomeStatement(
+        assert_that(self.incomeStatementFor('NVDA', '2019-01-27'), equal_to(IncomeStatement(
             symbol='NVDA',
             date='2019-01-27',
             netIncome=4141000000.0,
-            waso=625000000.0
-        )), vars(self.db.get_income_statement('NVDA', '2019-01-27')))
+            waso=625000000
+        )))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('NVDA', '2019-01-27'), equal_to(BalanceSheet(
             symbol='NVDA',
             date='2019-01-27',
             totalAssets=13292000000.0,
             totalLiabilities=3950000000.0
-        )), vars(self.db.get_balance_sheet('NVDA', '2019-01-27')))
+        )))
 
     def test_load_multiple_annual_statements(self):
-        self.fin_gate.addAppleFinancials()
+        self.givenAppleFinancials()
 
-        self.execute()
+        self.whenTheSymbolIsFetched()
 
-        self.assertEqual(vars(IncomeStatement(
+        assert_that(self.incomeStatementFor('AAPL', '2018-09-29'), equal_to(IncomeStatement(
             symbol='AAPL',
             date='2018-09-29',
             netIncome=59531000000.0,
-            waso=5000109000.0
-        )), vars(self.db.get_income_statement('AAPL', '2018-09-29')))
+            waso=5000109000
+        )))
 
-        self.assertEqual(vars(IncomeStatement(
+        assert_that(self.incomeStatementFor('AAPL', '2017-09-30'), equal_to(IncomeStatement(
             symbol='AAPL',
             date='2017-09-30',
             netIncome=48351000000.0,
-            waso=5251692000.0
-        )), vars(self.db.get_income_statement('AAPL', '2017-09-30')))
+            waso=5251692000
+        )))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
             symbol='AAPL',
             date='2018-09-29',
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
-        )), vars(self.db.get_balance_sheet('AAPL', '2018-09-29')))
+        )))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('AAPL', '2017-09-30'), equal_to(BalanceSheet(
             symbol='AAPL',
             date='2017-09-30',
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
-        )), vars(self.db.get_balance_sheet('AAPL', '2017-09-30')))
+        )))
 
-    def test_dont_collide_with_existing(self):
+    def givenAppleFinancials(self):
         self.fin_gate.addAppleFinancials()
 
-        self.execute()
+    def test_dont_collide_with_existing(self):
+        self.givenAppleFinancials()
 
-        self.assertEqual(vars(IncomeStatement(
+        self.whenTheSymbolIsFetched()
+
+        assert_that(self.incomeStatementFor('AAPL', '2018-09-29'), equal_to(IncomeStatement(
             symbol='AAPL',
             date='2018-09-29',
             netIncome=59531000000.0,
-            waso=5000109000.0
-        )), vars(self.db.get_income_statement('AAPL', '2018-09-29')))
+            waso=5000109000
+        )))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
             symbol='AAPL',
             date='2018-09-29',
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
-        )), vars(self.db.get_balance_sheet('AAPL', '2018-09-29')))
+        )))
 
     def test_spy_has_no_financials(self):
         self.fin_gate.addSpyFinancials()
 
-        self.execute()
+        self.whenTheSymbolIsFetched()
 
         self.assertEqual(self.db.income_statements, {})
         self.assertEqual(self.db.balance_sheets, {})
 
     def test_load_goog(self):
-        self.fin_gate.addGoogleFinancials()
+        self.givenGoogleFinancials()
 
-        self.execute(symbol='GOOG')
+        self.whenTheSymbolIsFetched(symbol='GOOG')
 
-        self.assertEqual(vars(IncomeStatement(
+        assert_that(self.incomeStatementFor('GOOG', '2018-12'), equal_to(IncomeStatement(
             symbol='GOOG',
             date='2018-12',
             netIncome=30736000000.0,
-            waso=750000000.0
-        )), vars(self.db.get_income_statement('GOOG', '2018-12')))
+            waso=750000000
+        )))
 
-        self.assertEqual(vars(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('GOOG', '2018-12'), equal_to(BalanceSheet(
             symbol='GOOG',
             date='2018-12',
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
-        )), vars(self.db.get_balance_sheet('GOOG', '2018-12')))
+        )))
 
-    def execute(self, symbol: str = None):
+    def whenTheSymbolIsFetched(self, symbol: str = None):
         self.result = FinancialLoaderResult()
         self.result.on_load_symbol = self.capture_symbol
         self.loader.execute(FinancialLoaderRequest(symbol=symbol), self.result)
 
     def capture_symbol(self, symbol: str):
         self.symbols.append(symbol)
+
+    def incomeStatementFor(self, symbol: str, date: str) -> IncomeStatement:
+        return self.db.get_income_statement(symbol, date)
+
+    def givenNvidiaFinancials(self):
+        self.fin_gate.addNvidiaFinancials()
+
+    def givenGoogleFinancials(self):
+        self.fin_gate.addGoogleFinancials()
