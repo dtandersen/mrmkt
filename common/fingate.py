@@ -1,20 +1,30 @@
+from abc import abstractmethod
 from typing import List, Optional
 
 from entity.balance_sheet import BalanceSheet
 from entity.income_statement import IncomeStatement
+from entity.stock_price import StockPrice
 
 
-class FinancialGateway():
+class FinancialGateway:
+    @abstractmethod
     def balance_sheet(self, symbol) -> List[BalanceSheet]:
         pass
 
+    @abstractmethod
     def income_statement(self, symbol) -> List[IncomeStatement]:
         pass
 
+    @abstractmethod
     def closing_price(self, symbol, date) -> Optional[IncomeStatement]:
         pass
 
+    @abstractmethod
     def get_stocks(self) -> Optional[List[str]]:
+        pass
+
+    @abstractmethod
+    def get_daily_prices(self, symbol: str) -> List[StockPrice]:
         pass
 
 

@@ -7,56 +7,43 @@ from common.fingate import FinancialGateway
 from entity.income_statement import IncomeStatement
 import requests
 
-
-# class FmpApi:
-#     def get_balance_sheet_statement(self, symbol, period='annual'):
-#         pass
-#
-#     def get_income_statement(self, symbol, period='annual'):
-#         pass
-#
-#     def get_enterprise_value(self, symbol, period='annual'):
-#         pass
-#
-#     def get_historical_price_full(self, symbol):
-#         pass
-#
-#     def get_stocks(self) -> dict:
-#         pass
+from entity.stock_price import StockPrice
 
 
 class FmpApi:
+    endpoint: str = "https://financialmodelingprep.com/api/v3"
+
     def get_balance_sheet_statement(self, symbol, period='annual'):
         json = requests \
-            .get(f'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/{symbol}?period={period}') \
+            .get(f'{self.endpoint}/financials/balance-sheet-statement/{symbol}?period={period}') \
             .json()
         logging.debug(json)
         return json
 
     def get_income_statement(self, symbol, period='annual'):
         json = requests \
-            .get(f'https://financialmodelingprep.com/api/v3/financials/income-statement/{symbol}?period={period}') \
+            .get(f'{self.endpoint}/financials/income-statement/{symbol}?period={period}') \
             .json()
         logging.debug(json)
         return json
 
     def get_enterprise_value(self, symbol, period='annual'):
         json = requests \
-            .get(f'https://financialmodelingprep.com/api/v3/enterprise-value/{symbol}?period={period}') \
+            .get(f'{self.endpoint}/enterprise-value/{symbol}?period={period}') \
             .json()
         logging.debug(json)
         return json
 
     def get_historical_price_full(self, symbol):
         json = requests \
-            .get(f'https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?serietype=line') \
+            .get(f'{self.endpoint}/historical-price-full/{symbol}') \
             .json()
         logging.debug(json)
         return json
 
     def get_stocks(self):
         json = requests \
-            .get('https://financialmodelingprep.com/api/v3/company/stock/list') \
+            .get(f'{self.endpoint}/company/stock/list') \
             .json()
         logging.debug(json)
         return json
@@ -88,7 +75,8 @@ class FMPFinancialGateway(FinancialGateway):
         return list(map(lambda i: self.cnvt_income(symbol, i), json['financials']))
 
     def cnvt_income(self, symbol: str, income_stmt_json) -> IncomeStatement:
-        if 'Weighted Average Shs Out (Dil)' in income_stmt_json and income_stmt_json['Weighted Average Shs Out (Dil)'] is not "":
+        if 'Weighted Average Shs Out (Dil)' in income_stmt_json \
+                and income_stmt_json['Weighted Average Shs Out (Dil)'] is not "":
             waso2 = float(income_stmt_json['Weighted Average Shs Out (Dil)'])
         elif 'Weighted Average Shs Out' in income_stmt_json and income_stmt_json['Weighted Average Shs Out'] is not "":
             waso2 = float(income_stmt_json['Weighted Average Shs Out'])
@@ -123,3 +111,19 @@ class FMPFinancialGateway(FinancialGateway):
     @staticmethod
     def find(prices, date):
         return next((x for x in prices if x['date'] == date), None)
+
+    def get_daily_prices(self, symbol: str) -> List[StockPrice]:
+        json = self.fmp_api.get_historical_price_full(symbol)
+        return [FMPFinancialGateway.map_price(row, symbol) for row in json["historical"]]
+
+    @staticmethod
+    def map_price(json, symbol: str) -> StockPrice:
+        return StockPrice(
+            symbol=symbol,
+            date=json["date"],
+            open=json["open"],
+            high=json["high"],
+            low=json["low"],
+            close=json["close"],
+            volume=json["volume"]
+        )

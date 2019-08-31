@@ -1,0 +1,30 @@
+{
+  "symbol" : "AAPL",
+  "historical" : [ {
+    "date" : "2014-06-13",
+    "open" : 84.5035,
+    "high" : 84.7235,
+    "low" : 83.2937,
+    "close" : 83.6603,
+    "volume" : 5.452528E7,
+    "unadjustedVolume" : 5.452528E7,
+    "change" : -0.925693,
+    "changePercent" : -1.094,
+    "vwap" : 83.9228,
+    "label" : "Jun 13, 14",
+    "changeOverTime" : 0.0
+  }, {
+    "date" : "2014-06-16",
+    "open" : 83.8711,
+    "high" : 85.0076,
+    "low" : 83.8161,
+    "close" : 84.5035,
+    "volume" : 3.556127E7,
+    "unadjustedVolume" : 3.556127E7,
+    "change" : 0.843204,
+    "changePercent" : 1.008,
+    "vwap" : 84.4144,
+    "label" : "Jun 16, 14",
+    "changeOverTime" : 0.010078854606067583
+  } ]
+}

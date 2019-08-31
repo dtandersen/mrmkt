@@ -1,0 +1,17 @@
+{
+  "symbol" : "NVDA",
+  "historical" : [ {
+    "date" : "2014-06-13",
+    "open" : 18.8814,
+    "high" : 18.891,
+    "low" : 18.5272,
+    "close" : 18.7091,
+    "volume" : 5696281.0,
+    "unadjustedVolume" : 5696281.0,
+    "change" : 0.019148,
+    "changePercent" : 0.102,
+    "vwap" : 18.6953,
+    "label" : "Jun 13, 14",
+    "changeOverTime" : 0.0
+  } ]
+}
