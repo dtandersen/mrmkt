@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List
 
@@ -8,30 +9,39 @@ from common.sql import Duplicate, SqlClient
 
 
 class FinancialRepository:
+    @abstractmethod
     def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
         pass
 
+    @abstractmethod
     def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
         pass
 
+    @abstractmethod
     def add_income(self, income_statement: IncomeStatement) -> None:
         pass
 
+    @abstractmethod
     def get_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
         pass
 
+    @abstractmethod
     def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
         pass
 
+    @abstractmethod
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
         pass
 
+    @abstractmethod
     def get_closing_price(self, symbol, date: str) -> float:
         pass
 
+    @abstractmethod
     def add_close_price(self, symbol: str, date: str, price_close: float) -> None:
         pass
 
+    @abstractmethod
     def add_analysis(self, analysis: Analysis):
         pass
 
@@ -90,6 +100,19 @@ class SqlFinancialRepository(FinancialRepository):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
 
+    def get_balance_sheets(self, symbol: str):
+        return self.sql_client.select("select * " +
+                                      "from balance_sheet "
+                                      f"where symbol = '{symbol}'",
+                                      self.to_balance_sheet)
+
+    def to_balance_sheet(self, row):
+        return BalanceSheet(
+            symbol=row["symbol"],
+            date=row["date"],
+            totalAssets=row["total_assets"],
+            totalLiabilities=row["total_liabilities"])
+
     def add_balance_sheet(self, balance_sheet: BalanceSheet):
         row = BalanceSheetRow(
             symbol=balance_sheet.symbol,
@@ -99,6 +122,20 @@ class SqlFinancialRepository(FinancialRepository):
         )
 
         self.sql_client.insert("balance_sheet", row)
+
+    def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
+        return self.sql_client.select("select * " +
+                                      "from income_stmt "
+                                      f"where symbol = '{symbol}'",
+                                      self.to_income_statement)
+
+    def to_income_statement(self, row):
+        return IncomeStatement(
+            symbol=row["symbol"],
+            date=row["date"],
+            netIncome=row["net_income"],
+            waso=row["waso"]
+        )
 
     def add_income(self, income_statement: IncomeStatement):
         row = IncomeStatementRow(

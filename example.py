@@ -1,12 +1,32 @@
-from usecase.buffet import Buffet
-from ext.fmp import FMPFinancialGateway
+import logging
 
-symbol = 'alb'
-fmp = FMPFinancialGateway()
-bal = fmp.balance_sheet(symbol)
-inc = fmp.income_statement(symbol)
-buf = Buffet(fmp)
-x = buf.analyze(inc)
+import psycopg2
+
+from common.finrepo import SqlFinancialRepository
+from common.sql import InsecureSqlGenerator
+from ext.postgres import PostgresSqlClient
+from usecase.buffet import Buffet
+from ext.fmp import FMPFinancialGateway, FmpApi
+logging.basicConfig(level=logging.DEBUG)
+# api = FmpApi()
+# fin_gtwy = FMPFinancialGateway(api)
+cnv = InsecureSqlGenerator()
+pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",
+                                          password="local",
+                                          host="127.0.0.1",
+                                          port="5432",
+                                          database="mrmkt")
+sql = PostgresSqlClient(cnv, pool)
+pg = SqlFinancialRepository(sql)
+# f = TestMrMktUseCaseFactory(fin_gtwy, pg)
+# injector = UseCaseFactoryInjector(f)
+symbol = 'IBIO'
+# fmp = FMPFinancialGateway(FmpApi())
+# db =
+# bal = fmp.balance_sheet(symbol)
+# inc = fmp.income_statement(symbol)
+buf = Buffet(pg)
+buf.analyze(symbol)
 print(f'  symbol={x.symbol}')
 print(f'  date={x.date}')
 print(f'  assets={x.assets}')

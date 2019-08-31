@@ -1,21 +1,38 @@
 import dataclasses
+import logging
+from abc import abstractmethod
 from dataclasses import asdict
-from typing import List
+from typing import List, Callable
 
 
 class SqlClient:
+    @abstractmethod
     def insert(self, table: str, values: any):
+        pass
+
+    @abstractmethod
+    def select(self, query: str, mapper: Callable[[dict], object]):
         pass
 
 
 class MockSqlClient(SqlClient):
     inserts: List[dict]
+    selects: dict
 
     def __init__(self):
         self.inserts = []
+        self.selects = {}
+
+    def select(self, query: str, mapper: Callable[[dict], object]):
+        # logging.debug("{query} => {rows}")
+        rows = [mapper(row) for row in self.selects[query]]
+        return rows
 
     def insert(self, table: str, values: any):
         self.inserts.append({"table": table, "values": values})
+
+    def append_select(self, query: str, rows: list):
+        self.selects[query] = [asdict(row) for row in rows]
 
 
 class SqlGenerator:
