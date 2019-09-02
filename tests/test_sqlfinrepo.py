@@ -1,15 +1,19 @@
+import datetime
 import unittest
 from entity.balance_sheet import BalanceSheet
-from common.finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow
+from common.finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow
 from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
 from common.sql import MockSqlClient
+from entity.stock_price import StockPrice
+from tests.canned import CannedData
 
 
 class TestStringMethods(unittest.TestCase):
     def setUp(self) -> None:
         self.client = MockSqlClient()
         self.db = SqlFinancialRepository(self.client)
+        self.canned = CannedData()
 
     def test_insert_balance(self):
         self.db.add_balance_sheet(BalanceSheet(
@@ -80,6 +84,49 @@ class TestStringMethods(unittest.TestCase):
                 eps=9,
                 equity=10,
                 pe=11
+            )
+        }])
+
+    def test_get_price(self):
+        self.client.append_select("select * " +
+                                  "from daily_price "
+                                  "where symbol = 'GOOG' "
+                                  "and date = '2014-06-13'",
+                                  [PriceRow(
+                                      symbol='GOOG',
+                                      date=datetime.date(2014, 6, 13),
+                                      open=552.26,
+                                      high=552.3,
+                                      low=545.56,
+                                      close=551.76,
+                                      volume=1217176.0
+                                  )])
+
+        prices = self.db.get_price("GOOG", "2014-06-13")
+        self.assertEqual(vars(prices[0]),
+                         vars(StockPrice(
+                             symbol='GOOG',
+                             date=datetime.date(2014, 6, 13),
+                             open=552.26,
+                             high=552.3,
+                             low=545.56,
+                             close=551.76,
+                             volume=1217176.0
+                         )))
+
+    def test_insert_price(self):
+        self.db.add_price(self.canned.get_price('GOOG', '2014-06-13'))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "daily_price",
+            "values": PriceRow(
+                symbol='GOOG',
+                date=datetime.date(2014, 6, 13),
+                open=552.26,
+                high=552.3,
+                low=545.56,
+                close=551.76,
+                volume=1217176.0
             )
         }])
 
@@ -157,14 +204,14 @@ class TestStringMethods(unittest.TestCase):
                          vars(BalanceSheet(
                              symbol='AAPL',
                              date='2018-09-29',
-                             totalAssets =365725000000.0,
+                             totalAssets=365725000000.0,
                              totalLiabilities=258578000000
                          )))
         self.assertEqual(vars(balance_sheets[1]),
                          vars(BalanceSheet(
                              symbol='AAPL',
                              date='2017-09-30',
-                             totalAssets =375319000000.0,
+                             totalAssets=375319000000.0,
                              totalLiabilities=241272000000
                          )))
 
@@ -186,6 +233,6 @@ class TestStringMethods(unittest.TestCase):
                          vars(BalanceSheet(
                              symbol='NVDA',
                              date='2019-01-27',
-                             totalAssets =13292000000.0,
+                             totalAssets=13292000000.0,
                              totalLiabilities=3950000000.0
                          )))

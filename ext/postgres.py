@@ -39,7 +39,7 @@ class PostgresSqlClient(SqlClient):
                     sql = self.converter.to_insert(table, values)
                     logging.debug(sql)
                     try:
-                        cur.whenTheSymbolIsFetched(sql)
+                        cur.execute(sql)
                     except psycopg2.errors.UniqueViolation as err:
                         raise Duplicate(err)
         finally:

@@ -1,7 +1,7 @@
 CREATE TABLE public.daily_price
 (
     symbol character varying,
-    date character varying,
+    date date,
     open double precision,
     close double precision,
     high double precision,

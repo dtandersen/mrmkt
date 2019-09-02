@@ -1,3 +1,4 @@
+import datetime
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List
@@ -62,6 +63,7 @@ class InMemoryFinancialRepository(FinancialRepository):
         self.closing_prices = {}
         self.analysis = {}
         self.prices = {}
+        self.stocks = []
 
     def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
         return list(filter(lambda i: i.symbol == symbol, self.income_statements.values()))
@@ -185,8 +187,37 @@ class SqlFinancialRepository(FinancialRepository):
 
         self.sql_client.insert("analysis", row)
 
+    def add_price(self, price: StockPrice):
+        row = PriceRow(
+            symbol=price.symbol,
+            date=price.date,
+            open=price.open,
+            high=price.high,
+            low=price.low,
+            close=price.close,
+            volume=price.volume)
+
+        self.sql_client.insert("daily_price", row)
+
     def get_price(self, symbol: str, date: str) -> StockPrice:
-        raise NotImplementedError
+        rows = self.sql_client.select("select * " +
+                                      "from daily_price " +
+                                      f"where symbol = '{symbol}' " +
+                                      f"and date = '{date}'",
+                                      self.price_mapper)
+
+        return rows
+
+    def price_mapper(self, row):
+        return StockPrice(
+            symbol='GOOG',
+            date=datetime.date(2014, 6, 13),
+            open=552.26,
+            high=552.3,
+            low=545.56,
+            close=551.76,
+            volume=1217176.0
+        )
 
 
 @dataclass
@@ -220,3 +251,14 @@ class AnalysisRow:
     eps: float
     equity: float
     pe: float
+
+
+@dataclass
+class PriceRow:
+    symbol: str
+    date: datetime.date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
