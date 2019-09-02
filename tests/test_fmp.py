@@ -6,6 +6,7 @@ from entity.balance_sheet import BalanceSheet
 from entity.stock_price import StockPrice
 from ext.fmp import FMPFinancialGateway, FmpApi
 from entity.income_statement import IncomeStatement
+from tests.test_sqlfinrepo import to_date
 
 
 class TestFMPFinancialGateway(unittest.TestCase):
@@ -18,7 +19,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         resp = fmp.balance_sheet('AAPL')
         self.assertEqual(vars(resp[0]), vars(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=to_date('2018-09-29'),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         )))
@@ -32,7 +33,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.balance_sheet('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
-        self.assertEqual(resp[0].date, '2019-01-27')
+        self.assertEqual(resp[0].date, to_date('2019-01-27'))
         self.assertEqual(resp[0].totalLiabilities, 3950000000.0)
         self.assertEqual(resp[0].totalAssets, 13292000000.0)
 
@@ -54,16 +55,16 @@ class TestFMPFinancialGateway(unittest.TestCase):
         self.assertEqual(vars(resp[0]),
                          vars(IncomeStatement(
                              symbol='AAPL',
-                             date='2018-09-29',
-                             waso=5000109000.0,
+                             date=to_date('2018-09-29'),
+                             waso=5000109000,
                              netIncome=59531000000.0
                          ))
                          )
         self.assertEqual(vars(resp[1]),
                          vars(IncomeStatement(
                              symbol='AAPL',
-                             date='2017-09-30',
-                             waso=5251692000.0,
+                             date=to_date('2017-09-30'),
+                             waso=5251692000,
                              netIncome=48351000000.0
                          )
                          ))
@@ -76,7 +77,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
-        self.assertEqual(resp[0].date, '2019-01-27')
+        self.assertEqual(resp[0].date, to_date('2019-01-27'))
         self.assertEqual(resp[0].waso, 625000000.0)
         self.assertEqual(resp[0].netIncome, 4141000000.0)
 
@@ -96,7 +97,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('CMCSA')
         self.assertEqual(resp[0].symbol, 'CMCSA')
-        self.assertEqual(resp[0].date, '2018-12-31')
+        self.assertEqual(resp[0].date, to_date('2018-12-31'))
         self.assertEqual(resp[0].waso, 4549504769.0)
         self.assertEqual(resp[0].netIncome, 11731000000.0)
 
@@ -107,7 +108,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         fmp = FMPFinancialGateway(FmpApi())
         resp = fmp.income_statement('KMI')
         self.assertEqual(resp[0].symbol, 'KMI')
-        self.assertEqual(resp[0].date, '2009-12-31')
+        self.assertEqual(resp[0].date, to_date('2009-12-31'))
         self.assertEqual(resp[0].waso, 0)
         self.assertEqual(resp[0].netIncome, 495000000.0)
 
@@ -143,7 +144,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         price = fmp.get_daily_prices('NVDA')
         self.assertEqual(vars(price[0]), vars(StockPrice(
             symbol="NVDA",
-            date="2014-06-13",
+            date=to_date("2014-06-13"),
             open=18.8814,
             high=18.891,
             low=18.5272,
@@ -159,7 +160,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         price = fmp.get_daily_prices('AAPL')
         self.assertEqual(vars(price[0]), vars(StockPrice(
             symbol="AAPL",
-            date="2014-06-13",
+            date=to_date("2014-06-13"),
             open=84.5035,
             high=84.7235,
             low=83.2937,
@@ -168,7 +169,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         )))
         self.assertEqual(vars(price[1]), vars(StockPrice(
             symbol="AAPL",
-            date="2014-06-16",
+            date=to_date("2014-06-16"),
             open=83.8711,
             high=85.0076,
             low=83.8161,

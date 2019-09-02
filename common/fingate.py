@@ -1,3 +1,4 @@
+import datetime
 from abc import abstractmethod
 from typing import List, Optional
 
@@ -82,8 +83,9 @@ class InMemoryFinancialGateway(FinancialGateway):
     def add_price(self, price: StockPrice):
         self.prices[self.key(price.symbol, price.date)] = price
 
-    def key(self, symbol: str, date: str):
-        return f"{symbol}-{date}"
+    def key(self, symbol: str, date: datetime.date):
+        d = date.strftime("%Y-%m-%d")
+        return f"{symbol}-{d}"
 
 
 class TestFinancialGateway(InMemoryFinancialGateway):
@@ -91,14 +93,14 @@ class TestFinancialGateway(InMemoryFinancialGateway):
         self.stocks.append('GOOG')
         self.addIncome(IncomeStatement(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
             waso=750000000
         ))
 
         self.addBalanceSheet(BalanceSheet(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
         ))
@@ -107,14 +109,14 @@ class TestFinancialGateway(InMemoryFinancialGateway):
         self.stocks.append('NVDA')
         self.addIncome(IncomeStatement(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             netIncome=4141000000.0,
             waso=625000000
         ))
 
         self.addBalanceSheet(BalanceSheet(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             totalAssets=13292000000.0,
             totalLiabilities=3950000000.0
         ))
@@ -123,28 +125,28 @@ class TestFinancialGateway(InMemoryFinancialGateway):
         self.stocks.append('AAPL')
         self.addIncome(IncomeStatement(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
             waso=5000109000
         ))
 
         self.addBalanceSheet(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         ))
 
         self.addIncome(IncomeStatement(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
             waso=5251692000
         ))
 
         self.addBalanceSheet(BalanceSheet(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
         ))

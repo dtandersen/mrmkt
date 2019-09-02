@@ -7,6 +7,7 @@ from common.fingate import TestFinancialGateway
 from entity.income_statement import IncomeStatement
 from common.finrepo import InMemoryFinancialRepository
 from entity.stock_price import StockPrice
+from tests.test_sqlfinrepo import to_date
 from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
 from hamcrest import *
 
@@ -30,53 +31,53 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertEqual(self.symbols, ['GOOG', 'NVDA'])
 
-        assert_that(self.incomeStatementFor('GOOG', '2018-12'), equal_to(IncomeStatement(
+        assert_that(self.incomeStatementFor('GOOG', '2018-12-01'), equal_to(IncomeStatement(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
             waso=750000000)))
 
-        assert_that(self.db.get_balance_sheet('GOOG', '2018-12'), equal_to(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('GOOG', '2018-12-01'), equal_to(BalanceSheet(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0)))
 
         assert_that(self.incomeStatementFor('NVDA', '2019-01-27'), equal_to(IncomeStatement(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             netIncome=4141000000.0,
             waso=625000000
         )))
 
         assert_that(self.db.get_balance_sheet('NVDA', '2019-01-27'), equal_to(BalanceSheet(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             totalAssets=13292000000.0,
             totalLiabilities=3950000000.0
         )))
 
-        assert_that(self.price_of('GOOG', '2014-06-13'), equal_to(StockPrice(
+        assert_that(self.price_of('GOOG', to_date('2014-06-13')), equal_to(StockPrice(
             symbol='GOOG',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=552.26,
             high=552.3,
             low=545.56,
             close=551.76,
             volume=1217176.0
         )))
-        assert_that(self.price_of('GOOG', '2014-06-16'), equal_to(StockPrice(
+        assert_that(self.price_of('GOOG', to_date('2014-06-16')), equal_to(StockPrice(
             symbol='GOOG',
-            date='2014-06-16',
+            date=datetime.date(2014, 6, 16),
             open=549.26,
             high=549.62,
             low=541.52,
             close=544.28,
             volume=1704027.0
         )))
-        assert_that(self.price_of('NVDA', '2014-06-13'), equal_to(StockPrice(
+        assert_that(self.price_of('NVDA', to_date('2014-06-13')), equal_to(StockPrice(
             symbol='NVDA',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=18.8814,
             high=18.891,
             low=18.5272,
@@ -91,28 +92,28 @@ class TestStringMethods(unittest.TestCase):
 
         assert_that(self.incomeStatementFor('AAPL', '2018-09-29'), equal_to(IncomeStatement(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
             waso=5000109000
         )))
 
         assert_that(self.incomeStatementFor('AAPL', '2017-09-30'), equal_to(IncomeStatement(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
             waso=5251692000
         )))
 
         assert_that(self.db.get_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         )))
 
         assert_that(self.db.get_balance_sheet('AAPL', '2017-09-30'), equal_to(BalanceSheet(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
         )))
@@ -123,35 +124,35 @@ class TestStringMethods(unittest.TestCase):
 
         self.db.add_income(IncomeStatement(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
             waso=5000109000
         ))
 
         self.db.add_balance_sheet(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         ))
 
         self.db.add_income(IncomeStatement(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
             waso=5251692000
         ))
 
         self.db.add_balance_sheet(BalanceSheet(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
         ))
 
         self.db.add_price(StockPrice(
             symbol='AAPL',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=84.5035,
             high=84.7235,
             low=83.2937,
@@ -163,21 +164,21 @@ class TestStringMethods(unittest.TestCase):
 
         assert_that(self.incomeStatementFor('AAPL', '2018-09-29'), equal_to(IncomeStatement(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
             waso=5000109000
         )))
 
         assert_that(self.db.get_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         )))
 
-        assert_that(self.price_of('AAPL', '2014-06-13'), equal_to(StockPrice(
+        assert_that(self.price_of('AAPL', to_date('2014-06-13')), equal_to(StockPrice(
             symbol='AAPL',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=84.5035,
             high=84.7235,
             low=83.2937,
@@ -199,16 +200,16 @@ class TestStringMethods(unittest.TestCase):
 
         self.whenTheSymbolIsFetched(symbol='GOOG')
 
-        assert_that(self.incomeStatementFor('GOOG', '2018-12'), equal_to(IncomeStatement(
+        assert_that(self.incomeStatementFor('GOOG', '2018-12-01'), equal_to(IncomeStatement(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
             waso=750000000
         )))
 
-        assert_that(self.db.get_balance_sheet('GOOG', '2018-12'), equal_to(BalanceSheet(
+        assert_that(self.db.get_balance_sheet('GOOG', '2018-12-01'), equal_to(BalanceSheet(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018,12, 1),
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
         )))
@@ -230,13 +231,13 @@ class TestStringMethods(unittest.TestCase):
     def givenGoogleFinancials(self):
         self.fin_gate.addGoogleFinancials()
 
-    def price_of(self, symbol: str, date: str) -> StockPrice:
+    def price_of(self, symbol: str, date: datetime.date) -> StockPrice:
         return self.db.get_price(symbol, date)
 
     def add_nvidia_prices(self):
         self.fin_gate.add_price(StockPrice(
             symbol='NVDA',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=18.8814,
             high=18.891,
             low=18.5272,
@@ -247,7 +248,7 @@ class TestStringMethods(unittest.TestCase):
     def add_apple_prices(self):
         self.fin_gate.add_price(StockPrice(
             symbol='AAPL',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=84.5035,
             high=84.7235,
             low=83.2937,
@@ -258,7 +259,7 @@ class TestStringMethods(unittest.TestCase):
     def add_google_prices(self):
         self.fin_gate.add_price(StockPrice(
             symbol='GOOG',
-            date='2014-06-13',
+            date=datetime.date(2014, 6, 13),
             open=552.26,
             high=552.3,
             low=545.56,
@@ -267,7 +268,7 @@ class TestStringMethods(unittest.TestCase):
         ))
         self.fin_gate.add_price(StockPrice(
             symbol='GOOG',
-            date='2014-06-16',
+            date=datetime.date(2014, 6, 16),
             open=549.26,
             high=549.62,
             low=541.52,

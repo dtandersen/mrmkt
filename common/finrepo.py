@@ -36,14 +36,6 @@ class FinancialRepository:
         pass
 
     @abstractmethod
-    def get_closing_price(self, symbol, date: str) -> float:
-        pass
-
-    @abstractmethod
-    def add_close_price(self, symbol: str, date: str, price_close: float) -> None:
-        pass
-
-    @abstractmethod
     def add_analysis(self, analysis: Analysis):
         pass
 
@@ -60,7 +52,6 @@ class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
         self.income_statements = {}
         self.balance_sheets = {}
-        self.closing_prices = {}
         self.analysis = {}
         self.prices = {}
         self.stocks = []
@@ -89,14 +80,16 @@ class InMemoryFinancialRepository(FinancialRepository):
 
         self.balance_sheets[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
 
-    def get_closing_price(self, symbol, date: str):
-        return self.closing_prices[self.key(symbol, date)]
-
-    def add_close_price(self, symbol: str, date: str, price_close: float):
-        if self.key(symbol, date) in self.closing_prices:
-            raise Duplicate("Duplicate: " + self.key(symbol, date))
-
-        self.closing_prices[f"{symbol}-{date}"] = price_close
+    def add_close_price(self, symbol: str, date: datetime.date, price_close: float):
+        self.add_price(StockPrice(
+            symbol=symbol,
+            date=date,
+            close=price_close,
+            open=0,
+            high=0,
+            low=0,
+            volume=0
+            ))
 
     def get_analysis(self, symbol: str) -> List[Analysis]:
         return [analysis for analysis in self.analysis.values() if analysis.symbol == symbol]
@@ -104,8 +97,10 @@ class InMemoryFinancialRepository(FinancialRepository):
     def add_analysis(self, analysis: Analysis):
         self.analysis[self.key(analysis.symbol, analysis.date)] = analysis
 
-    def key(self, symbol: str, date: str) -> str:
-        return f"{symbol}-{date}"
+    def key(self, symbol: str, date: datetime.date) -> str:
+        d = date.strftime("%Y-%m-%d")
+        # d = datetime.date.fromisoformat()
+        return f"{symbol}-{d}"
 
     def add_price(self, price: StockPrice):
         if self.key(price.symbol, price.date) in self.prices:
@@ -113,7 +108,7 @@ class InMemoryFinancialRepository(FinancialRepository):
 
         self.prices[self.key(price.symbol, price.date)] = price
 
-    def get_price(self, symbol, date: str):
+    def get_price(self, symbol, date: datetime.date):
         return self.prices[self.key(symbol, date)]
 
 
@@ -210,20 +205,20 @@ class SqlFinancialRepository(FinancialRepository):
 
     def price_mapper(self, row):
         return StockPrice(
-            symbol='GOOG',
-            date=datetime.date(2014, 6, 13),
-            open=552.26,
-            high=552.3,
-            low=545.56,
-            close=551.76,
-            volume=1217176.0
+            symbol=row["symbol"],
+            date=row["date"],
+            open=row["open"],
+            high=row["high"],
+            low=row["low"],
+            close=row["close"],
+            volume=row["volume"]
         )
 
 
 @dataclass
 class BalanceSheetRow:
     symbol: str
-    date: str
+    date: datetime.date
     total_assets: float
     total_liabilities: float
 
@@ -231,7 +226,7 @@ class BalanceSheetRow:
 @dataclass
 class IncomeStatementRow:
     symbol: str
-    date: str
+    date: datetime.date
     net_income: float
     waso: int
 
@@ -239,7 +234,7 @@ class IncomeStatementRow:
 @dataclass
 class AnalysisRow:
     symbol: str
-    date: str
+    date: datetime.date
     net_income: float
     buffet_number: float
     price_to_book_value: float

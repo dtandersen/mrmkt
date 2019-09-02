@@ -18,14 +18,14 @@ class CannedData(InMemoryFinancialRepository):
         self.stocks.append('GOOG')
         self.add_income(IncomeStatement(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
             waso=750000000
         ))
 
         self.add_balance_sheet(BalanceSheet(
             symbol='GOOG',
-            date='2018-12',
+            date=datetime.date(2018, 12, 1),
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
         ))
@@ -54,14 +54,14 @@ class CannedData(InMemoryFinancialRepository):
         self.stocks.append('NVDA')
         self.add_income(IncomeStatement(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             netIncome=4141000000.0,
             waso=625000000
         ))
 
         self.add_balance_sheet(BalanceSheet(
             symbol='NVDA',
-            date='2019-01-27',
+            date=datetime.date(2019, 1, 27),
             totalAssets=13292000000.0,
             totalLiabilities=3950000000.0
         ))
@@ -70,28 +70,28 @@ class CannedData(InMemoryFinancialRepository):
         self.stocks.append('AAPL')
         self.add_income(IncomeStatement(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
             waso=5000109000
         ))
 
         self.add_balance_sheet(BalanceSheet(
             symbol='AAPL',
-            date='2018-09-29',
+            date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0
         ))
 
         self.add_income(IncomeStatement(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
             waso=5251692000
         ))
 
         self.add_balance_sheet(BalanceSheet(
             symbol='AAPL',
-            date='2017-09-30',
+            date=datetime.date(2017, 9, 30),
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
         ))

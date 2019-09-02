@@ -1,9 +1,10 @@
+import datetime
 from dataclasses import dataclass
 
 
 @dataclass
 class BalanceSheet:
-    date: str
     symbol: str
+    date: datetime.date
     totalAssets: float
     totalLiabilities: float

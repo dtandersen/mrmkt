@@ -1,6 +1,7 @@
 import unittest
 
 from entity.balance_sheet import BalanceSheet
+from tests.test_sqlfinrepo import to_date
 from usecase.buffet import Buffet
 from common.finrepo import InMemoryFinancialRepository
 from entity.income_statement import IncomeStatement
@@ -11,45 +12,45 @@ class TestStringMethods(unittest.TestCase):
         self.finrepo = InMemoryFinancialRepository()
         self.finrepo.add_income(IncomeStatement(
             symbol='ICECREAM',
-            date='2019-08-04',
+            date=to_date('2019-08-04'),
             netIncome=20000,
             waso=10000
         ))
 
         self.finrepo.add_income(IncomeStatement(
             symbol='ICECREAM',
-            date='2020-08-04',
+            date=to_date('2020-08-04'),
             netIncome=30000,
             waso=12500
         ))
         self.finrepo.add_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
-            date='2019-08-04',
+            date=to_date('2019-08-04'),
             totalAssets=44000,
             totalLiabilities=37000
         ))
         self.finrepo.add_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
-            date='2020-08-04',
+            date=to_date('2020-08-04'),
             totalAssets=48000,
             totalLiabilities=36000
         ))
-        self.finrepo.add_close_price('ICECREAM', '2019-08-04', 10)
-        self.finrepo.add_close_price('ICECREAM', '2020-08-04', 12)
+        self.finrepo.add_close_price('ICECREAM', to_date('2019-08-04'), 10)
+        self.finrepo.add_close_price('ICECREAM', to_date('2020-08-04'), 12)
 
         self.finrepo.add_income(IncomeStatement(
             symbol='PIZZA',
-            date='2020-02-20',
+            date=to_date('2020-02-20'),
             netIncome=15000,
             waso=1000
         ))
         self.finrepo.add_balance_sheet(BalanceSheet(
             symbol='PIZZA',
-            date='2020-02-20',
+            date=to_date('2020-02-20'),
             totalAssets=5000,
             totalLiabilities=12500
         ))
-        self.finrepo.add_close_price('PIZZA', '2020-02-20', 5)
+        self.finrepo.add_close_price('PIZZA', to_date('2020-02-20'), 5)
 
         self.buf = Buffet(self.finrepo)
 
@@ -60,7 +61,7 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertEqual(vars(res[0]), {
             "symbol": 'ICECREAM',
-            "date": '2019-08-04',
+            "date": to_date('2019-08-04'),
             "equity": 7000,
             "netIncome": 20000,
             "eps": 2,
@@ -78,7 +79,7 @@ class TestStringMethods(unittest.TestCase):
             'assets': 48000,
             'bookValue': 0.96,
             'buffetNumber': 62.5,
-            'date': '2020-08-04',
+            'date': to_date('2020-08-04'),
             'eps': 2.4,
             'equity': 12000,
             'liabilities': 36000,
@@ -96,7 +97,7 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertEqual(vars(res[0]), {
             "symbol": 'PIZZA',
-            "date": '2020-02-20',
+            "date": to_date('2020-02-20'),
             "equity": -7500,
             "netIncome": 15000,
             "eps": 15,

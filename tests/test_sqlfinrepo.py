@@ -114,8 +114,35 @@ class TestStringMethods(unittest.TestCase):
                              volume=1217176.0
                          )))
 
+    def test_get_price2(self):
+        self.client.append_select("select * " +
+                                  "from daily_price "
+                                  "where symbol = 'AAPL' "
+                                  "and date = '2014-06-16'",
+                                  [PriceRow(
+                                      symbol='AAPL',
+                                      date=datetime.date(2014, 6, 16),
+                                      open=83.8711,
+                                      high=85.0076,
+                                      low=83.8161,
+                                      close=84.5035,
+                                      volume=3.556127E7
+                                  )])
+
+        prices = self.db.get_price("AAPL", "2014-06-16")
+        self.assertEqual(vars(prices[0]),
+                         vars(StockPrice(
+                             symbol='AAPL',
+                             date=datetime.date(2014, 6, 16),
+                             open=83.8711,
+                             high=85.0076,
+                             low=83.8161,
+                             close=84.5035,
+                             volume=3.556127E7
+                         )))
+
     def test_insert_price(self):
-        self.db.add_price(self.canned.get_price('GOOG', '2014-06-13'))
+        self.db.add_price(self.canned.get_price('GOOG', datetime.date(2014, 6, 13)))
 
         self.assertEqual(self.client.inserts, [{
             "table": "daily_price",
@@ -137,13 +164,13 @@ class TestStringMethods(unittest.TestCase):
                                   [
                                       IncomeStatementRow(
                                           symbol='AAPL',
-                                          date='2018-09-29',
+                                          date=datetime.date(2018, 9, 29),
                                           net_income=59531000000.0,
                                           waso=5000109000
                                       ),
                                       IncomeStatementRow(
                                           symbol='AAPL',
-                                          date='2017-09-30',
+                                          date=datetime.datetime.strptime('2017-09-30', '%Y-%m-%d'),
                                           net_income=48351000000.0,
                                           waso=5251692000
                                       )
@@ -153,7 +180,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(vars(income_statements[0]),
                          vars(IncomeStatement(
                              symbol='AAPL',
-                             date='2018-09-29',
+                             date=to_date('2018-09-29'),
                              netIncome=59531000000.0,
                              waso=5000109000
                          )))
@@ -165,7 +192,7 @@ class TestStringMethods(unittest.TestCase):
                                   [
                                       IncomeStatementRow(
                                           symbol='NVDA',
-                                          date='2019-01-27',
+                                          date=to_date('2019-01-27'),
                                           net_income=4141000000.0,
                                           waso=625000000
                                       )
@@ -175,7 +202,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(vars(income_statements[0]),
                          vars(IncomeStatement(
                              symbol='NVDA',
-                             date='2019-01-27',
+                             date=to_date('2019-01-27'),
                              netIncome=4141000000.0,
                              waso=625000000
                          )))
@@ -187,13 +214,13 @@ class TestStringMethods(unittest.TestCase):
                                   [
                                       BalanceSheetRow(
                                           symbol='AAPL',
-                                          date='2018-09-29',
+                                          date=to_date('2018-09-29'),
                                           total_assets=365725000000.0,
                                           total_liabilities=258578000000.0
                                       ),
                                       BalanceSheetRow(
                                           symbol='AAPL',
-                                          date='2017-09-30',
+                                          date=to_date('2017-09-30'),
                                           total_assets=375319000000.0,
                                           total_liabilities=241272000000.0
                                       )
@@ -203,14 +230,14 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(vars(balance_sheets[0]),
                          vars(BalanceSheet(
                              symbol='AAPL',
-                             date='2018-09-29',
+                             date=to_date('2018-09-29'),
                              totalAssets=365725000000.0,
                              totalLiabilities=258578000000
                          )))
         self.assertEqual(vars(balance_sheets[1]),
                          vars(BalanceSheet(
                              symbol='AAPL',
-                             date='2017-09-30',
+                             date=to_date('2017-09-30'),
                              totalAssets=375319000000.0,
                              totalLiabilities=241272000000
                          )))
@@ -222,7 +249,7 @@ class TestStringMethods(unittest.TestCase):
                                   [
                                       BalanceSheetRow(
                                           symbol='NVDA',
-                                          date='2019-01-27',
+                                          date=to_date('2019-01-27'),
                                           total_assets=13292000000.0,
                                           total_liabilities=3950000000.0
                                       )
@@ -232,7 +259,14 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(vars(balance_sheets[0]),
                          vars(BalanceSheet(
                              symbol='NVDA',
-                             date='2019-01-27',
+                             date=to_date('2019-01-27'),
                              totalAssets=13292000000.0,
                              totalLiabilities=3950000000.0
                          )))
+
+
+def to_date(d: str) -> datetime.date:
+    try:
+        return datetime.date.fromisoformat(d)
+    except ValueError:
+        return datetime.date.fromisoformat(d + "-01")

@@ -8,6 +8,7 @@ from entity.income_statement import IncomeStatement
 import requests
 
 from entity.stock_price import StockPrice
+from tests.test_sqlfinrepo import to_date
 
 
 class FmpApi:
@@ -63,7 +64,7 @@ class FMPFinancialGateway(FinancialGateway):
     def cnvt_balance(self, symbol: str, balance_sheet_json) -> BalanceSheet:
         return BalanceSheet(
             symbol=symbol,
-            date=balance_sheet_json['date'],
+            date=to_date(balance_sheet_json['date']),
             totalAssets=float(balance_sheet_json['Total assets']),
             totalLiabilities=float(balance_sheet_json['Total liabilities']))
 
@@ -85,7 +86,7 @@ class FMPFinancialGateway(FinancialGateway):
 
         return IncomeStatement(
             symbol=symbol,
-            date=income_stmt_json['date'],
+            date=to_date(income_stmt_json['date']),
             netIncome=float(income_stmt_json['Net Income']),
             waso=waso2
         )
@@ -120,7 +121,7 @@ class FMPFinancialGateway(FinancialGateway):
     def map_price(json, symbol: str) -> StockPrice:
         return StockPrice(
             symbol=symbol,
-            date=json["date"],
+            date=to_date(json["date"]),
             open=json["open"],
             high=json["high"],
             low=json["low"],

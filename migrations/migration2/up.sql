@@ -1,7 +1,7 @@
 CREATE TABLE public.analysis
 (
     symbol character varying,
-    date character varying,
+    date date,
     net_income double precision,
     buffet_number double precision,
     price_to_book_value double precision,

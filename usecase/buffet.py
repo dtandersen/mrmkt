@@ -13,7 +13,8 @@ class Buffet:
         for i in range(len(inc2)):
             inc = inc2[i]
             bal = next((x for x in bal2 if x.date == inc.date), None)
-            close = self.fin.get_closing_price(inc.symbol, inc.date)
+            price = self.fin.get_price(inc.symbol, inc.date)
+            close = price.close
 
             analysis = self.anlz(bal, close, inc)
             self.fin.add_analysis(analysis)
