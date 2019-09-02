@@ -48,6 +48,13 @@ class FinancialLoader(UseCase):
             except Duplicate:
                 pass
 
+        prices = self.fin_gate.get_daily_prices(symbol)
+        for price in prices:
+            try:
+                self.fin_db.add_price(price)
+            except Duplicate:
+                pass
+
     def load_all(self):
         for symbol in self.fin_gate.get_stocks():
             self.load(symbol)

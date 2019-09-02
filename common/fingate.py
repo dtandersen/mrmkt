@@ -33,6 +33,7 @@ class InMemoryFinancialGateway(FinancialGateway):
     incomes: dict
     close: dict
     stocks: List[str]
+    prices: dict
 
     def __init__(self):
         self.clear()
@@ -73,6 +74,16 @@ class InMemoryFinancialGateway(FinancialGateway):
         self.incomes = dict()
         self.close = dict()
         self.stocks = []
+        self.prices = dict()
+
+    def get_daily_prices(self, symbol: str) -> List[StockPrice]:
+        return [price for price in self.prices.values() if price.symbol == symbol]
+
+    def add_price(self, price: StockPrice):
+        self.prices[self.key(price.symbol, price.date)] = price
+
+    def key(self, symbol: str, date: str):
+        return f"{symbol}-{date}"
 
 
 class TestFinancialGateway(InMemoryFinancialGateway):
@@ -82,7 +93,7 @@ class TestFinancialGateway(InMemoryFinancialGateway):
             symbol='GOOG',
             date='2018-12',
             netIncome=30736000000.0,
-            waso=750000000.0
+            waso=750000000
         ))
 
         self.addBalanceSheet(BalanceSheet(
@@ -98,7 +109,7 @@ class TestFinancialGateway(InMemoryFinancialGateway):
             symbol='NVDA',
             date='2019-01-27',
             netIncome=4141000000.0,
-            waso=625000000.0
+            waso=625000000
         ))
 
         self.addBalanceSheet(BalanceSheet(
@@ -114,7 +125,7 @@ class TestFinancialGateway(InMemoryFinancialGateway):
             symbol='AAPL',
             date='2018-09-29',
             netIncome=59531000000.0,
-            waso=5000109000.0
+            waso=5000109000
         ))
 
         self.addBalanceSheet(BalanceSheet(
@@ -128,7 +139,7 @@ class TestFinancialGateway(InMemoryFinancialGateway):
             symbol='AAPL',
             date='2017-09-30',
             netIncome=48351000000.0,
-            waso=5251692000.0
+            waso=5251692000
         ))
 
         self.addBalanceSheet(BalanceSheet(

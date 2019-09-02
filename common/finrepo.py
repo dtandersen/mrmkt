@@ -6,6 +6,7 @@ from entity.balance_sheet import BalanceSheet
 from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
 from common.sql import Duplicate, SqlClient
+from entity.stock_price import StockPrice
 
 
 class FinancialRepository:
@@ -45,6 +46,14 @@ class FinancialRepository:
     def add_analysis(self, analysis: Analysis):
         pass
 
+    @abstractmethod
+    def get_price(self, symbol: str, date: str) -> StockPrice:
+        pass
+
+    @abstractmethod
+    def add_price(self, price: StockPrice):
+        pass
+
 
 class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
@@ -52,6 +61,7 @@ class InMemoryFinancialRepository(FinancialRepository):
         self.balance_sheets = {}
         self.closing_prices = {}
         self.analysis = {}
+        self.prices = {}
 
     def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
         return list(filter(lambda i: i.symbol == symbol, self.income_statements.values()))
@@ -94,6 +104,15 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def key(self, symbol: str, date: str) -> str:
         return f"{symbol}-{date}"
+
+    def add_price(self, price: StockPrice):
+        if self.key(price.symbol, price.date) in self.prices:
+            raise Duplicate("Duplicate: " + self.key(price.symbol, price.date))
+
+        self.prices[self.key(price.symbol, price.date)] = price
+
+    def get_price(self, symbol, date: str):
+        return self.prices[self.key(symbol, date)]
 
 
 class SqlFinancialRepository(FinancialRepository):
@@ -165,6 +184,9 @@ class SqlFinancialRepository(FinancialRepository):
         )
 
         self.sql_client.insert("analysis", row)
+
+    def get_price(self, symbol: str, date: str) -> StockPrice:
+        raise NotImplementedError
 
 
 @dataclass
