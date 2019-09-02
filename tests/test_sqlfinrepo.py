@@ -102,8 +102,8 @@ class TestStringMethods(unittest.TestCase):
                                       volume=1217176.0
                                   )])
 
-        prices = self.db.get_price("GOOG", "2014-06-13")
-        self.assertEqual(vars(prices[0]),
+        price = self.db.get_price("GOOG", "2014-06-13")
+        self.assertEqual(vars(price),
                          vars(StockPrice(
                              symbol='GOOG',
                              date=datetime.date(2014, 6, 13),
@@ -129,8 +129,8 @@ class TestStringMethods(unittest.TestCase):
                                       volume=3.556127E7
                                   )])
 
-        prices = self.db.get_price("AAPL", "2014-06-16")
-        self.assertEqual(vars(prices[0]),
+        price = self.db.get_price("AAPL", "2014-06-16")
+        self.assertEqual(vars(price),
                          vars(StockPrice(
                              symbol='AAPL',
                              date=datetime.date(2014, 6, 16),

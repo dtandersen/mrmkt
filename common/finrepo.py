@@ -201,7 +201,7 @@ class SqlFinancialRepository(FinancialRepository):
                                       f"and date = '{date}'",
                                       self.price_mapper)
 
-        return rows
+        return rows[0]
 
     def price_mapper(self, row):
         return StockPrice(

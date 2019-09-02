@@ -1,7 +1,11 @@
+import datetime
 from dataclasses import dataclass
+from typing import List
+
 from common.fingate import FinancialGateway
 from common.finrepo import FinancialRepository
 from common.sql import Duplicate
+from entity.stock_price import StockPrice
 
 
 @dataclass
@@ -34,6 +38,13 @@ class FinancialLoader(UseCase):
 
     def load(self, symbol: str):
         self.result.on_load_symbol(symbol)
+        prices = self.fin_gate.get_daily_prices(symbol)
+        for price in prices:
+            try:
+                self.fin_db.add_price(price)
+            except Duplicate:
+                pass
+
         income_statements = self.fin_gate.income_statement(symbol)
         for i in income_statements:
             try:
@@ -45,13 +56,6 @@ class FinancialLoader(UseCase):
         for b in balance_sheets:
             try:
                 self.fin_db.add_balance_sheet(b)
-            except Duplicate:
-                pass
-
-        prices = self.fin_gate.get_daily_prices(symbol)
-        for price in prices:
-            try:
-                self.fin_db.add_price(price)
             except Duplicate:
                 pass
 

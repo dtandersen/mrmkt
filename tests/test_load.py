@@ -37,10 +37,10 @@ class TestLoad(unittest.TestCase):
                            ''')
 
     def givenNvidiaFinancials(self):
-        self.fingate.addNvidiaFinancials()
+        self.fingate.add_nvidia_financials()
 
     def givenGoogleFinancials(self):
-        self.fingate.addGoogleFinancials()
+        self.fingate.add_google_financials()
 
     def execute(self, args: List[str] = None):
         if args is None:
