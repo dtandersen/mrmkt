@@ -44,3 +44,13 @@ class PostgresSqlClient(SqlClient):
                         raise Duplicate(err)
         finally:
             self.pool.putconn(conn)
+
+    def delete(self, query: str):
+        conn = self.pool.getconn()
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    sql = query
+                    cur.execute(sql)
+        finally:
+            self.pool.putconn(conn)

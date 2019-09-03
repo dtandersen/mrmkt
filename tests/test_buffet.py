@@ -1,5 +1,6 @@
 import unittest
 
+from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from tests.test_sqlfinrepo import to_date
 from usecase.buffet import Buffet
@@ -10,46 +11,42 @@ from entity.income_statement import IncomeStatement
 class TestStringMethods(unittest.TestCase):
     def setUp(self):
         self.finrepo = InMemoryFinancialRepository()
-        self.finrepo.add_income(IncomeStatement(
+
+        self.with_income(IncomeStatement(
             symbol='ICECREAM',
             date=to_date('2019-08-04'),
             netIncome=20000,
-            waso=10000
-        ))
-
-        self.finrepo.add_income(IncomeStatement(
-            symbol='ICECREAM',
-            date=to_date('2020-08-04'),
-            netIncome=30000,
-            waso=12500
-        ))
-        self.finrepo.add_balance_sheet(BalanceSheet(
+            waso=10000))
+        self.with_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
             date=to_date('2019-08-04'),
             totalAssets=44000,
-            totalLiabilities=37000
-        ))
-        self.finrepo.add_balance_sheet(BalanceSheet(
+            totalLiabilities=37000))
+
+        self.with_income(IncomeStatement(
+            symbol='ICECREAM',
+            date=to_date('2020-08-04'),
+            netIncome=30000,
+            waso=12500))
+        self.with_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
             date=to_date('2020-08-04'),
             totalAssets=48000,
-            totalLiabilities=36000
-        ))
-        self.finrepo.add_close_price('ICECREAM', to_date('2019-08-05'), 10) # one day after
-        self.finrepo.add_close_price('ICECREAM', to_date('2020-08-04'), 12)
+            totalLiabilities=36000))
 
-        self.finrepo.add_income(IncomeStatement(
+        self.with_close_price('ICECREAM', '2019-08-05', 10)  # one day after
+        self.with_close_price('ICECREAM', '2020-08-04', 12)
+
+        self.with_income(IncomeStatement(
             symbol='PIZZA',
             date=to_date('2020-02-20'),
             netIncome=15000,
-            waso=1000
-        ))
-        self.finrepo.add_balance_sheet(BalanceSheet(
+            waso=1000))
+        self.with_balance_sheet(BalanceSheet(
             symbol='PIZZA',
             date=to_date('2020-02-20'),
             totalAssets=5000,
-            totalLiabilities=12500
-        ))
+            totalLiabilities=12500))
         self.finrepo.add_close_price('PIZZA', to_date('2020-02-20'), 5)
 
         self.buf = Buffet(self.finrepo)
@@ -90,7 +87,7 @@ class TestStringMethods(unittest.TestCase):
             'sharesOutstanding': 12500,
             'symbol': 'ICECREAM'})
 
-    def test_2(self):
+    def test_pizza(self):
         self.buf.analyze('PIZZA')
 
         res = self.finrepo.get_analysis('PIZZA')
@@ -110,3 +107,49 @@ class TestStringMethods(unittest.TestCase):
             "liabilities": 12500,
             "sharesOutstanding": 1000
         })
+
+    def test_overwrite(self):
+        self.finrepo.add_analysis(Analysis(
+            symbol='PIZZA',
+            date=to_date('2020-02-20'),
+            equity=-7500,
+            netIncome=15000,
+            eps=15,
+            bookValue=-7500 / 1000,
+            pe=0.3333333333333333,
+            priceToBookValue=-0.6666666666666666,
+            buffetNumber=-0.2222222222222222,
+            marginOfSafety=-1.5,
+            assets=5000,
+            liabilities=12500,
+            sharesOutstanding=1000
+        ))
+
+        self.buf.analyze('PIZZA')
+
+        analysis = self.finrepo.get_analysis('PIZZA')
+
+        self.assertEqual(vars(analysis[0]), {
+            "symbol": 'PIZZA',
+            "date": to_date('2020-02-20'),
+            "equity": -7500,
+            "netIncome": 15000,
+            "eps": 15,
+            "bookValue": -7500 / 1000,
+            "pe": 0.3333333333333333,
+            "priceToBookValue": -0.6666666666666666,
+            "buffetNumber": -0.2222222222222222,
+            "marginOfSafety": -1.5,
+            "assets": 5000,
+            "liabilities": 12500,
+            "sharesOutstanding": 1000
+        })
+
+    def with_close_price(self, symbol, date, price):
+        self.finrepo.add_close_price(symbol, to_date(date), price)
+
+    def with_balance_sheet(self, sheet):
+        self.finrepo.add_balance_sheet(sheet)
+
+    def with_income(self, statement):
+        self.finrepo.add_income(statement)

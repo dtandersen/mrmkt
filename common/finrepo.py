@@ -51,6 +51,10 @@ class FinancialRepository:
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
         pass
 
+    @abstractmethod
+    def delete_analysis(self, symbol: str, date: datetime.date):
+        pass
+
 
 class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
@@ -99,7 +103,16 @@ class InMemoryFinancialRepository(FinancialRepository):
         return [analysis for analysis in self.analysis.values() if analysis.symbol == symbol]
 
     def add_analysis(self, analysis: Analysis):
+        if self.key(analysis.symbol, analysis.date) in self.analysis:
+            raise Duplicate("dup analysis")
+
         self.analysis[self.key(analysis.symbol, analysis.date)] = analysis
+
+    def delete_analysis(self, symbol: str, date: datetime.date):
+        try:
+            self.analysis.pop(self.key(symbol, date))
+        except KeyError:
+            pass
 
     def key(self, symbol: str, date: datetime.date) -> str:
         d = date.strftime("%Y-%m-%d")
@@ -189,6 +202,12 @@ class SqlFinancialRepository(FinancialRepository):
         )
 
         self.sql_client.insert("analysis", row)
+
+    def delete_analysis(self, symbol: str, date: datetime.date):
+        self.sql_client.delete(
+            "delete from analysis "
+            f"where symbol = '{symbol}' "
+            f"and date = '{date}'")
 
     def add_price(self, price: StockPrice):
         row = PriceRow(

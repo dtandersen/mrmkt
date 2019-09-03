@@ -87,6 +87,24 @@ class TestStringMethods(unittest.TestCase):
             )
         }])
 
+    def test_delete_analysis(self):
+        self.db.delete_analysis('ABC', to_date('2019-01-02'))
+
+        self.assertEqual(self.client.queries, [
+            "delete from analysis "
+            "where symbol = 'ABC' "
+            "and date = '2019-01-02'"
+        ])
+
+    def test_delete_analysis2(self):
+        self.db.delete_analysis('XYZ', to_date('2018-12-11'))
+
+        self.assertEqual(self.client.queries, [
+            "delete from analysis "
+            "where symbol = 'XYZ' "
+            "and date = '2018-12-11'"
+        ])
+
     def test_get_price(self):
         self.client.append_select("select * " +
                                   "from daily_price "

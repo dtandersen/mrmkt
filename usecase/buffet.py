@@ -17,6 +17,7 @@ class Buffet:
             close = price.close
 
             analysis = self.anlz(bal, close, inc)
+            self.fin.delete_analysis(analysis.symbol, analysis.date)
             self.fin.add_analysis(analysis)
 
     def anlz(self, bal, close, inc) -> Analysis:

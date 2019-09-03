@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 import logging
 from abc import abstractmethod
 from dataclasses import asdict
@@ -14,12 +15,17 @@ class SqlClient:
     def select(self, query: str, mapper: Callable[[dict], object]):
         pass
 
+    @abstractmethod
+    def delete(self, query: str):
+        pass
+
 
 class MockSqlClient(SqlClient):
     inserts: List[dict]
     selects: dict
 
     def __init__(self):
+        self.queries = []
         self.inserts = []
         self.selects = {}
 
@@ -30,6 +36,9 @@ class MockSqlClient(SqlClient):
 
     def insert(self, table: str, values: any):
         self.inserts.append({"table": table, "values": values})
+
+    def delete(self, query: str):
+        self.queries.append(query)
 
     def append_select(self, query: str, rows: list):
         self.selects[query] = [asdict(row) for row in rows]

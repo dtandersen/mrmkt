@@ -64,10 +64,8 @@ class TestFetch(unittest.TestCase):
             volume=5696281.0
         )))
 
-
     def test_google_bad_dates(self):
         self.givenGoogleFinancials()
-        # self.add_google_prices()
 
         self.whenTheSymbolIsFetched()
 
@@ -105,7 +103,7 @@ class TestFetch(unittest.TestCase):
         )))
 
     def test_load_multiple_annual_statements(self):
-        self.givenAppleFinancials()
+        self.given_apple_financials()
 
         self.whenTheSymbolIsFetched()
 
@@ -138,45 +136,42 @@ class TestFetch(unittest.TestCase):
         )))
 
     def test_dont_collide_with_existing(self):
-        self.givenAppleFinancials()
+        self.given_apple_financials()
 
-        self.db.add_income(IncomeStatement(
+        self.with_income_statement(IncomeStatement(
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
-            waso=5000109000
-        ))
+            waso=5000109000))
 
-        self.db.add_balance_sheet(BalanceSheet(
+        self.with_balance_sheets(BalanceSheet(
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             totalAssets=365725000000.0,
-            totalLiabilities=258578000000.0
-        ))
+            totalLiabilities=258578000000.0))
 
-        self.db.add_income(IncomeStatement(
+        self.with_income_statement(IncomeStatement(
             symbol='AAPL',
             date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
             waso=5251692000
         ))
 
-        self.db.add_balance_sheet(BalanceSheet(
+        self.with_balance_sheets(BalanceSheet(
             symbol='AAPL',
             date=datetime.date(2017, 9, 30),
             totalAssets=375319000000.0,
             totalLiabilities=241272000000.0
         ))
 
-        self.db.add_price(StockPrice(
+        self.with_price(StockPrice(
             symbol='AAPL',
             date=datetime.date(2014, 6, 13),
             open=84.5035,
             high=84.7235,
             low=83.2937,
             close=83.6603,
-            volume=5.452528E7
-        ))
+            volume=5.452528E7))
 
         self.whenTheSymbolIsFetched()
 
@@ -204,6 +199,14 @@ class TestFetch(unittest.TestCase):
             volume=5.452528E7
         )))
 
+    def with_price(self, price):
+        self.db.add_price(price)
+
+    def with_balance_sheets(self, sheet):
+        self.db.add_balance_sheet(sheet)
+
+    def with_income_statement(self, statement):
+        self.db.add_income(statement)
 
     def test_spy_has_no_financials(self):
         self.fin_gate.addSpyFinancials()
@@ -227,7 +230,7 @@ class TestFetch(unittest.TestCase):
 
         assert_that(self.db.get_balance_sheet('GOOG', '2018-12-01'), equal_to(BalanceSheet(
             symbol='GOOG',
-            date=datetime.date(2018,12, 1),
+            date=datetime.date(2018, 12, 1),
             totalAssets=232792000000.0,
             totalLiabilities=1264000000.0
         )))
@@ -249,7 +252,7 @@ class TestFetch(unittest.TestCase):
     def givenGoogleFinancials(self):
         self.fin_gate.add_google_financials()
 
-    def givenAppleFinancials(self):
+    def given_apple_financials(self):
         self.fin_gate.add_apple_financials()
 
     def givenNetflixFinancials(self):
