@@ -7,7 +7,7 @@ from common.sql import InsecureSqlGenerator
 from ext.postgres import PostgresSqlClient
 from usecase.buffet import Buffet
 from ext.fmp import FMPFinancialGateway, FmpApi
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 # api = FmpApi()
 # fin_gtwy = FMPFinancialGateway(api)
 cnv = InsecureSqlGenerator()

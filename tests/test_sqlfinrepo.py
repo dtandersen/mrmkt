@@ -18,7 +18,7 @@ class TestStringMethods(unittest.TestCase):
     def test_insert_balance(self):
         self.db.add_balance_sheet(BalanceSheet(
             symbol='AAPL',
-            date='20190813',
+            date=to_date('2019-08-13'),
             totalAssets=10,
             totalLiabilities=25
         ))
@@ -27,7 +27,7 @@ class TestStringMethods(unittest.TestCase):
             "table": "balance_sheet",
             "values": BalanceSheetRow(
                 symbol='AAPL',
-                date='20190813',
+                date=to_date('2019-08-13'),
                 total_assets=10,
                 total_liabilities=25
             )
@@ -36,7 +36,7 @@ class TestStringMethods(unittest.TestCase):
     def test_insert_income_stmt(self):
         self.db.add_income(IncomeStatement(
             symbol='AAPL',
-            date='20190813',
+            date=to_date('2019-08-13'),
             netIncome=10,
             waso=50,
         ))
@@ -45,7 +45,7 @@ class TestStringMethods(unittest.TestCase):
             "table": "income_stmt",
             "values": IncomeStatementRow(
                 symbol='AAPL',
-                date='20190813',
+                date=to_date('2019-08-13'),
                 net_income=10,
                 waso=50,
             )
@@ -54,7 +54,7 @@ class TestStringMethods(unittest.TestCase):
     def test_insert_analysis(self):
         self.db.add_analysis(Analysis(
             symbol='AAPL',
-            date='2019-08-25',
+            date=to_date('2019-08-25'),
             netIncome=1,
             buffetNumber=2,
             priceToBookValue=3,
@@ -72,7 +72,7 @@ class TestStringMethods(unittest.TestCase):
             "table": "analysis",
             "values": AnalysisRow(
                 symbol='AAPL',
-                date='2019-08-25',
+                date=to_date('2019-08-25'),
                 net_income=1,
                 buffet_number=2,
                 price_to_book_value=3,
@@ -130,6 +130,33 @@ class TestStringMethods(unittest.TestCase):
                                   )])
 
         price = self.db.get_price("AAPL", "2014-06-16")
+        self.assertEqual(vars(price),
+                         vars(StockPrice(
+                             symbol='AAPL',
+                             date=datetime.date(2014, 6, 16),
+                             open=83.8711,
+                             high=85.0076,
+                             low=83.8161,
+                             close=84.5035,
+                             volume=3.556127E7
+                         )))
+
+    def test_get_price_on_or_after(self):
+        self.client.append_select("select * " +
+                                  "from daily_price "
+                                  "where symbol = 'AAPL' "
+                                  "and date >= '2014-06-15'",
+                                  [PriceRow(
+                                      symbol='AAPL',
+                                      date=datetime.date(2014, 6, 16),
+                                      open=83.8711,
+                                      high=85.0076,
+                                      low=83.8161,
+                                      close=84.5035,
+                                      volume=3.556127E7
+                                  )])
+
+        price = self.db.get_price_on_or_after("AAPL", "2014-06-15")
         self.assertEqual(vars(price),
                          vars(StockPrice(
                              symbol='AAPL',

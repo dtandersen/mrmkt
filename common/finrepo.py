@@ -47,6 +47,10 @@ class FinancialRepository:
     def add_price(self, price: StockPrice):
         pass
 
+    @abstractmethod
+    def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
+        pass
+
 
 class InMemoryFinancialRepository(FinancialRepository):
     def __init__(self):
@@ -89,7 +93,7 @@ class InMemoryFinancialRepository(FinancialRepository):
             high=0,
             low=0,
             volume=0
-            ))
+        ))
 
     def get_analysis(self, symbol: str) -> List[Analysis]:
         return [analysis for analysis in self.analysis.values() if analysis.symbol == symbol]
@@ -99,17 +103,21 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def key(self, symbol: str, date: datetime.date) -> str:
         d = date.strftime("%Y-%m-%d")
-        # d = datetime.date.fromisoformat()
         return f"{symbol}-{d}"
+
+    def get_price(self, symbol, date: datetime.date):
+        return self.prices[self.key(symbol, date)]
+
+    def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
+        dates = [price.date for price in self.prices.values() if price.symbol == symbol and price.date >= date]
+        d2 = dates[0]
+        return self.prices[self.key(symbol, d2)]
 
     def add_price(self, price: StockPrice):
         if self.key(price.symbol, price.date) in self.prices:
             raise Duplicate("Duplicate: " + self.key(price.symbol, price.date))
 
         self.prices[self.key(price.symbol, price.date)] = price
-
-    def get_price(self, symbol, date: datetime.date):
-        return self.prices[self.key(symbol, date)]
 
 
 class SqlFinancialRepository(FinancialRepository):
@@ -213,6 +221,15 @@ class SqlFinancialRepository(FinancialRepository):
             close=row["close"],
             volume=row["volume"]
         )
+
+    def get_price_on_or_after(self, symbol: str, date: str) -> StockPrice:
+        rows = self.sql_client.select("select * " +
+                                      "from daily_price " +
+                                      f"where symbol = '{symbol}' " +
+                                      f"and date >= '{date}'",
+                                      self.price_mapper)
+
+        return rows[0]
 
 
 @dataclass

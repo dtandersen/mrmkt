@@ -35,7 +35,7 @@ class TestStringMethods(unittest.TestCase):
             totalAssets=48000,
             totalLiabilities=36000
         ))
-        self.finrepo.add_close_price('ICECREAM', to_date('2019-08-04'), 10)
+        self.finrepo.add_close_price('ICECREAM', to_date('2019-08-05'), 10) # one day after
         self.finrepo.add_close_price('ICECREAM', to_date('2020-08-04'), 12)
 
         self.finrepo.add_income(IncomeStatement(
