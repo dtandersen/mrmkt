@@ -205,8 +205,8 @@ class TestFetch(unittest.TestCase):
 
         self.when_the_symbol_is_fetched()
 
-        self.assertEqual(self.destrepo.incomes, {})
-        self.assertEqual(self.destrepo.balances, {})
+        self.assertEqual(self.destrepo.incomes.size(), 0)
+        self.assertEqual(self.destrepo.balances.size(), 0)
 
     def given_source_has_spy_financials(self):
         self.sourcerepo.addSpyFinancials()
@@ -229,7 +229,7 @@ class TestFetch(unittest.TestCase):
         self.symbols.append(symbol)
 
     def dest_income_statement(self, symbol: str, date: str) -> IncomeStatement:
-        return self.destrepo.get_income_statement(symbol, date)
+        return self.destrepo.get_income_statement(symbol, to_date(date))
 
     def given_source_has_nvidia_financials(self):
         self.sourcerepo.add_nvidia_financials()

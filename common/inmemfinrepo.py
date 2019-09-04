@@ -1,8 +1,9 @@
 import datetime
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List
 
 from common.onion import FinancialRepository
-from common.sql import Duplicate
+from common.table import Table
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
@@ -11,37 +12,38 @@ from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
 
+@dataclass
 class InMemoryFinancialRepository(FinancialRepository):
+    incomes: Table
+    balances: Table
+    analysis: Table
+    prices: Table
+    stocks: Table
+
     def __init__(self):
-        self.incomes = {}
-        self.balances = {}
-        self.analysis = {}
-        self.prices = {}
-        self.stocks = []
+        self.incomes = Table(symbol_date_key)
+        self.balances = Table(symbol_date_key)
+        self.analysis = Table(symbol_date_key)
+        self.prices = Table(symbol_date_key)
+        self.stocks = Table(string_key)
+
+    def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
+        return self.incomes.get(self.key(symbol, date))
 
     def list_income_statements(self, symbol: str) -> List[IncomeStatement]:
-        return list(filter(lambda i: i.symbol == symbol, self.incomes.values()))
-
-    def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
-        return self.incomes[f"{symbol}-{date}"]
+        return self.incomes.filter(lambda i: i.symbol == symbol)
 
     def add_income(self, income_statement: IncomeStatement) -> None:
-        if self.key(income_statement.symbol, income_statement.date) in self.incomes:
-            raise Duplicate("Duplicate: " + self.key(income_statement.symbol, income_statement.date))
-
-        self.incomes[f"{income_statement.symbol}-{income_statement.date}"] = income_statement
-
-    def list_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
-        return list(filter(lambda i: i.symbol == symbol, self.balances.values()))
+        self.incomes.add(income_statement)
 
     def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
-        return self.balances[f"{symbol}-{date}"]
+        return self.balances.get(f"{symbol}-{date}")
+
+    def list_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
+        return self.balances.filter(lambda i: i.symbol == symbol)
 
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
-        if self.key(balance_sheet.symbol, balance_sheet.date) in self.balances:
-            raise Duplicate("Duplicate: " + self.key(balance_sheet.symbol, balance_sheet.date))
-
-        self.balances[f"{balance_sheet.symbol}-{balance_sheet.date}"] = balance_sheet
+        self.balances.add(balance_sheet)
 
     def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
         pass
@@ -61,40 +63,42 @@ class InMemoryFinancialRepository(FinancialRepository):
         ))
 
     def get_analysis(self, symbol: str) -> List[Analysis]:
-        return [analysis for analysis in self.analysis.values() if analysis.symbol == symbol]
+        return self.analysis.filter(lambda s: s.symbol == symbol)
 
     def add_analysis(self, analysis: Analysis):
-        if self.key(analysis.symbol, analysis.date) in self.analysis:
-            raise Duplicate("dup analysis")
-
-        self.analysis[self.key(analysis.symbol, analysis.date)] = analysis
+        self.analysis.add(analysis)
 
     def delete_analysis(self, symbol: str, date: datetime.date):
-        try:
-            self.analysis.pop(self.key(symbol, date))
-        except KeyError:
-            pass
+        self.analysis.pop(self.key(symbol, date))
 
     def key(self, symbol: str, date: datetime.date) -> str:
         d = date.strftime("%Y-%m-%d")
         return f"{symbol}-{d}"
 
     def get_price(self, symbol, date: datetime.date):
-        return self.prices[self.key(symbol, date)]
+        return self.prices.get(self.key(symbol, date))
 
     def list_prices(self, symbol: str) -> List[StockPrice]:
-        return [price for price in self.prices.values() if price.symbol == symbol]
+        return self.prices.filter(lambda p: p.symbol == symbol)
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
-        dates = [price.date for price in self.prices.values() if price.symbol == symbol and price.date >= date]
-        d2 = dates[0]
-        return self.prices[self.key(symbol, d2)]
+        dates = [price.date for price in self.prices.filter(lambda p: p.symbol == symbol and p.date >= date)]
+        earliest_date = dates[0]
+        return self.prices.get(self.key(symbol, earliest_date))
 
     def add_price(self, price: StockPrice):
-        if self.key(price.symbol, price.date) in self.prices:
-            raise Duplicate("Duplicate: " + self.key(price.symbol, price.date))
+        self.prices.add(price)
 
-        self.prices[self.key(price.symbol, price.date)] = price
+    def get_symbols(self) -> List[str]:
+        return list(self.stocks.all())
 
-    def get_symbols(self) -> Optional[List[str]]:
-        return self.stocks
+
+def symbol_date_key(obj) -> str:
+    date = obj.date
+    symbol = obj.symbol
+    d = date.strftime("%Y-%m-%d")
+    return f"{symbol}-{d}"
+
+
+def string_key(symbol: str) -> str:
+    return symbol

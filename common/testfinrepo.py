@@ -16,7 +16,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         return self
 
     def add_google_financials(self):
-        self.stocks.append('GOOG')
+        self.stocks.add('GOOG')
         self.add_income(IncomeStatement(
             symbol='GOOG',
             date=datetime.date(2018, 12, 1),
@@ -70,7 +70,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_nvidia_financials(self):
-        self.stocks.append('NVDA')
+        self.stocks.add('NVDA')
         self.add_income(IncomeStatement(
             symbol='NVDA',
             date=datetime.date(2019, 1, 27),
@@ -96,7 +96,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_apple_financials(self):
-        self.stocks.append('AAPL')
+        self.stocks.add('AAPL')
         self.add_income(IncomeStatement(
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
@@ -136,7 +136,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_netflix_financials(self):
-        self.stocks.append('NFLX')
+        self.stocks.add('NFLX')
         self.add_income(IncomeStatement(
             symbol='NFLX',
             date=datetime.date(2018, 12, 31),
@@ -170,8 +170,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_spy_financials(self):
-        self.stocks.append('SPY')
+        self.stocks.add('SPY')
 
 
     def addSpyFinancials(self):
-        self.stocks.append('SPY')
+        self.stocks.add('SPY')
