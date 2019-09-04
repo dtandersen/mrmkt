@@ -7,7 +7,7 @@ from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
 
-class TestFinancialRepository(InMemoryFinancialRepository):
+class FinancialTestRepository(InMemoryFinancialRepository):
     def with_all(self):
         self.add_apple_financials()
         self.add_google_financials()

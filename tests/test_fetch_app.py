@@ -7,14 +7,14 @@ from typing import List
 from apprunner.runner import AppRunner
 from bootstrapper import UseCaseFactoryInjector
 from common.inmemfinrepo import InMemoryFinancialRepository
-from common.testfinrepo import TestFinancialRepository
+from common.testfinrepo import FinancialTestRepository
 from fetch import FetchFinancialsApp
 from use_case_factory import TestMrMktUseCaseFactory
 
 
-class TestLoad(unittest.TestCase):
+class TestFetchApp(unittest.TestCase):
     def setUp(self):
-        self.fingate = TestFinancialRepository()
+        self.sourcerepo = FinancialTestRepository()
 
     def test_fetch_apple(self):
         self.execute(['AAPL'])
@@ -24,8 +24,8 @@ class TestLoad(unittest.TestCase):
                            ''')
 
     def test_fetch_nvidia_and_google(self):
-        self.givenGoogleFinancials()
-        self.givenNvidiaFinancials()
+        self.given_google_financials()
+        self.given_nvidia_financials()
 
         self.execute()
 
@@ -34,18 +34,12 @@ class TestLoad(unittest.TestCase):
                            Fetching NVDA...
                            ''')
 
-    def givenNvidiaFinancials(self):
-        self.fingate.add_nvidia_financials()
-
-    def givenGoogleFinancials(self):
-        self.fingate.add_google_financials()
-
     def execute(self, args: List[str] = None):
         if args is None:
             args = []
 
         injector = UseCaseFactoryInjector(TestMrMktUseCaseFactory(
-            fingate=self.fingate,
+            fingate=self.sourcerepo,
             findb=InMemoryFinancialRepository()))
         runner = AppRunner(injector)
 
@@ -54,6 +48,12 @@ class TestLoad(unittest.TestCase):
             runner.run(FetchFinancialsApp, args)
 
         self.console = stdout.getvalue()
+
+    def given_nvidia_financials(self):
+        self.sourcerepo.add_nvidia_financials()
+
+    def given_google_financials(self):
+        self.sourcerepo.add_google_financials()
 
     def thenConsoleIs(self, expected: str):
         self.assertEqual(self.console, textwrap.dedent(expected))

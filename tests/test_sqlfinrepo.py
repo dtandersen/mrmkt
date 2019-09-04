@@ -8,14 +8,14 @@ from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
 from common.sql import MockSqlClient
 from entity.stock_price import StockPrice
-from common.testfinrepo import TestFinancialRepository
+from common.testfinrepo import FinancialTestRepository
 
 
 class TestStringMethods(unittest.TestCase):
     def setUp(self) -> None:
         self.client = MockSqlClient()
         self.db = SqlFinancialRepository(self.client)
-        self.canned = TestFinancialRepository().with_all()
+        self.canned = FinancialTestRepository().with_all()
 
     def test_insert_balance(self):
         self.db.add_balance_sheet(BalanceSheet(
