@@ -4,7 +4,7 @@ from common.sql import InsecureSqlGenerator
 from common.sqlfinrepo import SqlFinancialRepository
 from ext.postgres import PostgresSqlClient
 from usecase.buffet import Buffet
-from ext.fmp import FMPReadOnlyFinancialRepository, FmpApi
+from ext.fmp import FMPReadOnlyFinancialRepository, FmpClient
 # logging.basicConfig(level=logging.DEBUG)
 # api = FmpApi()
 # fin_gtwy = FMPFinancialGateway(api)

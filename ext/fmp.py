@@ -13,7 +13,7 @@ from entity.stock_price import StockPrice
 from tests.test_sqlfinrepo import to_date
 
 
-class FmpApi:
+class FmpClient:
     endpoint: str = "https://financialmodelingprep.com/api/v3"
 
     def get_balance_sheet_statement(self, symbol, period='annual'):
@@ -60,11 +60,11 @@ class FmpApi:
 
 
 class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
-    def __init__(self, fmp_api: FmpApi):
-        self.fmp_api = fmp_api
+    def __init__(self, client: FmpClient):
+        self.client = client
 
-    def get_balance_sheet(self, symbol) -> List[BalanceSheet]:
-        json = self.fmp_api.get_balance_sheet_statement(symbol)
+    def list_balance_sheets(self, symbol) -> List[BalanceSheet]:
+        json = self.client.get_balance_sheet_statement(symbol)
         if 'financials' not in json:
             return []
 
@@ -77,8 +77,8 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             totalAssets=float(balance_sheet_json['Total assets']),
             totalLiabilities=float(balance_sheet_json['Total liabilities']))
 
-    def get_income_statement(self, symbol) -> List[IncomeStatement]:
-        json = self.fmp_api.get_income_statement(symbol)
+    def list_income_statements(self, symbol) -> List[IncomeStatement]:
+        json = self.client.get_income_statement(symbol)
         if 'financials' not in json:
             return []
 
@@ -101,7 +101,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         )
 
     def closing_price(self, symbol, date) -> Optional[float]:
-        json = self.fmp_api.get_historical_price_full(symbol)
+        json = self.client.get_historical_price_full(symbol)
         dd1 = date
         dd = datetime.strptime(date, '%Y-%m-%d')
         prices = json['historical']
@@ -115,7 +115,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         return price['close']
 
     def get_symbols(self) -> Optional[List[str]]:
-        json = self.fmp_api.get_stocks()
+        json = self.client.get_stocks()
         return list(map(lambda row: row['symbol'], json['symbolsList']))
 
     @staticmethod
@@ -123,7 +123,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         return next((x for x in prices if x['date'] == date), None)
 
     def list_prices(self, symbol: str) -> List[StockPrice]:
-        json = self.fmp_api.get_historical_price_full(symbol)
+        json = self.client.get_historical_price_full(symbol)
         return [FMPReadOnlyFinancialRepository.map_price(row, symbol) for row in json["historical"]]
 
     @staticmethod
@@ -139,7 +139,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         )
 
     def list_cash_flows(self, symbol: str) -> List[CashFlow]:
-        json = self.fmp_api.get_cash_flow(symbol)
+        json = self.client.get_cash_flow(symbol)
         return [FMPReadOnlyFinancialRepository.map_cash_flow(row, symbol) for row in json["financials"]]
 
     @staticmethod
@@ -154,7 +154,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         )
 
     def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
-        json = self.fmp_api.get_enterprise_value(symbol)
+        json = self.client.get_enterprise_value(symbol)
         return [FMPReadOnlyFinancialRepository.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
 
     @staticmethod
@@ -166,3 +166,13 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             shares_outstanding=float(json["Number of Shares"]),
             market_cap=float(json["Market Capitalization"])
         )
+
+    def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
+        raise NotImplementedError
+
+    def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
+        raise NotImplementedError
+
+    def get_balance_sheet(self, symbol, date: datetime.date) -> List[BalanceSheet]:
+        raise NotImplementedError
+
