@@ -11,9 +11,9 @@ T = TypeVar('T')
 class Table(Generic[T]):
     values: dict
 
-    def __init__(self, keygenerator: Callable[[T], str]):
+    def __init__(self, keygen: Callable[[T], str]):
         self.values = {}
-        self.keygen = keygenerator
+        self.keygen = keygen
 
     def all(self) -> Iterable[T]:
         return copy.copy(list(self.values.values()))
@@ -38,4 +38,3 @@ class Table(Generic[T]):
 
     def filter(self, predicate: Callable):
         return list(filter(predicate, self.all()))
-
