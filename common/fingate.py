@@ -9,7 +9,7 @@ from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
 
-class FinancialGateway:
+class ReadOnlyFinancialRepository:
     @abstractmethod
     def balance_sheet(self, symbol) -> List[BalanceSheet]:
         raise NotImplementedError
@@ -39,7 +39,7 @@ class FinancialGateway:
         raise NotImplementedError
 
 
-class InMemoryFinancialGateway(FinancialGateway):
+class InMemoryReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
     balances: dict
     incomes: dict
     close: dict

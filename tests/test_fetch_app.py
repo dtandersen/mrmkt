@@ -1,16 +1,14 @@
-import inspect
+import io
 import textwrap
 import unittest
-import io
-
 from contextlib import redirect_stdout
 from typing import List
 
+from apprunner.runner import AppRunner
 from bootstrapper import UseCaseFactoryInjector
 from common.finrepo import InMemoryFinancialRepository
 from common.testfingate import TestFinancialGateway
 from fetch import FetchFinancialsApp
-from apprunner.runner import AppRunner
 from use_case_factory import TestMrMktUseCaseFactory
 
 

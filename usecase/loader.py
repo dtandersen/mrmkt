@@ -1,11 +1,8 @@
-import datetime
 from dataclasses import dataclass
-from typing import List
 
-from common.fingate import FinancialGateway
+from common.fingate import ReadOnlyFinancialRepository
 from common.finrepo import FinancialRepository
 from common.sql import Duplicate
-from entity.stock_price import StockPrice
 
 
 @dataclass
@@ -25,7 +22,7 @@ class UseCase:
 class FinancialLoader(UseCase):
     result: FinancialLoaderResult
 
-    def __init__(self, fin_gate: FinancialGateway, fin_db: FinancialRepository):
+    def __init__(self, fin_gate: ReadOnlyFinancialRepository, fin_db: FinancialRepository):
         self.fin_db = fin_db
         self.fin_gate = fin_gate
 

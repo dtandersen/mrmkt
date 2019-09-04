@@ -1,59 +1,59 @@
 import datetime
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import List
 
-from entity.balance_sheet import BalanceSheet
+from common.fingate import ReadOnlyFinancialRepository
+from common.sql import Duplicate
 from entity.analysis import Analysis
+from entity.balance_sheet import BalanceSheet
 from entity.income_statement import IncomeStatement
-from common.sql import Duplicate, SqlClient
 from entity.stock_price import StockPrice
 
 
-class FinancialRepository:
-    @abstractmethod
-    def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
-        pass
+class FinancialRepository(ReadOnlyFinancialRepository):
+    # @abstractmethod
+    # def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
+    #     raise NotImplementedError
 
-    @abstractmethod
-    def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
-        pass
+    # @abstractmethod
+    # def get_income_statement(self, symbol: str, date: str) -> IncomeStatement:
+    #     raise NotImplementedError
 
     @abstractmethod
     def add_income(self, income_statement: IncomeStatement) -> None:
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
-    def get_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
-        pass
+    # @abstractmethod
+    # def get_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
+    #     raise NotImplementedError
 
-    @abstractmethod
-    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
-        pass
+    # @abstractmethod
+    # def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
+    #     raise NotImplementedError
 
     @abstractmethod
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def add_analysis(self, analysis: Analysis):
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
-    def get_price(self, symbol: str, date: str) -> StockPrice:
-        pass
+    # @abstractmethod
+    # def get_price(self, symbol: str, date: str) -> StockPrice:
+    #     raise NotImplementedError
 
     @abstractmethod
     def add_price(self, price: StockPrice):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def delete_analysis(self, symbol: str, date: datetime.date):
-        pass
+        raise NotImplementedError
 
 
 class InMemoryFinancialRepository(FinancialRepository):

@@ -1,13 +1,13 @@
 import datetime
 
-from common.fingate import InMemoryFinancialGateway
+from common.fingate import InMemoryReadOnlyFinancialRepository
 from entity.balance_sheet import BalanceSheet
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 from tests.test_sqlfinrepo import to_date
 
 
-class TestFinancialGateway(InMemoryFinancialGateway):
+class TestFinancialGateway(InMemoryReadOnlyFinancialRepository):
     def add_google_financials(self):
         self.stocks.append('GOOG')
         self.addIncome(IncomeStatement(

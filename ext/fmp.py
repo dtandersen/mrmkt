@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from entity.balance_sheet import BalanceSheet
-from common.fingate import FinancialGateway
+from common.fingate import ReadOnlyFinancialRepository
 from entity.cash_flow import CashFlow
 from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
@@ -59,7 +59,7 @@ class FmpApi:
         return json
 
 
-class FMPFinancialGateway(FinancialGateway):
+class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
     def __init__(self, fmp_api: FmpApi):
         self.fmp_api = fmp_api
 
@@ -124,7 +124,7 @@ class FMPFinancialGateway(FinancialGateway):
 
     def get_daily_prices(self, symbol: str) -> List[StockPrice]:
         json = self.fmp_api.get_historical_price_full(symbol)
-        return [FMPFinancialGateway.map_price(row, symbol) for row in json["historical"]]
+        return [FMPReadOnlyFinancialRepository.map_price(row, symbol) for row in json["historical"]]
 
     @staticmethod
     def map_price(json, symbol: str) -> StockPrice:
@@ -140,7 +140,7 @@ class FMPFinancialGateway(FinancialGateway):
 
     def get_cash_flow(self, symbol: str) -> List[CashFlow]:
         json = self.fmp_api.get_cash_flow(symbol)
-        return [FMPFinancialGateway.map_cash_flow(row, symbol) for row in json["financials"]]
+        return [FMPReadOnlyFinancialRepository.map_cash_flow(row, symbol) for row in json["financials"]]
 
     @staticmethod
     def map_cash_flow(json, symbol: str) -> CashFlow:
@@ -155,7 +155,7 @@ class FMPFinancialGateway(FinancialGateway):
 
     def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
         json = self.fmp_api.get_enterprise_value(symbol)
-        return [FMPFinancialGateway.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
+        return [FMPReadOnlyFinancialRepository.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
 
     @staticmethod
     def map_enterprise_value(json, symbol: str) -> EnterpriseValue:

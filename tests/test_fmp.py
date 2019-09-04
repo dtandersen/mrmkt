@@ -6,7 +6,7 @@ from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
 from entity.enterprise_value import EnterpriseValue
 from entity.stock_price import StockPrice
-from ext.fmp import FMPFinancialGateway, FmpApi
+from ext.fmp import FMPReadOnlyFinancialRepository, FmpApi
 from entity.income_statement import IncomeStatement
 from tests.test_sqlfinrepo import to_date
 
@@ -17,7 +17,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET',
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/AAPL?period=annual',
                        text=Path('fmp/aapl-balance-sheet.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.balance_sheet('AAPL')
         self.assertEqual(vars(resp[0]), vars(BalanceSheet(
             symbol='AAPL',
@@ -32,7 +32,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET',
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/NVDA?period=annual',
                        text=Path('fmp/NVDA-balance-sheet.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.balance_sheet('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, to_date('2019-01-27'))
@@ -44,7 +44,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET',
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/SPY?period=annual',
                        text="{}")
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.balance_sheet('SPY')
         self.assertEqual(resp, [])
 
@@ -52,7 +52,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_multiple_income_sheets(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL?period=annual',
                        text=Path('fmp/aapl-income.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.income_statement('AAPL')
         self.assertEqual(vars(resp[0]),
                          vars(IncomeStatement(
@@ -76,7 +76,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_nvda_income_statement(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/NVDA?period=annual',
                        text=Path('fmp/NVDA-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.income_statement('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, to_date('2019-01-27'))
@@ -87,7 +87,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_spy_has_no_income_statement(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/SPY?period=annual',
                        text="{}")
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.income_statement('SPY')
         self.assertEqual(resp, [])
 
@@ -96,7 +96,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET',
                        'https://financialmodelingprep.com/api/v3/financials/income-statement/CMCSA?period=annual',
                        text=Path('fmp/CMCSA-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.income_statement('CMCSA')
         self.assertEqual(resp[0].symbol, 'CMCSA')
         self.assertEqual(resp[0].date, to_date('2018-12-31'))
@@ -107,7 +107,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_kmi_has_no_waso(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/KMI?period=annual',
                        text=Path('fmp/KMI-income-statement.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         resp = fmp.income_statement('KMI')
         self.assertEqual(resp[0].symbol, 'KMI')
         self.assertEqual(resp[0].date, to_date('2009-12-31'))
@@ -118,7 +118,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_price(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
                        text=Path('fmp/AAPL-historical.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         price = fmp.closing_price('AAPL', '2018-09-29')
         self.assertEqual(price, 223.1351)
 
@@ -126,7 +126,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_price2(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA',
                        text=Path('fmp/NVDA-historical.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         price = fmp.closing_price('NVDA', '2014-06-16')
         self.assertEqual(price, 18.6516)
 
@@ -134,7 +134,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_stocks(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/company/stock/list',
                        text=Path('fmp/symbols.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         symbols = fmp.get_stocks()
         self.assertEqual(symbols, ['SPY', 'CMCSA'])
 
@@ -142,7 +142,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_historical_price(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA',
                        text=Path('fmp/NVDA-historical-price-full.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         price = fmp.get_daily_prices('NVDA')
         self.assertEqual(vars(price[0]), vars(StockPrice(
             symbol="NVDA",
@@ -158,7 +158,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_historical_price2(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
                        text=Path('fmp/AAPL-historical-price-full.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         price = fmp.get_daily_prices('AAPL')
         self.assertEqual(vars(price[0]), vars(StockPrice(
             symbol="AAPL",
@@ -183,7 +183,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_historical_price2(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
                        text=Path('fmp/AAPL-historical-price-full.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         price = fmp.get_daily_prices('AAPL')
         self.assertEqual(vars(price[0]), vars(StockPrice(
             symbol="AAPL",
@@ -208,7 +208,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_multiple_cash_flow(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/AAPL',
                        text=Path('fmp/AAPL-cash-flow.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         cash_flow = fmp.get_cash_flow('AAPL')
         self.assertEqual(vars(cash_flow[0]), vars(CashFlow(
             symbol="AAPL",
@@ -231,7 +231,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_single_cash_flow(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/GOOG',
                        text=Path('fmp/GOOG-cash-flow.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         cash_flow = fmp.get_cash_flow('GOOG')
         self.assertEqual(vars(cash_flow[0]), vars(CashFlow(
             symbol="GOOG",
@@ -246,7 +246,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_multiple_enterprise_value(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/AAPL?period=annual',
                        text=Path('fmp/AAPL-enterprise-value.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         enterprise_value = fmp.get_enterprise_value('AAPL')
         self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
             symbol="AAPL",
@@ -267,7 +267,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
     def test_get_single_enterprise_value(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/GOOG?period=annual',
                        text=Path('fmp/GOOG-enterprise-value.json').read_text())
-        fmp = FMPFinancialGateway(FmpApi())
+        fmp = FMPReadOnlyFinancialRepository(FmpApi())
         enterprise_value = fmp.get_enterprise_value('GOOG')
         self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
             symbol="GOOG",
