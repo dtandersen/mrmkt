@@ -6,15 +6,15 @@ from typing import List
 
 from apprunner.runner import AppRunner
 from bootstrapper import UseCaseFactoryInjector
-from common.finrepo import InMemoryFinancialRepository
-from common.testfingate import TestFinancialGateway
+from common.inmemfinrepo import InMemoryFinancialRepository
+from common.testfinrepo import TestFinancialRepository
 from fetch import FetchFinancialsApp
 from use_case_factory import TestMrMktUseCaseFactory
 
 
 class TestLoad(unittest.TestCase):
     def setUp(self):
-        self.fingate = TestFinancialGateway()
+        self.fingate = TestFinancialRepository()
 
     def test_fetch_apple(self):
         self.execute(['AAPL'])

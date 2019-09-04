@@ -4,7 +4,7 @@ from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from tests.test_sqlfinrepo import to_date
 from usecase.buffet import Buffet
-from common.finrepo import InMemoryFinancialRepository
+from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.income_statement import IncomeStatement
 
 
@@ -34,7 +34,7 @@ class TestStringMethods(unittest.TestCase):
             totalAssets=48000,
             totalLiabilities=36000))
 
-        self.with_close_price('ICECREAM', '2019-08-05', 10)  # one day after
+        self.with_close_price('ICECREAM', '2019-08-05', 10) # one day after
         self.with_close_price('ICECREAM', '2020-08-04', 12)
 
         self.with_income(IncomeStatement(

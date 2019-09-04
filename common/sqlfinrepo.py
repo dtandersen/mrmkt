@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
-from common.finrepo import FinancialRepository
+from common.inmemfinrepo import FinancialRepository
 from common.sql import SqlClient
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
@@ -14,7 +14,7 @@ class SqlFinancialRepository(FinancialRepository):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
 
-    def get_balance_sheets(self, symbol: str):
+    def list_balance_sheets(self, symbol: str):
         return self.sql_client.select("select * " +
                                       "from balance_sheet "
                                       f"where symbol = '{symbol}'",

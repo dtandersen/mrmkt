@@ -1,4 +1,4 @@
-from common.finrepo import FinancialRepository
+from common.inmemfinrepo import FinancialRepository
 from entity.analysis import Analysis
 
 
@@ -7,8 +7,8 @@ class Buffet:
         self.finrepo = finrepo
 
     def analyze(self, symbol: str) -> None:
-        inc2 = self.finrepo.income_statement(symbol)
-        bal2 = self.finrepo.balance_sheet(symbol)
+        inc2 = self.finrepo.list_income_statements(symbol)
+        bal2 = self.finrepo.list_balance_sheets(symbol)
 
         for i in range(len(inc2)):
             inc = inc2[i]

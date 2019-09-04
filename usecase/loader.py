@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from common.fingate import ReadOnlyFinancialRepository
-from common.finrepo import FinancialRepository
+from common.inmemfinrepo import FinancialRepository
+from common.onion import ReadOnlyFinancialRepository
 from common.sql import Duplicate
 
 
@@ -35,21 +35,21 @@ class FinancialLoader(UseCase):
 
     def load(self, symbol: str):
         self.result.on_load_symbol(symbol)
-        prices = self.fin_gate.get_daily_prices(symbol)
+        prices = self.fin_gate.list_prices(symbol)
         for price in prices:
             try:
                 self.fin_db.add_price(price)
             except Duplicate:
                 pass
 
-        income_statements = self.fin_gate.income_statement(symbol)
+        income_statements = self.fin_gate.list_income_statements(symbol)
         for i in income_statements:
             try:
                 self.fin_db.add_income(i)
             except Duplicate:
                 pass
 
-        balance_sheets = self.fin_gate.balance_sheet(symbol)
+        balance_sheets = self.fin_gate.list_balance_sheets(symbol)
         for b in balance_sheets:
             try:
                 self.fin_db.add_balance_sheet(b)
@@ -57,5 +57,5 @@ class FinancialLoader(UseCase):
                 pass
 
     def load_all(self):
-        for symbol in self.fin_gate.get_stocks():
+        for symbol in self.fin_gate.get_symbols():
             self.load(symbol)

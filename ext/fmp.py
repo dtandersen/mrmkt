@@ -2,8 +2,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 
+from common.onion import ReadOnlyFinancialRepository
 from entity.balance_sheet import BalanceSheet
-from common.fingate import ReadOnlyFinancialRepository
 from entity.cash_flow import CashFlow
 from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
@@ -63,7 +63,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
     def __init__(self, fmp_api: FmpApi):
         self.fmp_api = fmp_api
 
-    def balance_sheet(self, symbol) -> List[BalanceSheet]:
+    def get_balance_sheet(self, symbol) -> List[BalanceSheet]:
         json = self.fmp_api.get_balance_sheet_statement(symbol)
         if 'financials' not in json:
             return []
@@ -77,7 +77,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             totalAssets=float(balance_sheet_json['Total assets']),
             totalLiabilities=float(balance_sheet_json['Total liabilities']))
 
-    def income_statement(self, symbol) -> List[IncomeStatement]:
+    def get_income_statement(self, symbol) -> List[IncomeStatement]:
         json = self.fmp_api.get_income_statement(symbol)
         if 'financials' not in json:
             return []
@@ -114,7 +114,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
 
         return price['close']
 
-    def get_stocks(self) -> Optional[List[str]]:
+    def get_symbols(self) -> Optional[List[str]]:
         json = self.fmp_api.get_stocks()
         return list(map(lambda row: row['symbol'], json['symbolsList']))
 
@@ -122,7 +122,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
     def find(prices, date):
         return next((x for x in prices if x['date'] == date), None)
 
-    def get_daily_prices(self, symbol: str) -> List[StockPrice]:
+    def list_prices(self, symbol: str) -> List[StockPrice]:
         json = self.fmp_api.get_historical_price_full(symbol)
         return [FMPReadOnlyFinancialRepository.map_price(row, symbol) for row in json["historical"]]
 
@@ -138,7 +138,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             volume=json["volume"]
         )
 
-    def get_cash_flow(self, symbol: str) -> List[CashFlow]:
+    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
         json = self.fmp_api.get_cash_flow(symbol)
         return [FMPReadOnlyFinancialRepository.map_cash_flow(row, symbol) for row in json["financials"]]
 

@@ -2,6 +2,7 @@ import datetime
 import unittest
 
 from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow
+from common.util import to_date
 from entity.balance_sheet import BalanceSheet
 from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
@@ -14,7 +15,7 @@ class TestStringMethods(unittest.TestCase):
     def setUp(self) -> None:
         self.client = MockSqlClient()
         self.db = SqlFinancialRepository(self.client)
-        self.canned = TestFinancialRepository()
+        self.canned = TestFinancialRepository().with_all()
 
     def test_insert_balance(self):
         self.db.add_balance_sheet(BalanceSheet(
@@ -272,7 +273,7 @@ class TestStringMethods(unittest.TestCase):
                                       )
                                   ])
 
-        balance_sheets = self.db.get_balance_sheets("AAPL")
+        balance_sheets = self.db.list_balance_sheets("AAPL")
         self.assertEqual(vars(balance_sheets[0]),
                          vars(BalanceSheet(
                              symbol='AAPL',
@@ -301,7 +302,7 @@ class TestStringMethods(unittest.TestCase):
                                       )
                                   ])
 
-        balance_sheets = self.db.get_balance_sheets("NVDA")
+        balance_sheets = self.db.list_balance_sheets("NVDA")
         self.assertEqual(vars(balance_sheets[0]),
                          vars(BalanceSheet(
                              symbol='NVDA',
@@ -309,10 +310,3 @@ class TestStringMethods(unittest.TestCase):
                              totalAssets=13292000000.0,
                              totalLiabilities=3950000000.0
                          )))
-
-
-def to_date(d: str) -> datetime.date:
-    try:
-        return datetime.date.fromisoformat(d)
-    except ValueError:
-        return datetime.date.fromisoformat(d + "-01")

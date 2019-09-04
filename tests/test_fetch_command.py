@@ -2,10 +2,10 @@ import datetime
 import unittest
 from typing import List
 
-from common.testfingate import TestFinancialGateway
+from common.testfinrepo import TestFinancialRepository
 from entity.balance_sheet import BalanceSheet
 from entity.income_statement import IncomeStatement
-from common.finrepo import InMemoryFinancialRepository
+from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.stock_price import StockPrice
 from tests.test_sqlfinrepo import to_date
 from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
@@ -16,7 +16,7 @@ class TestFetch(unittest.TestCase):
     symbols: List[str]
 
     def setUp(self) -> None:
-        self.fin_gate = TestFinancialGateway()
+        self.fin_gate = TestFinancialRepository()
         self.db = InMemoryFinancialRepository()
         self.loader = FinancialLoader(self.fin_gate, self.db)
         self.symbols = []
@@ -213,8 +213,8 @@ class TestFetch(unittest.TestCase):
 
         self.whenTheSymbolIsFetched()
 
-        self.assertEqual(self.db.income_statements, {})
-        self.assertEqual(self.db.balance_sheets, {})
+        self.assertEqual(self.db.incomes, {})
+        self.assertEqual(self.db.balances, {})
 
     def test_load_goog(self):
         self.givenGoogleFinancials()
