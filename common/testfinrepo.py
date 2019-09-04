@@ -6,7 +6,7 @@ from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
 
-class CannedData(InMemoryFinancialRepository):
+class TestFinancialRepository(InMemoryFinancialRepository):
     def __init__(self):
         super().__init__()
         self.add_apple_financials()

@@ -7,8 +7,8 @@ from contextlib import redirect_stdout
 from typing import List
 
 from bootstrapper import UseCaseFactoryInjector
-from common.fingate import TestFinancialGateway
 from common.finrepo import InMemoryFinancialRepository
+from common.testfingate import TestFinancialGateway
 from fetch import FetchFinancialsApp
 from apprunner.runner import AppRunner
 from use_case_factory import TestMrMktUseCaseFactory

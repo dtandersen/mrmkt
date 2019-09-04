@@ -2,8 +2,8 @@ import datetime
 import unittest
 from typing import List
 
+from common.testfingate import TestFinancialGateway
 from entity.balance_sheet import BalanceSheet
-from common.fingate import TestFinancialGateway
 from entity.income_statement import IncomeStatement
 from common.finrepo import InMemoryFinancialRepository
 from entity.stock_price import StockPrice
@@ -22,8 +22,8 @@ class TestFetch(unittest.TestCase):
         self.symbols = []
 
     def test_load_two_symbols(self):
-        self.givenNetflixFinancials()
-        self.givenNvidiaFinancials()
+        self.given_netflix_financials()
+        self.given_nvidia_financials()
 
         self.whenTheSymbolIsFetched()
 
@@ -246,7 +246,7 @@ class TestFetch(unittest.TestCase):
     def incomeStatementFor(self, symbol: str, date: str) -> IncomeStatement:
         return self.db.get_income_statement(symbol, date)
 
-    def givenNvidiaFinancials(self):
+    def given_nvidia_financials(self):
         self.fin_gate.add_nvidia_financials()
 
     def givenGoogleFinancials(self):
@@ -255,7 +255,7 @@ class TestFetch(unittest.TestCase):
     def given_apple_financials(self):
         self.fin_gate.add_apple_financials()
 
-    def givenNetflixFinancials(self):
+    def given_netflix_financials(self):
         self.fin_gate.add_netflix_financials()
 
     def price_of(self, symbol: str, date: datetime.date) -> StockPrice:

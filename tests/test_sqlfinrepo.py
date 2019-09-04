@@ -1,19 +1,20 @@
 import datetime
 import unittest
+
+from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow
 from entity.balance_sheet import BalanceSheet
-from common.finrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow
 from entity.analysis import Analysis
 from entity.income_statement import IncomeStatement
 from common.sql import MockSqlClient
 from entity.stock_price import StockPrice
-from tests.canned import CannedData
+from common.testfinrepo import TestFinancialRepository
 
 
 class TestStringMethods(unittest.TestCase):
     def setUp(self) -> None:
         self.client = MockSqlClient()
         self.db = SqlFinancialRepository(self.client)
-        self.canned = CannedData()
+        self.canned = TestFinancialRepository()
 
     def test_insert_balance(self):
         self.db.add_balance_sheet(BalanceSheet(
