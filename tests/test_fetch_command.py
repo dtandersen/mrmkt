@@ -8,7 +8,7 @@ from entity.income_statement import IncomeStatement
 from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.stock_price import StockPrice
 from tests.test_sqlfinrepo import to_date
-from usecase.loader import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
+from usecase.fetch import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
 from hamcrest import *
 
 

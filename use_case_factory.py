@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from common.inmemfinrepo import FinancialRepository
 from common.onion import ReadOnlyFinancialRepository
-from usecase.loader import FinancialLoader
+from usecase.fetch import FinancialLoader
 
 
 class MrMktUseCaseFactory:

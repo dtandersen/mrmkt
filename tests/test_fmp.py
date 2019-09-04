@@ -18,7 +18,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/AAPL?period=annual',
                        text=Path('fmp/aapl-balance-sheet.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_balance_sheet('AAPL')
+        resp = fmp.list_balance_sheets('AAPL')
         self.assertEqual(vars(resp[0]), vars(BalanceSheet(
             symbol='AAPL',
             date=to_date('2018-09-29'),
@@ -33,7 +33,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/NVDA?period=annual',
                        text=Path('fmp/NVDA-balance-sheet.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_balance_sheet('NVDA')
+        resp = fmp.list_balance_sheets('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, to_date('2019-01-27'))
         self.assertEqual(resp[0].totalLiabilities, 3950000000.0)
@@ -45,7 +45,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
                        'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/SPY?period=annual',
                        text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_balance_sheet('SPY')
+        resp = fmp.list_balance_sheets('SPY')
         self.assertEqual(resp, [])
 
     @requests_mock.Mocker()
@@ -53,7 +53,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL?period=annual',
                        text=Path('fmp/aapl-income.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_income_statement('AAPL')
+        resp = fmp.list_income_statements('AAPL')
         self.assertEqual(vars(resp[0]),
                          vars(IncomeStatement(
                              symbol='AAPL',
@@ -77,7 +77,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/NVDA?period=annual',
                        text=Path('fmp/NVDA-income-statement.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_income_statement('NVDA')
+        resp = fmp.list_income_statements('NVDA')
         self.assertEqual(resp[0].symbol, 'NVDA')
         self.assertEqual(resp[0].date, to_date('2019-01-27'))
         self.assertEqual(resp[0].waso, 625000000.0)
@@ -88,7 +88,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/SPY?period=annual',
                        text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_income_statement('SPY')
+        resp = fmp.list_income_statements('SPY')
         self.assertEqual(resp, [])
 
     @requests_mock.Mocker()
@@ -97,7 +97,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
                        'https://financialmodelingprep.com/api/v3/financials/income-statement/CMCSA?period=annual',
                        text=Path('fmp/CMCSA-income-statement.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_income_statement('CMCSA')
+        resp = fmp.list_income_statements('CMCSA')
         self.assertEqual(resp[0].symbol, 'CMCSA')
         self.assertEqual(resp[0].date, to_date('2018-12-31'))
         self.assertEqual(resp[0].waso, 4549504769.0)
@@ -108,7 +108,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/KMI?period=annual',
                        text=Path('fmp/KMI-income-statement.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.get_income_statement('KMI')
+        resp = fmp.list_income_statements('KMI')
         self.assertEqual(resp[0].symbol, 'KMI')
         self.assertEqual(resp[0].date, to_date('2009-12-31'))
         self.assertEqual(resp[0].waso, 0)

@@ -22,9 +22,9 @@ class UseCase:
 class FinancialLoader(UseCase):
     result: FinancialLoaderResult
 
-    def __init__(self, fin_gate: ReadOnlyFinancialRepository, fin_db: FinancialRepository):
-        self.fin_db = fin_db
-        self.fin_gate = fin_gate
+    def __init__(self, sourcerepo: ReadOnlyFinancialRepository, destrepo: FinancialRepository):
+        self.destrepo = destrepo
+        self.sourcerepo = sourcerepo
 
     def execute(self, request: FinancialLoaderRequest, result: FinancialLoaderResult):
         self.result = result
@@ -35,27 +35,27 @@ class FinancialLoader(UseCase):
 
     def load(self, symbol: str):
         self.result.on_load_symbol(symbol)
-        prices = self.fin_gate.list_prices(symbol)
+        prices = self.sourcerepo.list_prices(symbol)
         for price in prices:
             try:
-                self.fin_db.add_price(price)
+                self.destrepo.add_price(price)
             except Duplicate:
                 pass
 
-        income_statements = self.fin_gate.list_income_statements(symbol)
+        income_statements = self.sourcerepo.list_income_statements(symbol)
         for i in income_statements:
             try:
-                self.fin_db.add_income(i)
+                self.destrepo.add_income(i)
             except Duplicate:
                 pass
 
-        balance_sheets = self.fin_gate.list_balance_sheets(symbol)
+        balance_sheets = self.sourcerepo.list_balance_sheets(symbol)
         for b in balance_sheets:
             try:
-                self.fin_db.add_balance_sheet(b)
+                self.destrepo.add_balance_sheet(b)
             except Duplicate:
                 pass
 
     def load_all(self):
-        for symbol in self.fin_gate.get_symbols():
+        for symbol in self.sourcerepo.get_symbols():
             self.load(symbol)

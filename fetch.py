@@ -2,7 +2,7 @@ import sys
 from typing import List
 
 from bootstrapper import bootstrap
-from usecase.loader import FinancialLoaderResult, FinancialLoaderRequest
+from usecase.fetch import FinancialLoaderResult, FinancialLoaderRequest
 from apprunner.runner import App
 from use_case_factory import MrMktUseCaseFactory
 
