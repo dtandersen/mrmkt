@@ -1,0 +1,38 @@
+{
+  "symbol" : "AAPL",
+  "financials" : [ {
+    "date" : "2018-09-29",
+    "Depreciation & Amortization" : "10903000000.0",
+    "Stock-based compensation" : "5340000000.0",
+    "Operating Cash Flow" : "77434000000.0",
+    "Capital Expenditure" : "-13313000000.0",
+    "Acquisitions and disposals" : "-721000000.0",
+    "Investment purchases and sales" : "30845000000.0",
+    "Investing Cash flow" : "16066000000.0",
+    "Issuance (repayment) of debt" : "432000000.0",
+    "Issuance (buybacks) of shares" : "-72069000000.0",
+    "Dividend payments" : "-13712000000.0",
+    "Financing Cash Flow" : "-87876000000.0",
+    "Effect of forex changes on cash" : "0.0",
+    "Net cash flow / Change in cash" : "5624000000.0",
+    "Free Cash Flow" : "64121000000.0",
+    "Net Cash/Marketcap" : "-0.0439"
+  }, {
+    "date" : "2017-09-30",
+    "Depreciation & Amortization" : "10157000000.0",
+    "Stock-based compensation" : "4840000000.0",
+    "Operating Cash Flow" : "64225000000.0",
+    "Capital Expenditure" : "-12451000000.0",
+    "Acquisitions and disposals" : "-329000000.0",
+    "Investment purchases and sales" : "-33542000000.0",
+    "Investing Cash flow" : "-46446000000.0",
+    "Issuance (repayment) of debt" : "29014000000.0",
+    "Issuance (buybacks) of shares" : "-32345000000.0",
+    "Dividend payments" : "-12769000000.0",
+    "Financing Cash Flow" : "-17974000000.0",
+    "Effect of forex changes on cash" : "0.0",
+    "Net cash flow / Change in cash" : "-195000000.0",
+    "Free Cash Flow" : "51774000000.0",
+    "Net Cash/Marketcap" : "-0.0522"
+  } ]
+}

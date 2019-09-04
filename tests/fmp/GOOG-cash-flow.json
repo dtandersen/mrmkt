@@ -1,0 +1,21 @@
+{
+  "symbol" : "GOOG",
+  "financials" : [ {
+    "date" : "2018-12",
+    "Depreciation & Amortization" : "9035000000.0",
+    "Stock-based compensation" : "9353000000.0",
+    "Operating Cash Flow" : "47971000000.0",
+    "Capital Expenditure" : "-26630000000.0",
+    "Acquisitions and disposals" : "-1491000000.0",
+    "Investment purchases and sales" : "-1972000000",
+    "Investing Cash flow" : "-28504000000.0",
+    "Issuance (repayment) of debt" : "-6827000000.0",
+    "Issuance (buybacks) of shares" : "-9075000000.0",
+    "Dividend payments" : "",
+    "Financing Cash Flow" : "-13179000000.0",
+    "Effect of forex changes on cash" : "-302000000.0",
+    "Net cash flow / Change in cash" : "5986000000.0",
+    "Free Cash Flow" : "21341000000.0",
+    "Net Cash/Marketcap" : ""
+  } ]
+}

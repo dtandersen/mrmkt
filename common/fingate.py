@@ -3,6 +3,8 @@ from abc import abstractmethod
 from typing import List, Optional
 
 from entity.balance_sheet import BalanceSheet
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 from tests.test_sqlfinrepo import to_date
@@ -11,23 +13,31 @@ from tests.test_sqlfinrepo import to_date
 class FinancialGateway:
     @abstractmethod
     def balance_sheet(self, symbol) -> List[BalanceSheet]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def income_statement(self, symbol) -> List[IncomeStatement]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def closing_price(self, symbol, date) -> Optional[IncomeStatement]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_stocks(self) -> Optional[List[str]]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_daily_prices(self, symbol: str) -> List[StockPrice]:
-        pass
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_cash_flow(self, symbol: str) -> List[CashFlow]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+        raise NotImplementedError
 
 
 class InMemoryFinancialGateway(FinancialGateway):

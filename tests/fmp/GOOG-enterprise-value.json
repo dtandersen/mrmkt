@@ -1,0 +1,12 @@
+{
+  "symbol" : "GOOG",
+  "enterpriseValues" : [ {
+    "date" : "2018-12",
+    "Stock Price" : "1106.43",
+    "Number of Shares" : "750000000.0",
+    "Market Capitalization" : 8.298225E11,
+    "- Cash & Cash Equivalents" : 1.6701E10,
+    "+ Total Debt" : 3.95E9,
+    "Enterprise Value" : 8.170715E11
+  } ]
+}

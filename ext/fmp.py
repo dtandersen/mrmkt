@@ -4,6 +4,8 @@ from typing import Optional, List
 
 from entity.balance_sheet import BalanceSheet
 from common.fingate import FinancialGateway
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
 import requests
 
@@ -45,6 +47,13 @@ class FmpApi:
     def get_stocks(self):
         json = requests \
             .get(f'{self.endpoint}/company/stock/list') \
+            .json()
+        logging.debug(json)
+        return json
+
+    def get_cash_flow(self, symbol: str):
+        json = requests \
+            .get(f'{self.endpoint}/financials/cash-flow-statement/{symbol}') \
             .json()
         logging.debug(json)
         return json
@@ -127,4 +136,33 @@ class FMPFinancialGateway(FinancialGateway):
             low=json["low"],
             close=json["close"],
             volume=json["volume"]
+        )
+
+    def get_cash_flow(self, symbol: str) -> List[CashFlow]:
+        json = self.fmp_api.get_cash_flow(symbol)
+        return [FMPFinancialGateway.map_cash_flow(row, symbol) for row in json["financials"]]
+
+    @staticmethod
+    def map_cash_flow(json, symbol: str) -> CashFlow:
+        return CashFlow(
+            symbol=symbol,
+            date=to_date(json["date"]),
+            operating_cash_flow=float(json["Operating Cash Flow"]),
+            capital_expenditure=float(json["Capital Expenditure"]),
+            free_cash_flow=float(json["Free Cash Flow"]),
+            dividend_payments=float(json["Dividend payments"] if json["Dividend payments"] != "" else 0)
+        )
+
+    def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+        json = self.fmp_api.get_enterprise_value(symbol)
+        return [FMPFinancialGateway.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
+
+    @staticmethod
+    def map_enterprise_value(json, symbol: str) -> EnterpriseValue:
+        return EnterpriseValue(
+            symbol=symbol,
+            date=to_date(json["date"]),
+            stock_price=float(json["Stock Price"]),
+            shares_outstanding=float(json["Number of Shares"]),
+            market_cap=float(json["Market Capitalization"])
         )

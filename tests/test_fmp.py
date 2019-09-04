@@ -3,6 +3,8 @@ from pathlib import Path
 import requests_mock
 
 from entity.balance_sheet import BalanceSheet
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.stock_price import StockPrice
 from ext.fmp import FMPFinancialGateway, FmpApi
 from entity.income_statement import IncomeStatement
@@ -175,4 +177,102 @@ class TestFMPFinancialGateway(unittest.TestCase):
             low=83.8161,
             close=84.5035,
             volume=3.556127E7
+        )))
+
+    @requests_mock.Mocker()
+    def test_get_historical_price2(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
+                       text=Path('fmp/AAPL-historical-price-full.json').read_text())
+        fmp = FMPFinancialGateway(FmpApi())
+        price = fmp.get_daily_prices('AAPL')
+        self.assertEqual(vars(price[0]), vars(StockPrice(
+            symbol="AAPL",
+            date=to_date("2014-06-13"),
+            open=84.5035,
+            high=84.7235,
+            low=83.2937,
+            close=83.6603,
+            volume=5.452528E7
+        )))
+        self.assertEqual(vars(price[1]), vars(StockPrice(
+            symbol="AAPL",
+            date=to_date("2014-06-16"),
+            open=83.8711,
+            high=85.0076,
+            low=83.8161,
+            close=84.5035,
+            volume=3.556127E7
+        )))
+
+    @requests_mock.Mocker()
+    def test_get_multiple_cash_flow(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/AAPL',
+                       text=Path('fmp/AAPL-cash-flow.json').read_text())
+        fmp = FMPFinancialGateway(FmpApi())
+        cash_flow = fmp.get_cash_flow('AAPL')
+        self.assertEqual(vars(cash_flow[0]), vars(CashFlow(
+            symbol="AAPL",
+            date=to_date("2018-09-29"),
+            operating_cash_flow=77434000000.0,
+            capital_expenditure=-13313000000.0,
+            free_cash_flow=64121000000.0,
+            dividend_payments=-13712000000.0
+        )))
+        self.assertEqual(vars(cash_flow[1]), vars(CashFlow(
+            symbol="AAPL",
+            date=to_date("2017-09-30"),
+            operating_cash_flow=64225000000.0,
+            capital_expenditure=-12451000000.0,
+            free_cash_flow=51774000000.0,
+            dividend_payments=-12769000000.0
+        )))
+
+    @requests_mock.Mocker()
+    def test_get_single_cash_flow(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/GOOG',
+                       text=Path('fmp/GOOG-cash-flow.json').read_text())
+        fmp = FMPFinancialGateway(FmpApi())
+        cash_flow = fmp.get_cash_flow('GOOG')
+        self.assertEqual(vars(cash_flow[0]), vars(CashFlow(
+            symbol="GOOG",
+            date=to_date("2018-12-01"),
+            operating_cash_flow=47971000000.0,
+            capital_expenditure=-26630000000.0,
+            free_cash_flow=21341000000.0,
+            dividend_payments=0
+        )))
+
+    @requests_mock.Mocker()
+    def test_get_multiple_enterprise_value(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/AAPL?period=annual',
+                       text=Path('fmp/AAPL-enterprise-value.json').read_text())
+        fmp = FMPFinancialGateway(FmpApi())
+        enterprise_value = fmp.get_enterprise_value('AAPL')
+        self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
+            symbol="AAPL",
+            date=to_date("2018-09-29"),
+            stock_price=224.6375,
+            shares_outstanding=5000109000.0,
+            market_cap=1.1232119854875E12
+        )))
+        self.assertEqual(vars(enterprise_value[1]), vars(EnterpriseValue(
+            symbol="AAPL",
+            date=to_date("2017-09-30"),
+            stock_price=149.7705,
+            shares_outstanding=5251692000.0,
+            market_cap=7.86548536686E11
+        )))
+
+    @requests_mock.Mocker()
+    def test_get_single_enterprise_value(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/GOOG?period=annual',
+                       text=Path('fmp/GOOG-enterprise-value.json').read_text())
+        fmp = FMPFinancialGateway(FmpApi())
+        enterprise_value = fmp.get_enterprise_value('GOOG')
+        self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
+            symbol="GOOG",
+            date=to_date("2018-12-01"),
+            stock_price=1106.43,
+            shares_outstanding=750000000.0,
+            market_cap=8.298225E11
         )))

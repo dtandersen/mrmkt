@@ -1,0 +1,20 @@
+{
+  "symbol" : "AAPL",
+  "enterpriseValues" : [ {
+    "date" : "2018-09-29",
+    "Stock Price" : "224.6375",
+    "Number of Shares" : "5000109000.0",
+    "Market Capitalization" : 1.1232119854875E12,
+    "- Cash & Cash Equivalents" : 2.5913E10,
+    "+ Total Debt" : 1.14483E11,
+    "Enterprise Value" : 1.2117819854875E12
+  }, {
+    "date" : "2017-09-30",
+    "Stock Price" : "149.7705",
+    "Number of Shares" : "5251692000.0",
+    "Market Capitalization" : 7.86548536686E11,
+    "- Cash & Cash Equivalents" : 2.0289E10,
+    "+ Total Debt" : 1.1568E11,
+    "Enterprise Value" : 8.81939536686E11
+  } ]
+}
