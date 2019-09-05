@@ -1,14 +1,21 @@
 import datetime
+import json
 import unittest
+from dataclasses import asdict
 
-from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow
-from common.util import to_date
+from psycopg2._json import Json
+
+from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow, \
+    FinancialRow
+from common.util import to_date, EnhancedJSONEncoder
 from entity.balance_sheet import BalanceSheet
 from entity.analysis import Analysis
+from entity.finrep import FinancialReport
 from entity.income_statement import IncomeStatement
 from common.sql import MockSqlClient
 from entity.stock_price import StockPrice
 from common.testfinrepo import FinancialTestRepository
+from hamcrest import *
 
 
 class TestStringMethods(unittest.TestCase):
@@ -310,3 +317,22 @@ class TestStringMethods(unittest.TestCase):
                              totalAssets=13292000000.0,
                              totalLiabilities=3950000000.0
                          )))
+
+    # def test_insert_financial(self):
+    #     inc = self.canned.get_income_statement("AAPL", to_date("2018-09-29"))
+    #     bs = self.canned.get_balance_sheet("AAPL",  to_date("2018-09-29"))
+    #     cf = self.canned.get_cash_flow("AAPL",  to_date("2018-09-29"))
+    #     rep = FinancialReport(
+    #         symbol="AAPL",
+    #         date=datetime.date(2018, 9, 29),
+    #         income_statement=inc,
+    #         balance_sheet=bs,
+    #         cash_flow=cf)
+    #     self.db.insert_financial(rep)
+    #
+    #     assert_that(self.client.inserts2[0]['table'], equal_to("financials"))
+    #     assert_that(self.client.inserts2[0]['values'], equal_to(FinancialRow(
+    #         symbol="abc",
+    #         date=datetime.date(2019, 1, 2),
+    #         data=json.dumps(rep, cls=EnhancedJSONEncoder)
+    #     )))

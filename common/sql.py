@@ -1,7 +1,15 @@
 import dataclasses
+import json
 from abc import abstractmethod
 from dataclasses import asdict
 from typing import List, Callable
+
+from common.util import EnhancedJSONEncoder
+
+
+@dataclasses.dataclass
+class JsonField:
+    data: any
 
 
 class SqlClient:
@@ -17,12 +25,17 @@ class SqlClient:
     def delete(self, query: str):
         pass
 
+    @abstractmethod
+    def insert2(self, table: str, params):
+        pass
+
 
 class MockSqlClient(SqlClient):
     inserts: List[dict]
     selects: dict
 
     def __init__(self):
+        self.inserts2 = []
         self.queries = []
         self.inserts = []
         self.selects = {}
@@ -40,6 +53,9 @@ class MockSqlClient(SqlClient):
 
     def append_select(self, query: str, rows: list):
         self.selects[query] = [asdict(row) for row in rows]
+
+    def insert2(self, table: str, params):
+        self.inserts2.append({"table": table, "values": params})
 
 
 class SqlGenerator:
@@ -81,8 +97,18 @@ class InsecureSqlGenerator(SqlGenerator):
         columns = ", ".join(keys)
         values = ", ".join(list(map(lambda x: "%s", keys)))
         query = f"insert into {table} ({columns}) values ({values})"
+        print(d.values())
+        v = [self.map_obj(x) for x in d.values()]
+        return query, tuple(v)
 
-        return query, tuple(d.values())
+    def map_obj(self, x):
+        print(x)
+        if isinstance(x, dict):
+            j = json.dumps(x["data"], cls=EnhancedJSONEncoder)
+            print("json=" + j)
+            return j
+        else:
+            return x
 
 
 class Duplicate(Exception):

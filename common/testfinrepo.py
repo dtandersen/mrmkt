@@ -3,6 +3,7 @@ import datetime
 from common.inmemfinrepo import InMemoryFinancialRepository
 from common.util import to_date
 from entity.balance_sheet import BalanceSheet
+from entity.cash_flow import CashFlow
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
@@ -135,6 +136,15 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             volume=5.452528E7
         ))
 
+        self.add_cash_flow(CashFlow(
+            symbol='AAPL',
+            date=datetime.date(2018, 9, 29),
+            operating_cash_flow=77434000000.0,
+            capital_expenditure=-13313000000.0,
+            free_cash_flow=64121000000.0,
+            dividend_payments=-13712000000.0,
+        ))
+
     def add_netflix_financials(self):
         self.stocks.add('NFLX')
         self.add_income(IncomeStatement(
@@ -171,7 +181,6 @@ class FinancialTestRepository(InMemoryFinancialRepository):
 
     def add_spy_financials(self):
         self.stocks.add('SPY')
-
 
     def addSpyFinancials(self):
         self.stocks.add('SPY')

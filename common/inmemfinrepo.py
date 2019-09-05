@@ -17,6 +17,7 @@ class InMemoryFinancialRepository(FinancialRepository):
     incomes: Table
     balances: Table
     analysis: Table
+    cashflows: Table
     prices: Table
     stocks: Table
 
@@ -25,6 +26,7 @@ class InMemoryFinancialRepository(FinancialRepository):
         self.balances = Table(symbol_date_key)
         self.analysis = Table(symbol_date_key)
         self.prices = Table(symbol_date_key)
+        self.cashflows = Table(symbol_date_key)
         self.stocks = Table(string_key)
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
@@ -50,6 +52,9 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def list_cash_flows(self, symbol: str) -> List[CashFlow]:
         pass
+
+    def add_cash_flow(self, cash_flow: CashFlow):
+        self.cashflows.add(cash_flow)
 
     def add_close_price(self, symbol: str, date: datetime.date, price_close: float):
         self.add_price(StockPrice(
@@ -91,6 +96,9 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def get_symbols(self) -> List[str]:
         return list(self.stocks.all())
+
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        return self.cashflows.get(f"{symbol}-{date}")
 
 
 def symbol_date_key(obj) -> str:

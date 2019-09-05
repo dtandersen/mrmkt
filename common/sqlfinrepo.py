@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from typing import List
 
 from common.inmemfinrepo import FinancialRepository
-from common.sql import SqlClient
+from common.sql import SqlClient, JsonField
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
+from entity.finrep import FinancialReport
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
@@ -127,6 +128,14 @@ class SqlFinancialRepository(FinancialRepository):
 
         return rows[0]
 
+    def insert_financial(self, rep: FinancialReport):
+        f = FinancialRow(
+            symbol="abc",
+            date=datetime.date(2019, 1,2 ),
+            data="{}"
+        )
+        self.sql_client.insert2("financials", f)
+
 
 @dataclass
 class BalanceSheetRow:
@@ -170,3 +179,10 @@ class PriceRow:
     low: float
     close: float
     volume: float
+
+
+@dataclass
+class FinancialRow:
+    symbol: str
+    date: datetime.date
+    data: JsonField

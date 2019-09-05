@@ -28,6 +28,10 @@ class ReadOnlyFinancialRepository:
         raise NotImplementedError
 
     @abstractmethod
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_balance_sheets(self, symbol) -> List[BalanceSheet]:
         raise NotImplementedError
 
@@ -55,6 +59,10 @@ class FinancialRepository(ReadOnlyFinancialRepository):
 
     @abstractmethod
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_cash_flow(self, cash_flow: CashFlow):
         raise NotImplementedError
 
     @abstractmethod
