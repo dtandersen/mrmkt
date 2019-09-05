@@ -1,13 +1,20 @@
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 from common.sql import InsecureSqlGenerator
+from hamcrest import *
 
 
 @dataclass
 class TestRow:
     x: int
     y: str
+
+
+@dataclass
+class TestRow2:
+    b: str
+    a: int
 
 
 class TestStringMethods(unittest.TestCase):
@@ -20,3 +27,15 @@ class TestStringMethods(unittest.TestCase):
         converter = InsecureSqlGenerator()
         insert = converter.to_insert('table', TestRow(x=5, y="b"))
         self.assertEqual("insert into table (x, y) values (5, 'b')", insert)
+
+    def test_insert_with_values(self):
+        converter = InsecureSqlGenerator()
+        insert, values = converter.to_insert2('table', asdict(TestRow(x=5, y="b")))
+        self.assertEqual("insert into table (x, y) values (%s, %s)", insert)
+        assert_that(values, equal_to((5, "b")))
+
+    def test_insert_with_different_order(self):
+        converter = InsecureSqlGenerator()
+        insert, values = converter.to_insert2('table', TestRow2(b="z", a=11))
+        self.assertEqual("insert into table (b, a) values (%s, %s)", insert)
+        assert_that(values, equal_to(("z", 11)))

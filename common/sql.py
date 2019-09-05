@@ -71,6 +71,19 @@ class InsecureSqlGenerator(SqlGenerator):
         else:
             return f"'{value}'"
 
+    def to_insert2(self, table: str, params: any):
+        if dataclasses.is_dataclass(params):
+            d = asdict(params)
+        else:
+            d = params
+
+        keys = d.keys()
+        columns = ", ".join(keys)
+        values = ", ".join(list(map(lambda x: "%s", keys)))
+        query = f"insert into {table} ({columns}) values ({values})"
+
+        return query, tuple(d.values())
+
 
 class Duplicate(Exception):
     def __init__(self, message):
