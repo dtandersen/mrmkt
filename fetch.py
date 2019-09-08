@@ -28,7 +28,7 @@ class FetchFinancialsApp(App):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
     bootstrap(FetchFinancialsApp, sys.argv[1:])
 
 

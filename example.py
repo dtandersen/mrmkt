@@ -3,7 +3,7 @@ import psycopg2
 from common.sql import InsecureSqlGenerator
 from common.sqlfinrepo import SqlFinancialRepository
 from ext.postgres import PostgresSqlClient
-from usecase.buffet import Buffet
+from usecase.runmodel import RunModel
 from ext.fmp import FMPReadOnlyFinancialRepository, FmpClient
 # logging.basicConfig(level=logging.DEBUG)
 # api = FmpApi()
@@ -23,7 +23,7 @@ symbol = 'ENPH'
 # db =
 # bal = fmp.balance_sheet(symbol)
 # inc = fmp.income_statement(symbol)
-buf = Buffet(pg)
+buf = RunModel(pg)
 buf.analyze(symbol)
 print(f'  symbol={x.symbol}')
 print(f'  date={x.date}')
