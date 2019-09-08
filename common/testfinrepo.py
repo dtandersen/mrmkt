@@ -4,6 +4,7 @@ from common.inmemfinrepo import InMemoryFinancialRepository
 from common.util import to_date
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
 
@@ -126,6 +127,23 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             totalLiabilities=241272000000.0
         ))
 
+        self.add_cash_flow(CashFlow(
+            symbol='AAPL',
+            date=datetime.date(2018, 9, 29),
+            operating_cash_flow=77434000000.0,
+            capital_expenditure=-13313000000.0,
+            free_cash_flow=64121000000.0,
+            dividend_payments=-13712000000.0,
+        ))
+
+        self.add_enterprise_value(EnterpriseValue(
+            symbol='AAPL',
+            date=datetime.date(2018, 9, 29),
+            stock_price=224.6375,
+            shares_outstanding=5000109000.0,
+            market_cap=1.1232119854875E12
+        ))
+
         self.add_price(StockPrice(
             symbol='AAPL',
             date=datetime.date(2014, 6, 13),
@@ -136,15 +154,6 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             volume=5.452528E7
         ))
 
-        self.add_cash_flow(CashFlow(
-            symbol='AAPL',
-            date=datetime.date(2018, 9, 29),
-            operating_cash_flow=77434000000.0,
-            capital_expenditure=-13313000000.0,
-            free_cash_flow=64121000000.0,
-            dividend_payments=-13712000000.0,
-        ))
-
     def add_netflix_financials(self):
         self.stocks.add('NFLX')
         self.add_income(IncomeStatement(
@@ -153,12 +162,28 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             netIncome=1211242000.0,
             waso=451244000
         ))
-
         self.add_balance_sheet(BalanceSheet(
             symbol='NFLX',
             date=datetime.date(2018, 12, 31),
             totalAssets=25974400000.0,
             totalLiabilities=20735635000.0
+        ))
+        self.add_cash_flow(CashFlow(
+            symbol='NFLX',
+            date=to_date('2018-12-31'),
+            operating_cash_flow=-2680479000.0,
+            capital_expenditure=-212532000.0,
+            free_cash_flow=-2893011000.0,
+            dividend_payments=0
+
+        ))
+        self.add_enterprise_value(EnterpriseValue(
+            symbol='NFLX',
+            date=to_date('2018-12-31'),
+            stock_price=267.66,
+            shares_outstanding=451244000.0,
+            market_cap=1.2077996904000002E11
+
         ))
         self.add_price(StockPrice(
             symbol='NFLX',

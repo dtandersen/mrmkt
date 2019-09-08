@@ -4,6 +4,8 @@ from typing import List
 
 from common.testfinrepo import FinancialTestRepository
 from entity.balance_sheet import BalanceSheet
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.income_statement import IncomeStatement
 from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.stock_price import StockPrice
@@ -40,6 +42,9 @@ class TestFetch(unittest.TestCase):
             date=datetime.date(2018, 12, 31),
             totalAssets=25974400000.0,
             totalLiabilities=20735635000.0)))
+
+        assert_that(self.dest_cash_flow('NFLX', '2018-12-31'), equal_to(self.source_cash_flow('NFLX', '2018-12-31')))
+        assert_that(self.dest_enterprise_value('NFLX', '2018-12-31'), equal_to(self.source_enterprise_value('NFLX', '2018-12-31')))
 
         assert_that(self.dest_income_statement('NVDA', '2019-01-27'), equal_to(IncomeStatement(
             symbol='NVDA',
@@ -151,12 +156,8 @@ class TestFetch(unittest.TestCase):
             totalAssets=365725000000.0,
             totalLiabilities=258578000000.0))
 
-        self.given_dest_has_existing_income_statement(IncomeStatement(
-            symbol='AAPL',
-            date=datetime.date(2017, 9, 30),
-            netIncome=48351000000.0,
-            waso=5251692000
-        ))
+        self.when_dest_contains_same_cash_flow_as_source('AAPL', '2018-09-29')
+        self.when_dest_contains_same_enterprise_value_as_source('AAPL', '2018-09-29')
 
         self.given_dest_has_existing_balance_sheet(BalanceSheet(
             symbol='AAPL',
@@ -190,6 +191,9 @@ class TestFetch(unittest.TestCase):
             totalLiabilities=258578000000.0
         )))
 
+        assert_that(self.dest_cash_flow('AAPL', '2018-09-29'), equal_to(self.source_cash_flow('AAPL', '2018-09-29')))
+        assert_that(self.dest_enterprise_value('AAPL', '2018-09-29'), equal_to(self.source_enterprise_value('AAPL', '2018-09-29')))
+
         assert_that(self.dest_price('AAPL', to_date('2014-06-13')), equal_to(StockPrice(
             symbol='AAPL',
             date=datetime.date(2014, 6, 13),
@@ -199,6 +203,12 @@ class TestFetch(unittest.TestCase):
             close=83.6603,
             volume=5.452528E7
         )))
+
+    def when_dest_contains_same_cash_flow_as_source(self, symbol, date):
+        self.given_dest_has_existing_cash_flow(self.source_cash_flow(symbol, date))
+
+    def when_dest_contains_same_enterprise_value_as_source(self, symbol, date):
+        self.given_dest_has_existing_enterprise_value(self.source_enterprise_value(symbol, date))
 
     def test_spy_has_no_financials(self):
         self.given_source_has_spy_financials()
@@ -219,6 +229,12 @@ class TestFetch(unittest.TestCase):
 
     def given_dest_has_existing_income_statement(self, statement):
         self.destrepo.add_income(statement)
+
+    def given_dest_has_existing_cash_flow(self, cash_flow: CashFlow):
+        self.destrepo.add_cash_flow(cash_flow)
+
+    def given_dest_has_existing_enterprise_value(self, enterprise_value: EnterpriseValue):
+        self.destrepo.add_enterprise_value(enterprise_value)
 
     def when_the_symbol_is_fetched(self, symbol: str = None):
         self.result = FinancialLoaderResult()
@@ -248,3 +264,15 @@ class TestFetch(unittest.TestCase):
 
     def dest_balance_sheet(self, nflx, s):
         return self.destrepo.get_balance_sheet(nflx, s)
+
+    def source_cash_flow(self, symbol: str, date: str) -> CashFlow:
+        return self.sourcerepo.get_cash_flow(symbol, to_date(date))
+
+    def dest_cash_flow(self, symbol: str, date: str) -> CashFlow:
+        return self.destrepo.get_cash_flow(symbol, to_date(date))
+
+    def source_enterprise_value(self, symbol: str, date: str) -> EnterpriseValue:
+        return self.sourcerepo.get_enterprise_value(symbol, to_date(date))
+
+    def dest_enterprise_value(self, symbol: str, date: str) -> EnterpriseValue:
+        return self.destrepo.get_enterprise_value(symbol, to_date(date))

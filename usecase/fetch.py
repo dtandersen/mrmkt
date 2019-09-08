@@ -50,9 +50,23 @@ class FinancialLoader(UseCase):
                 pass
 
         balance_sheets = self.sourcerepo.list_balance_sheets(symbol)
-        for b in balance_sheets:
+        for c in balance_sheets:
             try:
-                self.destrepo.add_balance_sheet(b)
+                self.destrepo.add_balance_sheet(c)
+            except Duplicate:
+                pass
+
+        cash_flows = self.sourcerepo.list_cash_flows(symbol)
+        for c in cash_flows:
+            try:
+                self.destrepo.add_cash_flow(c)
+            except Duplicate:
+                pass
+
+        enterprise_value = self.sourcerepo.list_enterprise_value(symbol)
+        for e in enterprise_value:
+            try:
+                self.destrepo.add_enterprise_value(e)
             except Duplicate:
                 pass
 

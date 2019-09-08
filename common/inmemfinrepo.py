@@ -18,6 +18,7 @@ class InMemoryFinancialRepository(FinancialRepository):
     balances: Table
     analysis: Table
     cashflows: Table
+    enterprises: Table
     prices: Table
     stocks: Table
 
@@ -27,6 +28,7 @@ class InMemoryFinancialRepository(FinancialRepository):
         self.analysis = Table(symbol_date_key)
         self.prices = Table(symbol_date_key)
         self.cashflows = Table(symbol_date_key)
+        self.enterprises = Table(symbol_date_key)
         self.stocks = Table(string_key)
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
@@ -47,14 +49,23 @@ class InMemoryFinancialRepository(FinancialRepository):
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
         self.balances.add(balance_sheet)
 
-    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
-        pass
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        return self.cashflows.get(f"{symbol}-{date}")
 
     def list_cash_flows(self, symbol: str) -> List[CashFlow]:
-        pass
+        return self.cashflows.filter(lambda i: i.symbol == symbol)
 
     def add_cash_flow(self, cash_flow: CashFlow):
         self.cashflows.add(cash_flow)
+
+    def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
+        return self.enterprises.get(f"{symbol}-{date}")
+
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+        return self.enterprises.filter(lambda i: i.symbol == symbol)
+
+    def add_enterprise_value(self, enterprise_value: EnterpriseValue):
+        self.enterprises.add(enterprise_value)
 
     def add_close_price(self, symbol: str, date: datetime.date, price_close: float):
         self.add_price(StockPrice(
@@ -96,9 +107,6 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def get_symbols(self) -> List[str]:
         return list(self.stocks.all())
-
-    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
-        return self.cashflows.get(f"{symbol}-{date}")
 
 
 def symbol_date_key(obj) -> str:

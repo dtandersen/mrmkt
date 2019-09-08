@@ -19,10 +19,10 @@ class Table(Generic[T]):
         return copy.copy(list(self.values.values()))
 
     def add(self, value):
-        try:
-            self.values[self.keygen(value)] = copy.copy(value)
-        except KeyError:
-            raise Duplicate
+        if self.keygen(value) in self.values:
+            raise Duplicate(f"{value} already exists")
+
+        self.values[self.keygen(value)] = copy.copy(value)
 
     def size(self):
         return len(self.values)
