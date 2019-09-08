@@ -4,8 +4,11 @@ from typing import List
 
 from common.inmemfinrepo import FinancialRepository
 from common.sql import SqlClient, JsonField
+from common.util import to_date
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.finrep import FinancialReport
 from entity.income_statement import IncomeStatement
 from entity.stock_price import StockPrice
@@ -61,6 +64,68 @@ class SqlFinancialRepository(FinancialRepository):
         )
 
         self.sql_client.insert("income_stmt", row)
+
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        row = self.sql_client.select(
+            "select * "
+            "from cash_flow "
+            f"where symbol = '{symbol}' "
+            f"and date = '{date}'",
+            self.map_to_cash_flow)
+
+        return row[0]
+
+    def map_to_cash_flow(self, row) -> CashFlow:
+        return CashFlow(
+            symbol=row['symbol'],
+            date=row['date'],
+            operating_cash_flow=row['operating_cash_flow'],
+            capital_expenditure=row['capital_expenditure'],
+            free_cash_flow=row['free_cash_flow'],
+            dividend_payments=row['dividend_payments']
+        )
+
+    def add_cash_flow(self, cash_flow: CashFlow):
+        row = CashFlowRow(
+            symbol=cash_flow.symbol,
+            date=cash_flow.date,
+            operating_cash_flow=cash_flow.operating_cash_flow,
+            capital_expenditure=cash_flow.capital_expenditure,
+            free_cash_flow=cash_flow.free_cash_flow,
+            dividend_payments=cash_flow.dividend_payments
+        )
+
+        self.sql_client.insert("cash_flow", row)
+
+    def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
+        row = self.sql_client.select(
+            "select * "
+            "from enterprise_value "
+            f"where symbol = '{symbol}' "
+            f"and date = '{date}'",
+            self.map_to_enterprise_value)
+
+        return row[0]
+
+    def map_to_enterprise_value(self, row) -> EnterpriseValue:
+        return EnterpriseValue(
+            symbol=row['symbol'],
+            date=row['date'],
+            stock_price=row['stock_price'],
+            shares_outstanding=row['shares_outstanding'],
+            market_cap=row['market_cap']
+        )
+
+    def add_enterprise_value(self, enterprise_value: EnterpriseValue):
+        row = EnterpriseValueRow(
+            symbol=enterprise_value.symbol,
+            date=enterprise_value.date,
+            stock_price=enterprise_value.stock_price,
+            shares_outstanding=enterprise_value.shares_outstanding,
+            market_cap=enterprise_value.market_cap
+        )
+
+        self.sql_client.insert("enterprise_value", row)
 
     def add_analysis(self, analysis: Analysis):
         row = AnalysisRow(
@@ -131,7 +196,7 @@ class SqlFinancialRepository(FinancialRepository):
     def insert_financial(self, rep: FinancialReport):
         f = FinancialRow(
             symbol="abc",
-            date=datetime.date(2019, 1,2 ),
+            date=datetime.date(2019, 1, 2),
             data="{}"
         )
         self.sql_client.insert2("financials", f)
@@ -151,6 +216,25 @@ class IncomeStatementRow:
     date: datetime.date
     net_income: float
     waso: int
+
+
+@dataclass
+class CashFlowRow:
+    symbol: str
+    date: datetime.date
+    operating_cash_flow: float
+    capital_expenditure: float
+    free_cash_flow: float
+    dividend_payments: float
+
+
+@dataclass
+class EnterpriseValueRow:
+    symbol: str
+    date: datetime.date
+    stock_price: float
+    shares_outstanding: float
+    market_cap: float
 
 
 @dataclass

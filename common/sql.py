@@ -97,15 +97,15 @@ class InsecureSqlGenerator(SqlGenerator):
         columns = ", ".join(keys)
         values = ", ".join(list(map(lambda x: "%s", keys)))
         query = f"insert into {table} ({columns}) values ({values})"
-        print(d.values())
+        # print(d.values())
         v = [self.map_obj(x) for x in d.values()]
         return query, tuple(v)
 
     def map_obj(self, x):
-        print(x)
+        # print(x)
         if isinstance(x, dict):
             j = json.dumps(x["data"], cls=EnhancedJSONEncoder)
-            print("json=" + j)
+            # print("json=" + j)
             return j
         else:
             return x

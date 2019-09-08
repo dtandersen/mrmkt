@@ -6,10 +6,12 @@ from dataclasses import asdict
 from psycopg2._json import Json
 
 from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow, \
-    FinancialRow
+    FinancialRow, CashFlowRow, EnterpriseValueRow
 from common.util import to_date, EnhancedJSONEncoder
 from entity.balance_sheet import BalanceSheet
 from entity.analysis import Analysis
+from entity.cash_flow import CashFlow
+from entity.enterprise_value import EnterpriseValue
 from entity.finrep import FinancialReport
 from entity.income_statement import IncomeStatement
 from common.sql import MockSqlClient
@@ -336,3 +338,191 @@ class TestStringMethods(unittest.TestCase):
     #         date=datetime.date(2019, 1, 2),
     #         data=json.dumps(rep, cls=EnhancedJSONEncoder)
     #     )))
+
+    def test_get_cash_flow(self):
+        self.client.append_select("select * " +
+                                  "from cash_flow "
+                                  "where symbol = 'a' "
+                                  "and date = '2019-01-02'",
+                                  [
+                                      CashFlowRow(
+                                          symbol='a',
+                                          date=to_date('2019-01-02'),
+                                          operating_cash_flow=1,
+                                          capital_expenditure=2,
+                                          free_cash_flow=3,
+                                          dividend_payments=4
+                                      )
+                                  ])
+
+        cash_flow = self.db.get_cash_flow("a", to_date('2019-01-02'))
+        self.assertEqual(vars(cash_flow),
+                         vars(CashFlow(
+                             symbol='a',
+                             date=to_date('2019-01-02'),
+                             operating_cash_flow=1,
+                             capital_expenditure=2,
+                             free_cash_flow=3,
+                             dividend_payments=4
+                         )))
+
+    def test_get_cash_flow2(self):
+        self.client.append_select(
+            "select * " +
+            "from cash_flow "
+            "where symbol = 'b' "
+            "and date = '2018-12-31'",
+            [CashFlowRow(
+                symbol='b',
+                date=to_date('2018-12-31'),
+                operating_cash_flow=9,
+                capital_expenditure=8,
+                free_cash_flow=7,
+                dividend_payments=6
+            )])
+
+        cash_flow = self.db.get_cash_flow("b", to_date('2018-12-31'))
+        self.assertEqual(
+            vars(cash_flow),
+            vars(CashFlow(
+                symbol='b',
+                date=to_date('2018-12-31'),
+                operating_cash_flow=9,
+                capital_expenditure=8,
+                free_cash_flow=7,
+                dividend_payments=6
+            )))
+
+    def test_add_cash_flow(self):
+        self.db.add_cash_flow(CashFlow(
+            symbol='a',
+            date=to_date('2019-01-02'),
+            operating_cash_flow=1,
+            capital_expenditure=2,
+            free_cash_flow=3,
+            dividend_payments=4
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "cash_flow",
+            "values": CashFlowRow(
+                symbol='a',
+                date=to_date('2019-01-02'),
+                operating_cash_flow=1,
+                capital_expenditure=2,
+                free_cash_flow=3,
+                dividend_payments=4
+            )
+        }])
+
+    def test_add_cash_flow2(self):
+        self.db.add_cash_flow(CashFlow(
+            symbol='b',
+            date=to_date('2018-12-31'),
+            operating_cash_flow=4,
+            capital_expenditure=3,
+            free_cash_flow=2,
+            dividend_payments=1
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "cash_flow",
+            "values": CashFlowRow(
+                symbol='b',
+                date=to_date('2018-12-31'),
+                operating_cash_flow=4,
+                capital_expenditure=3,
+                free_cash_flow=2,
+                dividend_payments=1
+            )
+        }])
+
+    def test_get_get_enterprise_value(self):
+        self.client.append_select(
+            "select * " +
+            "from enterprise_value "
+            "where symbol = 'a' "
+            "and date = '2019-01-02'",
+            [EnterpriseValueRow(
+                symbol='a',
+                date=to_date('2019-01-02'),
+                stock_price=1,
+                shares_outstanding=2,
+                market_cap=3
+            )])
+
+        enterprise_value = self.db.get_enterprise_value("a", to_date('2019-01-02'))
+        self.assertEqual(
+            vars(enterprise_value),
+            vars(EnterpriseValue(
+                symbol='a',
+                date=to_date('2019-01-02'),
+                stock_price=1,
+                shares_outstanding=2,
+                market_cap=3
+            )))
+
+    def test_get_get_enterprise_value2(self):
+        self.client.append_select(
+            "select * " +
+            "from enterprise_value "
+            "where symbol = 'b' "
+            "and date = '2018-12-31'",
+            [EnterpriseValueRow(
+                symbol='b',
+                date=to_date('2018-12-31'),
+                stock_price=9,
+                shares_outstanding=8,
+                market_cap=7
+            )])
+
+        enterprise_value = self.db.get_enterprise_value("b", to_date('2018-12-31'))
+        self.assertEqual(
+            vars(enterprise_value),
+            vars(EnterpriseValue(
+                symbol='b',
+                date=to_date('2018-12-31'),
+                stock_price=9,
+                shares_outstanding=8,
+                market_cap=7
+            )))
+
+    def test_add_enterprise_value(self):
+        self.db.add_enterprise_value(EnterpriseValue(
+            symbol='a',
+            date=to_date('2019-01-02'),
+            stock_price=1,
+            shares_outstanding=2,
+            market_cap=3
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "enterprise_value",
+            "values": EnterpriseValueRow(
+                symbol='a',
+                date=to_date('2019-01-02'),
+                stock_price=1,
+                shares_outstanding=2,
+                market_cap=3
+            )
+        }])
+
+    def test_add_enterprise_value2(self):
+        self.db.add_enterprise_value(EnterpriseValue(
+            symbol='a',
+            date=to_date('2018-12-31'),
+            stock_price=9,
+            shares_outstanding=8,
+            market_cap=7
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "enterprise_value",
+            "values": EnterpriseValueRow(
+                symbol='a',
+                date=to_date('2018-12-31'),
+                stock_price=9,
+                shares_outstanding=8,
+                market_cap=7
+            )
+        }])

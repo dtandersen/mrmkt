@@ -47,7 +47,7 @@ class InMemoryFinancialRepository(FinancialRepository):
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
         self.balances.add(balance_sheet)
 
-    def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
         pass
 
     def list_cash_flows(self, symbol: str) -> List[CashFlow]:

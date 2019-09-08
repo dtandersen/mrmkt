@@ -247,7 +247,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/AAPL?period=annual',
                        text=Path('fmp/AAPL-enterprise-value.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        enterprise_value = fmp.get_enterprise_value('AAPL')
+        enterprise_value = fmp.list_enterprise_value('AAPL')
         self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
             symbol="AAPL",
             date=to_date("2018-09-29"),
@@ -268,7 +268,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/GOOG?period=annual',
                        text=Path('fmp/GOOG-enterprise-value.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        enterprise_value = fmp.get_enterprise_value('GOOG')
+        enterprise_value = fmp.list_enterprise_value('GOOG')
         self.assertEqual(vars(enterprise_value[0]), vars(EnterpriseValue(
             symbol="GOOG",
             date=to_date("2018-12-01"),

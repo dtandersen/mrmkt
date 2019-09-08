@@ -40,7 +40,11 @@ class ReadOnlyFinancialRepository:
         raise NotImplementedError
 
     @abstractmethod
-    def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+    def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
         raise NotImplementedError
 
     @abstractmethod
@@ -63,6 +67,10 @@ class FinancialRepository(ReadOnlyFinancialRepository):
 
     @abstractmethod
     def add_cash_flow(self, cash_flow: CashFlow):
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_enterprise_value(self, enterprise_value: EnterpriseValue):
         raise NotImplementedError
 
     @abstractmethod

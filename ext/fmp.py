@@ -153,7 +153,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             dividend_payments=float(json["Dividend payments"] if json["Dividend payments"] != "" else 0)
         )
 
-    def get_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
         json = self.client.get_enterprise_value(symbol)
         return [FMPReadOnlyFinancialRepository.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
 
