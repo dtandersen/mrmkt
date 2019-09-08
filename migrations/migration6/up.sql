@@ -1,4 +1,4 @@
-CREATE TABLE public.cash_flow
+CREATE TABLE public.enterprise_value
 (
     symbol character varying not null,
     date date not null,

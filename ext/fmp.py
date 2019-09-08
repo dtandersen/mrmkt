@@ -39,7 +39,7 @@ class FmpClient:
 
     def get_historical_price_full(self, symbol):
         json = requests \
-            .get(f'{self.endpoint}/historical-price-full/{symbol}') \
+            .get(f'{self.endpoint}/historical-price-full/{symbol}?from=2019-01-01') \
             .json()
         logging.debug(json)
         return json

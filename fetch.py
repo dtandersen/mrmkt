@@ -1,3 +1,4 @@
+import logging
 import sys
 from typing import List
 
@@ -27,6 +28,7 @@ class FetchFinancialsApp(App):
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
     bootstrap(FetchFinancialsApp, sys.argv[1:])
 
 
