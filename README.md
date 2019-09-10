@@ -1,5 +1,5 @@
 dbschema.yml
-```
+```yaml
 databases:
     db1: # Unique tag
         engine: postgresql # Engine name (`postgresql` pr `mysql`)
@@ -13,4 +13,6 @@ databases:
         post_migration: '' # 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gab; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gab' # Optional queries ran after migrating
 ```
 
+```shell
 dbschema -c dbschema.yml
+```
