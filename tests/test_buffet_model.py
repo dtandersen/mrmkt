@@ -11,7 +11,7 @@ from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.income_statement import IncomeStatement
 
 
-class TestStringMethods(unittest.TestCase):
+class TestBuffetModel(unittest.TestCase):
     def setUp(self):
         self.finrepo = InMemoryFinancialRepository()
 
@@ -89,11 +89,10 @@ class TestStringMethods(unittest.TestCase):
             stock_price=5,
             shares_outstanding=1000,
             market_cap=10000))
-        # self.finrepo.add_close_price('PIZZA', to_date('2020-02-20'), 5)
 
         self.buf = RunModel(self.finrepo)
 
-    def test_upper(self):
+    def test_analyze_two_periods(self):
         self.when_analyzed('ICECREAM')
 
         res = self.finrepo.get_analysis('ICECREAM')
@@ -115,19 +114,20 @@ class TestStringMethods(unittest.TestCase):
         })
 
         self.assertEqual(vars(res[1]), {
-            'assets': 48000,
-            'bookValue': 0.96,
-            'buffetNumber': 62.5,
+            'symbol': 'ICECREAM',
             'date': to_date('2020-08-04'),
-            'eps': 2.4,
             'equity': 12000,
-            'liabilities': 36000,
-            'marginOfSafety': 0.08,
             'netIncome': 30000,
+            'eps': 2.4,
+            'bookValue': 0.96,
             'pe': 5.0,
             'priceToBookValue': 12.5,
+            'buffetNumber': 62.5,
+            'marginOfSafety': 0.08,
+            'assets': 48000,
+            'liabilities': 36000,
             'sharesOutstanding': 12500,
-            'symbol': 'ICECREAM'})
+            })
 
     def test_pizza(self):
         self.when_analyzed('PIZZA')
