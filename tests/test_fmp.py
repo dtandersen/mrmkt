@@ -59,7 +59,8 @@ class TestFMPFinancialGateway(unittest.TestCase):
                              symbol='AAPL',
                              date=to_date('2018-09-29'),
                              waso=5000109000,
-                             netIncome=59531000000.0
+                             netIncome=59531000000.0,
+                             consolidated_net_income=-1
                          ))
                          )
         self.assertEqual(vars(resp[1]),
@@ -67,7 +68,8 @@ class TestFMPFinancialGateway(unittest.TestCase):
                              symbol='AAPL',
                              date=to_date('2017-09-30'),
                              waso=5251692000,
-                             netIncome=48351000000.0
+                             netIncome=48351000000.0,
+                             consolidated_net_income=-1
                          )
                          ))
         self.assertEqual(2, len(resp))

@@ -8,3 +8,4 @@ class IncomeStatement:
     date: datetime.date
     netIncome: float
     waso: int
+    consolidated_net_income: float

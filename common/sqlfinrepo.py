@@ -52,7 +52,8 @@ class SqlFinancialRepository(FinancialRepository):
             symbol=row["symbol"],
             date=row["date"],
             netIncome=row["net_income"],
-            waso=row["waso"]
+            waso=row["waso"],
+            consolidated_net_income=-1
         )
 
     def add_income(self, income_statement: IncomeStatement):

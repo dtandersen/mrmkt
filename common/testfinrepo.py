@@ -15,6 +15,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         self.add_google_financials()
         self.add_nvidia_financials()
         self.add_spy_financials()
+        self.add_walmart()
         return self
 
     def add_google_financials(self):
@@ -23,7 +24,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             symbol='GOOG',
             date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
-            waso=750000000
+            waso=750000000,
+            consolidated_net_income=-1
         ))
 
         self.add_balance_sheet(BalanceSheet(
@@ -77,7 +79,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             symbol='NVDA',
             date=datetime.date(2019, 1, 27),
             netIncome=4141000000.0,
-            waso=625000000
+            waso=625000000,
+            consolidated_net_income=-1
         ))
 
         self.add_balance_sheet(BalanceSheet(
@@ -103,7 +106,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
-            waso=5000109000
+            waso=5000109000,
+            consolidated_net_income=-1
         ))
 
         self.add_balance_sheet(BalanceSheet(
@@ -117,7 +121,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             symbol='AAPL',
             date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
-            waso=5251692000
+            waso=5251692000,
+            consolidated_net_income=-1
         ))
 
         self.add_balance_sheet(BalanceSheet(
@@ -160,7 +165,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             symbol='NFLX',
             date=datetime.date(2018, 12, 31),
             netIncome=1211242000.0,
-            waso=451244000
+            waso=451244000,
+            consolidated_net_income=-1
         ))
         self.add_balance_sheet(BalanceSheet(
             symbol='NFLX',
@@ -209,3 +215,40 @@ class FinancialTestRepository(InMemoryFinancialRepository):
 
     def addSpyFinancials(self):
         self.stocks.add('SPY')
+
+    def add_walmart(self):
+        self.stocks.add('WMT')
+
+        self.add_income(IncomeStatement(
+            symbol='WMT',
+            date=to_date('2017-01-31'),
+            netIncome=13643000000.0,
+            waso=3112000000,
+            consolidated_net_income=14293000000.0
+        ))
+        self.add_balance_sheet(BalanceSheet(
+            symbol='WMT',
+            date=to_date('2017-01-31'),
+            totalAssets=198825000000.0,
+            totalLiabilities=10265000000.0,
+            non_current_assets=51362000000.0,
+            inventories=43046000000.0,
+            receivables=5835000000.0
+        ))
+        self.add_cash_flow(CashFlow(
+            symbol='WMT',
+            date=to_date('2017-01-31'),
+            operating_cash_flow=-31673000000.0,
+            capital_expenditure=-10163000000.0,
+            free_cash_flow=21510000000.0,
+            dividend_payments=-6216000000.0
+
+        ))
+        self.add_enterprise_value(EnterpriseValue(
+            symbol='WMT',
+            date=to_date('2017-01-31'),
+            stock_price=62.5478,
+            shares_outstanding=3112000000.0,
+            market_cap=1.946487536E11
+
+        ))

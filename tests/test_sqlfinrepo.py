@@ -50,6 +50,7 @@ class TestStringMethods(unittest.TestCase):
             date=to_date('2019-08-13'),
             netIncome=10,
             waso=50,
+            consolidated_net_income=-1
         ))
 
         self.assertEqual(self.client.inserts, [{
@@ -238,7 +239,8 @@ class TestStringMethods(unittest.TestCase):
                              symbol='AAPL',
                              date=to_date('2018-09-29'),
                              netIncome=59531000000.0,
-                             waso=5000109000
+                             waso=5000109000,
+                             consolidated_net_income=-1
                          )))
 
     def test_get_income_statement2(self):
@@ -260,7 +262,8 @@ class TestStringMethods(unittest.TestCase):
                              symbol='NVDA',
                              date=to_date('2019-01-27'),
                              netIncome=4141000000.0,
-                             waso=625000000
+                             waso=625000000,
+                             consolidated_net_income=-1
                          )))
 
     def test_get_balance_sheet(self):

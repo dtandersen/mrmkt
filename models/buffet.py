@@ -14,6 +14,7 @@ class BuffetModel(FinancialModel):
         for rep in rep2.financial_reports:
             bal = rep.balance_sheet
             inc = rep.income_statement
+            cf = rep.cash_flow
             enterprise_value = rep.enterprise_value
             close = enterprise_value.stock_price
 
@@ -23,10 +24,12 @@ class BuffetModel(FinancialModel):
             bookValue = equity / inc.waso
             priceToBookValue = close / bookValue
             pe = close / eps
+            current_assets = bal.receivables + bal.inventories
             analysis = Analysis(
                 symbol=inc.symbol,
                 date=inc.date,
                 assets=bal.totalAssets,
+                current_assets=current_assets,
                 liabilities=bal.totalLiabilities,
                 sharesOutstanding=enterprise_value.shares_outstanding,
                 netIncome=inc.netIncome,

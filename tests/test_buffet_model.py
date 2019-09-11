@@ -1,5 +1,6 @@
 import unittest
 
+from common.testfinrepo import FinancialTestRepository
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
@@ -14,12 +15,15 @@ from entity.income_statement import IncomeStatement
 class TestBuffetModel(unittest.TestCase):
     def setUp(self):
         self.finrepo = InMemoryFinancialRepository()
+        self.source = FinancialTestRepository().with_all()
 
         self.with_income(IncomeStatement(
             symbol='ICECREAM',
             date=to_date('2019-08-04'),
             netIncome=20000,
-            waso=10000))
+            waso=10000,
+            consolidated_net_income=-1
+        ))
         self.with_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
             date=to_date('2019-08-04'),
@@ -44,7 +48,9 @@ class TestBuffetModel(unittest.TestCase):
             symbol='ICECREAM',
             date=to_date('2020-08-04'),
             netIncome=30000,
-            waso=12500))
+            waso=12500,
+            consolidated_net_income=-1
+        ))
         self.with_balance_sheet(BalanceSheet(
             symbol='ICECREAM',
             date=to_date('2020-08-04'),
@@ -70,7 +76,9 @@ class TestBuffetModel(unittest.TestCase):
             symbol='PIZZA',
             date=to_date('2020-02-20'),
             netIncome=15000,
-            waso=1000))
+            waso=1000,
+            consolidated_net_income=-1
+        ))
         self.with_balance_sheet(BalanceSheet(
             symbol='PIZZA',
             date=to_date('2020-02-20'),
@@ -127,7 +135,7 @@ class TestBuffetModel(unittest.TestCase):
             'assets': 48000,
             'liabilities': 36000,
             'sharesOutstanding': 12500,
-            })
+        })
 
     def test_pizza(self):
         self.when_analyzed('PIZZA')
@@ -148,6 +156,33 @@ class TestBuffetModel(unittest.TestCase):
             "assets": 5000,
             "liabilities": 12500,
             "sharesOutstanding": 1000
+        })
+
+    def test_walmart_owners_earnings(self):
+        self.finrepo.add_income(self.source.get_income_statement('WMT', to_date('2017-01-31')))
+        self.finrepo.add_balance_sheet(self.source.get_balance_sheet('WMT', to_date('2017-01-31')))
+        self.finrepo.add_cash_flow(self.source.get_cash_flow('WMT', to_date('2017-01-31')))
+        self.finrepo.add_enterprise_value(self.source.get_enterprise_value('WMT', to_date('2017-01-31')))
+
+        self.when_analyzed('WMT')
+
+        res = self.finrepo.get_analysis('WMT')
+
+        self.assertEqual(vars(res[0]), {
+            'symbol': 'WMT',
+            'date': to_date('2017-01-31'),
+            'assets': 198825000000.0,
+            'current_assets': 619,
+            'bookValue': 60.59125964010283,
+            'buffetNumber': 14.728001021484516,
+            'eps': 4.3839974293059125,
+            'equity': 188560000000.0,
+            'liabilities': 10265000000.0,
+            'marginOfSafety': 0.9687192777380312,
+            'netIncome': 13643000000.0,
+            'pe': 14.267298512057467,
+            'priceToBookValue': 1.0322908018667798,
+            'sharesOutstanding': 3112000000.0,
         })
 
     def test_overwrite(self):

@@ -17,3 +17,4 @@ class Analysis():
     eps: float
     equity: float
     pe: float
+    current_assets: float = -1

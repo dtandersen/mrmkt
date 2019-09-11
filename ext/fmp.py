@@ -97,7 +97,8 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             symbol=symbol,
             date=to_date(income_stmt_json['date']),
             netIncome=float(income_stmt_json['Net Income']),
-            waso=waso2
+            waso=waso2,
+            consolidated_net_income=-1
         )
 
     def closing_price(self, symbol, date) -> Optional[float]:

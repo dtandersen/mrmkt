@@ -35,7 +35,9 @@ class TestFetch(unittest.TestCase):
             symbol='NFLX',
             date=datetime.date(2018, 12, 31),
             netIncome=1211242000.0,
-            waso=451244000)))
+            waso=451244000,
+            consolidated_net_income=-1
+        )))
 
         assert_that(self.dest_balance_sheet('NFLX', '2018-12-31'), equal_to(BalanceSheet(
             symbol='NFLX',
@@ -44,13 +46,15 @@ class TestFetch(unittest.TestCase):
             totalLiabilities=20735635000.0)))
 
         assert_that(self.dest_cash_flow('NFLX', '2018-12-31'), equal_to(self.source_cash_flow('NFLX', '2018-12-31')))
-        assert_that(self.dest_enterprise_value('NFLX', '2018-12-31'), equal_to(self.source_enterprise_value('NFLX', '2018-12-31')))
+        assert_that(self.dest_enterprise_value('NFLX', '2018-12-31'),
+                    equal_to(self.source_enterprise_value('NFLX', '2018-12-31')))
 
         assert_that(self.dest_income_statement('NVDA', '2019-01-27'), equal_to(IncomeStatement(
             symbol='NVDA',
             date=datetime.date(2019, 1, 27),
             netIncome=4141000000.0,
-            waso=625000000
+            waso=625000000,
+            consolidated_net_income=-1
         )))
 
         assert_that(self.dest_balance_sheet('NVDA', '2019-01-27'), equal_to(BalanceSheet(
@@ -79,14 +83,16 @@ class TestFetch(unittest.TestCase):
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
-            waso=5000109000
+            waso=5000109000,
+            consolidated_net_income=-1
         )))
 
         assert_that(self.dest_income_statement('AAPL', '2017-09-30'), equal_to(IncomeStatement(
             symbol='AAPL',
             date=datetime.date(2017, 9, 30),
             netIncome=48351000000.0,
-            waso=5251692000
+            waso=5251692000,
+            consolidated_net_income=-1
         )))
 
         assert_that(self.dest_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
@@ -114,7 +120,9 @@ class TestFetch(unittest.TestCase):
             symbol='GOOG',
             date=datetime.date(2018, 12, 1),
             netIncome=30736000000.0,
-            waso=750000000)))
+            waso=750000000,
+            consolidated_net_income=-1
+        )))
 
         assert_that(self.dest_balance_sheet('GOOG', '2018-12-01'), equal_to(BalanceSheet(
             symbol='GOOG',
@@ -148,7 +156,9 @@ class TestFetch(unittest.TestCase):
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
-            waso=5000109000))
+            waso=5000109000,
+            consolidated_net_income=-1
+        ))
 
         self.given_dest_has_existing_balance_sheet(BalanceSheet(
             symbol='AAPL',
@@ -181,7 +191,8 @@ class TestFetch(unittest.TestCase):
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
             netIncome=59531000000.0,
-            waso=5000109000
+            waso=5000109000,
+            consolidated_net_income=-1
         )))
 
         assert_that(self.dest_balance_sheet('AAPL', '2018-09-29'), equal_to(BalanceSheet(
@@ -192,7 +203,8 @@ class TestFetch(unittest.TestCase):
         )))
 
         assert_that(self.dest_cash_flow('AAPL', '2018-09-29'), equal_to(self.source_cash_flow('AAPL', '2018-09-29')))
-        assert_that(self.dest_enterprise_value('AAPL', '2018-09-29'), equal_to(self.source_enterprise_value('AAPL', '2018-09-29')))
+        assert_that(self.dest_enterprise_value('AAPL', '2018-09-29'),
+                    equal_to(self.source_enterprise_value('AAPL', '2018-09-29')))
 
         assert_that(self.dest_price('AAPL', to_date('2014-06-13')), equal_to(StockPrice(
             symbol='AAPL',

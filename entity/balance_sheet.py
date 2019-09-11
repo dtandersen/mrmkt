@@ -8,3 +8,6 @@ class BalanceSheet:
     date: datetime.date
     totalAssets: float
     totalLiabilities: float
+    non_current_assets: float = -1
+    inventories: float = -1
+    receivables: float = -1
