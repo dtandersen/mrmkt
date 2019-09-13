@@ -10,3 +10,4 @@ class CashFlow:
     capital_expenditure: float
     free_cash_flow: float
     dividend_payments: float
+    deprec: float = 0

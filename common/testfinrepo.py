@@ -16,6 +16,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         self.add_nvidia_financials()
         self.add_spy_financials()
         self.add_walmart()
+        self.with_disney()
         return self
 
     def add_google_financials(self):
@@ -252,3 +253,42 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             market_cap=1.946487536E11
 
         ))
+
+    def with_disney(self):
+        self.stocks.add('DIS')
+
+        self.add_income(IncomeStatement(
+            symbol='DIS',
+            date=to_date('2018-09-29'),
+            netIncome=12598000000.0,
+            waso=1507000000,
+            consolidated_net_income=13066000000.0
+        ))
+        self.add_balance_sheet(BalanceSheet(
+            symbol='DIS',
+            date=to_date('2018-09-29'),
+            totalAssets=98598000000.0,
+            totalLiabilities=45766000000.0,
+            non_current_assets=27906000000.0,
+            inventories=1392000000.0,
+            receivables=9334000000.0
+        ))
+        self.add_cash_flow(CashFlow(
+            symbol='DIS',
+            date=to_date('2018-09-29'),
+            operating_cash_flow=14295000000.0,
+            capital_expenditure=-4465000000.0,
+            free_cash_flow=9830000000.0,
+            dividend_payments=-2515000000.0,
+            deprec=3011000000.0,
+        ))
+        self.add_enterprise_value(EnterpriseValue(
+            symbol='DIS',
+            date=to_date('2018-09-29'),
+            stock_price=115.3453,
+            shares_outstanding=1507000000,
+            market_cap= 1.738253671E11
+
+        ))
+
+        return self

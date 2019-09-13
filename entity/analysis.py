@@ -18,3 +18,4 @@ class Analysis():
     equity: float
     pe: float
     current_assets: float = -1
+    deprec: float = -1

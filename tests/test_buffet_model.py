@@ -10,6 +10,7 @@ from tests.test_sqlfinrepo import to_date
 from usecase.runmodel import RunModel, RunModelRequest
 from common.inmemfinrepo import InMemoryFinancialRepository
 from entity.income_statement import IncomeStatement
+from hamcrest import *
 
 
 class TestBuffetModel(unittest.TestCase):
@@ -110,15 +111,17 @@ class TestBuffetModel(unittest.TestCase):
             "date": to_date('2019-08-04'),
             "equity": 7000,
             "netIncome": 20000,
-            "eps": 2,
+            "eps": 2.0,
             "bookValue": .70,
-            "pe": 5,
+            "pe": 5.0,
             "priceToBookValue": 14.285714285714286,
             "buffetNumber": 71.42857142857143,
             "marginOfSafety": .07,
             "assets": 44000,
             "liabilities": 37000,
-            "sharesOutstanding": 10000
+            "sharesOutstanding": 10000,
+            'current_assets': -2,
+            'deprec': 0,
         })
 
         self.assertEqual(vars(res[1]), {
@@ -135,6 +138,8 @@ class TestBuffetModel(unittest.TestCase):
             'assets': 48000,
             'liabilities': 36000,
             'sharesOutstanding': 12500,
+            'current_assets': -2,
+            'deprec': 0,
         })
 
     def test_pizza(self):
@@ -147,7 +152,7 @@ class TestBuffetModel(unittest.TestCase):
             "date": to_date('2020-02-20'),
             "equity": -7500,
             "netIncome": 15000,
-            "eps": 15,
+            "eps": 15.0,
             "bookValue": -7500 / 1000,
             "pe": 0.3333333333333333,
             "priceToBookValue": -0.6666666666666666,
@@ -155,35 +160,70 @@ class TestBuffetModel(unittest.TestCase):
             "marginOfSafety": -1.5,
             "assets": 5000,
             "liabilities": 12500,
-            "sharesOutstanding": 1000
+            "sharesOutstanding": 1000,
+            'current_assets': -2,
+            'deprec': 0
         })
 
-    def test_walmart_owners_earnings(self):
-        self.finrepo.add_income(self.source.get_income_statement('WMT', to_date('2017-01-31')))
-        self.finrepo.add_balance_sheet(self.source.get_balance_sheet('WMT', to_date('2017-01-31')))
-        self.finrepo.add_cash_flow(self.source.get_cash_flow('WMT', to_date('2017-01-31')))
-        self.finrepo.add_enterprise_value(self.source.get_enterprise_value('WMT', to_date('2017-01-31')))
+    ### https://www.youtube.com/watch?v=Udh6dhAUsUw ###
+    def test_disney_owners_earnings(self):
+        self.finrepo.add_income(self.source.get_income_statement('DIS', to_date('2018-09-29')))
+        self.finrepo.add_balance_sheet(self.source.get_balance_sheet('DIS', to_date('2018-09-29')))
+        self.finrepo.add_cash_flow(self.source.get_cash_flow('DIS', to_date('2018-09-29')))
+        self.finrepo.add_enterprise_value(self.source.get_enterprise_value('DIS', to_date('2018-09-29')))
 
-        self.when_analyzed('WMT')
+        self.when_analyzed('DIS')
 
-        res = self.finrepo.get_analysis('WMT')
+        res = self.finrepo.get_analysis('DIS')
 
-        self.assertEqual(vars(res[0]), {
-            'symbol': 'WMT',
-            'date': to_date('2017-01-31'),
-            'assets': 198825000000.0,
-            'current_assets': 619,
-            'bookValue': 60.59125964010283,
-            'buffetNumber': 14.728001021484516,
-            'eps': 4.3839974293059125,
-            'equity': 188560000000.0,
-            'liabilities': 10265000000.0,
-            'marginOfSafety': 0.9687192777380312,
-            'netIncome': 13643000000.0,
-            'pe': 14.267298512057467,
-            'priceToBookValue': 1.0322908018667798,
-            'sharesOutstanding': 3112000000.0,
-        })
+        assert_that(res[0], has_property("netIncome", 12598000000))
+        assert_that(res[0], has_property("deprec", 3011000000))
+        # changing in working captial: $837m
+        # assert_that(res[0], equal_to(Analysis(**{})))
+
+        # assert_that(vars(res[0]), equal_to({
+        #     'symbol': 'DIS',
+        #     'date': to_date('2018-09-29'),
+        #     'assets': 198825000000.0,
+        #     'current_assets': 619,
+        #     'bookValue': 60.59125964010283,
+        #     'buffetNumber': 14.728001021484516,
+        #     'eps': 4.3839974293059125,
+        #     'equity': 188560000000.0,
+        #     'liabilities': 10265000000.0,
+        #     'marginOfSafety': 0.9687192777380312,
+        #     'netIncome': 12598000000.1,
+        #     'pe': 14.267298512057467,
+        #     'priceToBookValue': 1.0322908018667798,
+        #     'sharesOutstanding': 3112000000.0,
+        # }))
+
+    # def test_walmart_owners_earnings(self):
+    #     self.finrepo.add_income(self.source.get_income_statement('WMT', to_date('2017-01-31')))
+    #     self.finrepo.add_balance_sheet(self.source.get_balance_sheet('WMT', to_date('2017-01-31')))
+    #     self.finrepo.add_cash_flow(self.source.get_cash_flow('WMT', to_date('2017-01-31')))
+    #     self.finrepo.add_enterprise_value(self.source.get_enterprise_value('WMT', to_date('2017-01-31')))
+    #
+    #     self.when_analyzed('WMT')
+    #
+    #     res = self.finrepo.get_analysis('WMT')
+    #
+    #     self.assertEqual(vars(res[0]), {
+    #         'symbol': 'WMT',
+    #         'date': to_date('2017-01-31'),
+    #         'assets': 198825000000.0,
+    #         'current_assets': 619,
+    #         'bookValue': 60.59125964010283,
+    #         'buffetNumber': 14.728001021484516,
+    #         'eps': 4.3839974293059125,
+    #         'equity': 188560000000.0,
+    #         'liabilities': 10265000000.0,
+    #         'marginOfSafety': 0.9687192777380312,
+    #         'netIncome': 13643000000.0,
+    #         'pe': 14.267298512057467,
+    #         'priceToBookValue': 1.0322908018667798,
+    #         'sharesOutstanding': 3112000000.0,
+    #     })
 
     def test_overwrite(self):
         self.finrepo.add_analysis(Analysis(
@@ -220,7 +260,9 @@ class TestBuffetModel(unittest.TestCase):
             "marginOfSafety": -1.5,
             "assets": 5000,
             "liabilities": 12500,
-            "sharesOutstanding": 1000
+            "sharesOutstanding": 1000,
+            'current_assets': -2,
+            'deprec': 0,
         })
 
     def when_analyzed(self, symbol):

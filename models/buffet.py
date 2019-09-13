@@ -25,6 +25,7 @@ class BuffetModel(FinancialModel):
             priceToBookValue = close / bookValue
             pe = close / eps
             current_assets = bal.receivables + bal.inventories
+            deprec = cf.deprec
             analysis = Analysis(
                 symbol=inc.symbol,
                 date=inc.date,
@@ -39,7 +40,8 @@ class BuffetModel(FinancialModel):
                 pe=close / eps,
                 priceToBookValue=close / bookValue,
                 buffetNumber=priceToBookValue * pe,
-                marginOfSafety=equity / market_cap
+                marginOfSafety=equity / market_cap,
+                deprec=deprec
             )
 
             analysises.append(analysis)
