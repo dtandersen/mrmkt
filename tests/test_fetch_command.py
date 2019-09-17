@@ -216,12 +216,6 @@ class TestFetch(unittest.TestCase):
             volume=5.452528E7
         )))
 
-    def when_dest_contains_same_cash_flow_as_source(self, symbol, date):
-        self.given_dest_has_existing_cash_flow(self.source_cash_flow(symbol, date))
-
-    def when_dest_contains_same_enterprise_value_as_source(self, symbol, date):
-        self.given_dest_has_existing_enterprise_value(self.source_enterprise_value(symbol, date))
-
     def test_spy_has_no_financials(self):
         self.given_source_has_spy_financials()
 
@@ -229,6 +223,14 @@ class TestFetch(unittest.TestCase):
 
         self.assertEqual(self.destrepo.incomes.size(), 0)
         self.assertEqual(self.destrepo.balances.size(), 0)
+        self.assertEqual(self.destrepo.cashflows.size(), 0)
+        self.assertEqual(self.destrepo.enterprises.size(), 0)
+
+    def when_dest_contains_same_cash_flow_as_source(self, symbol, date):
+        self.given_dest_has_existing_cash_flow(self.source_cash_flow(symbol, date))
+
+    def when_dest_contains_same_enterprise_value_as_source(self, symbol, date):
+        self.given_dest_has_existing_enterprise_value(self.source_enterprise_value(symbol, date))
 
     def given_source_has_spy_financials(self):
         self.sourcerepo.addSpyFinancials()

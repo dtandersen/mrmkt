@@ -1,0 +1,12 @@
+{
+  "symbol" : "CMCSA",
+  "enterpriseValues" : [ {
+    "date" : "2018-12-31",
+    "Stock Price" : "33.8726",
+    "Number of Shares" : "",
+    "Market Capitalization" : 0.0,
+    "- Cash & Cash Equivalents" : 3.814E9,
+    "+ Total Debt" : 1.11743E11,
+    "Enterprise Value" : 1.07929E11
+  } ]
+}

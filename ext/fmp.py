@@ -30,6 +30,13 @@ class FmpClient:
         logging.debug(json)
         return json
 
+    def get_cash_flow(self, symbol: str, period='annual'):
+        json = requests \
+            .get(f'{self.endpoint}/financials/cash-flow-statement/{symbol}?period={period}') \
+            .json()
+        logging.debug(json)
+        return json
+
     def get_enterprise_value(self, symbol, period='annual'):
         json = requests \
             .get(f'{self.endpoint}/enterprise-value/{symbol}?period={period}') \
@@ -47,13 +54,6 @@ class FmpClient:
     def get_stocks(self):
         json = requests \
             .get(f'{self.endpoint}/company/stock/list') \
-            .json()
-        logging.debug(json)
-        return json
-
-    def get_cash_flow(self, symbol: str):
-        json = requests \
-            .get(f'{self.endpoint}/financials/cash-flow-statement/{symbol}') \
             .json()
         logging.debug(json)
         return json
@@ -101,6 +101,45 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             consolidated_net_income=-1
         )
 
+    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
+        json = self.client.get_cash_flow(symbol)
+        if 'financials' not in json:
+            return []
+
+        return [FMPReadOnlyFinancialRepository.map_cash_flow(row, symbol) for row in json["financials"]]
+
+    @staticmethod
+    def map_cash_flow(json, symbol: str) -> CashFlow:
+        return CashFlow(
+            symbol=symbol,
+            date=to_date(json["date"]),
+            operating_cash_flow=float(json["Operating Cash Flow"]),
+            capital_expenditure=float(json["Capital Expenditure"]),
+            free_cash_flow=float(json["Free Cash Flow"]),
+            dividend_payments=float(json["Dividend payments"] if json["Dividend payments"] != "" else 0)
+        )
+
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+        json = self.client.get_enterprise_value(symbol)
+        if 'enterpriseValues' not in json:
+            return []
+        return [FMPReadOnlyFinancialRepository.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
+
+    @staticmethod
+    def map_enterprise_value(json, symbol: str) -> EnterpriseValue:
+        try:
+            shares_outstanding = float(json["Number of Shares"])
+        except ValueError:
+            shares_outstanding = 0
+
+        return EnterpriseValue(
+            symbol=symbol,
+            date=to_date(json["date"]),
+            stock_price=float(json["Stock Price"]),
+            shares_outstanding=shares_outstanding,
+            market_cap=float(json["Market Capitalization"])
+        )
+
     def closing_price(self, symbol, date) -> Optional[float]:
         json = self.client.get_historical_price_full(symbol)
         dd1 = date
@@ -137,35 +176,6 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
             low=json["low"],
             close=json["close"],
             volume=json["volume"]
-        )
-
-    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
-        json = self.client.get_cash_flow(symbol)
-        return [FMPReadOnlyFinancialRepository.map_cash_flow(row, symbol) for row in json["financials"]]
-
-    @staticmethod
-    def map_cash_flow(json, symbol: str) -> CashFlow:
-        return CashFlow(
-            symbol=symbol,
-            date=to_date(json["date"]),
-            operating_cash_flow=float(json["Operating Cash Flow"]),
-            capital_expenditure=float(json["Capital Expenditure"]),
-            free_cash_flow=float(json["Free Cash Flow"]),
-            dividend_payments=float(json["Dividend payments"] if json["Dividend payments"] != "" else 0)
-        )
-
-    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
-        json = self.client.get_enterprise_value(symbol)
-        return [FMPReadOnlyFinancialRepository.map_enterprise_value(row, symbol) for row in json["enterpriseValues"]]
-
-    @staticmethod
-    def map_enterprise_value(json, symbol: str) -> EnterpriseValue:
-        return EnterpriseValue(
-            symbol=symbol,
-            date=to_date(json["date"]),
-            stock_price=float(json["Stock Price"]),
-            shares_outstanding=float(json["Number of Shares"]),
-            market_cap=float(json["Market Capitalization"])
         )
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:

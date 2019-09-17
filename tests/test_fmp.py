@@ -40,15 +40,6 @@ class TestFMPFinancialGateway(unittest.TestCase):
         self.assertEqual(resp[0].totalAssets, 13292000000.0)
 
     @requests_mock.Mocker()
-    def test_spy_has_no_balance_sheet(self, m):
-        m.register_uri('GET',
-                       'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/SPY?period=annual',
-                       text="{}")
-        fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        resp = fmp.list_balance_sheets('SPY')
-        self.assertEqual(resp, [])
-
-    @requests_mock.Mocker()
     def test_multiple_income_sheets(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/AAPL?period=annual',
                        text=Path('fmp/aapl-income.json').read_text())
@@ -86,11 +77,36 @@ class TestFMPFinancialGateway(unittest.TestCase):
         self.assertEqual(resp[0].netIncome, 4141000000.0)
 
     @requests_mock.Mocker()
+    def test_spy_has_no_balance_sheet(self, m):
+        m.register_uri('GET',
+                       'https://financialmodelingprep.com/api/v3/financials/balance-sheet-statement/SPY?period=annual',
+                       text="{}")
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        resp = fmp.list_balance_sheets('SPY')
+        self.assertEqual(resp, [])
+
+    @requests_mock.Mocker()
     def test_spy_has_no_income_statement(self, m):
         m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/income-statement/SPY?period=annual',
                        text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         resp = fmp.list_income_statements('SPY')
+        self.assertEqual(resp, [])
+
+    @requests_mock.Mocker()
+    def test_spy_has_no_cash_flow(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/SPY?period=annual',
+                       text="{}")
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        resp = fmp.list_cash_flows('SPY')
+        self.assertEqual(resp, [])
+
+    @requests_mock.Mocker()
+    def test_spy_has_no_enterprise_value(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/enterprise-value/SPY?period=annual',
+                       text="{}")
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        resp = fmp.list_enterprise_value('SPY')
         self.assertEqual(resp, [])
 
     @requests_mock.Mocker()
@@ -104,6 +120,15 @@ class TestFMPFinancialGateway(unittest.TestCase):
         self.assertEqual(resp[0].date, to_date('2018-12-31'))
         self.assertEqual(resp[0].waso, 4549504769.0)
         self.assertEqual(resp[0].netIncome, 11731000000.0)
+
+    @requests_mock.Mocker()
+    def test_cmcsa_has_no_shares_outstanding(self, m):
+        m.register_uri('GET',
+                       'https://financialmodelingprep.com/api/v3/enterprise-value/cmcsa?period=annual',
+                       text=Path('fmp/CMCSA-enterprise-value.json').read_text())
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        resp = fmp.list_enterprise_value('CMCSA')
+        self.assertEqual(resp[0].shares_outstanding, 0)
 
     @requests_mock.Mocker()
     def test_kmi_has_no_waso(self, m):
