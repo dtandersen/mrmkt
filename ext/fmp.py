@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from common.onion import ReadOnlyFinancialRepository
+from common.finrepo import ReadOnlyFinancialRepository
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
 from entity.enterprise_value import EnterpriseValue

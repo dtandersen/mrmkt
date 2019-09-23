@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from common.inmemfinrepo import FinancialRepository
-from common.onion import ReadOnlyFinancialRepository
+from common.finrepo import ReadOnlyFinancialRepository
 from common.sql import Duplicate
 
 
@@ -35,12 +35,9 @@ class FinancialLoader(UseCase):
 
     def load(self, symbol: str):
         self.result.on_load_symbol(symbol)
+
         prices = self.sourcerepo.list_prices(symbol)
-        for price in prices:
-            try:
-                self.destrepo.add_price(price)
-            except Duplicate:
-                pass
+        self.destrepo.add_prices(prices)
 
         income_statements = self.sourcerepo.list_income_statements(symbol)
         for i in income_statements:

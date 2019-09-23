@@ -53,7 +53,10 @@ class ReadOnlyFinancialRepository:
         raise NotImplementedError
 
     @abstractmethod
-    def list_prices(self, symbol: str) -> List[StockPrice]:
+    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        """
+        Return value is sorted
+        """
         raise NotImplementedError
 
 
@@ -76,6 +79,9 @@ class FinancialRepository(ReadOnlyFinancialRepository):
 
     @abstractmethod
     def add_price(self, price: StockPrice) -> None:
+        raise NotImplementedError
+
+    def add_prices(self, prices: List[StockPrice]) -> None:
         raise NotImplementedError
 
     @abstractmethod

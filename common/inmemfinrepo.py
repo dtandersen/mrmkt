@@ -2,7 +2,8 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
-from common.onion import FinancialRepository
+from common.finrepo import FinancialRepository
+from common.sql import Duplicate
 from common.table import Table
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
@@ -94,8 +95,16 @@ class InMemoryFinancialRepository(FinancialRepository):
     def get_price(self, symbol, date: datetime.date):
         return self.prices.get(self.key(symbol, date))
 
-    def list_prices(self, symbol: str) -> List[StockPrice]:
-        return self.prices.filter(lambda p: p.symbol == symbol)
+    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        prices = self.prices.filter(lambda p: p.symbol == symbol)
+
+        if start is not None:
+            prices = list(filter(lambda p: p.date >= start, prices))
+
+        if end is not None:
+            prices = list(filter(lambda p: p.date <= end, prices))
+
+        return prices
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
         dates = [price.date for price in self.prices.filter(lambda p: p.symbol == symbol and p.date >= date)]
@@ -104,6 +113,13 @@ class InMemoryFinancialRepository(FinancialRepository):
 
     def add_price(self, price: StockPrice):
         self.prices.add(price)
+
+    def add_prices(self, prices: List[StockPrice]) -> None:
+        for price in prices:
+            try:
+                self.add_price(price)
+            except Duplicate:
+                pass
 
     def get_symbols(self) -> List[str]:
         return list(self.stocks.all())

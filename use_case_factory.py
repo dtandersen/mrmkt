@@ -2,7 +2,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 
 from common.inmemfinrepo import FinancialRepository
-from common.onion import ReadOnlyFinancialRepository
+from common.finrepo import ReadOnlyFinancialRepository
 from usecase.fetch import FinancialLoader
 
 

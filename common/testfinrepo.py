@@ -160,6 +160,8 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             volume=5.452528E7
         ))
 
+        return self
+
     def add_netflix_financials(self):
         self.stocks.add('NFLX')
         self.add_income(IncomeStatement(
@@ -287,8 +289,58 @@ class FinancialTestRepository(InMemoryFinancialRepository):
             date=to_date('2018-09-29'),
             stock_price=115.3453,
             shares_outstanding=1507000000,
-            market_cap= 1.738253671E11
+            market_cap=1.738253671E11
 
+        ))
+
+        return self
+
+    def with_spy(self):
+        self.stocks.add('SPY')
+        self.add_price(StockPrice(
+            symbol="SPY",
+            date=to_date("2019-09-16"),
+            open=299.85,
+            high=300.5,
+            low=299.78,
+            close=300.195,
+            volume=4.6779547E7
+        ))
+        self.add_price(StockPrice(
+            symbol="SPY",
+            date=to_date("2019-09-17"),
+            open=299.84,
+            high=300.965,
+            low=299.84,
+            close=300.965,
+            volume=4.6916222E7
+        ))
+        self.add_price(StockPrice(
+            symbol="SPY",
+            date=to_date("2019-09-18"),
+            open=300.83,
+            high=301.015,
+            low=298.79,
+            close=301.015,
+            volume=4.6963889E7
+        ))
+        self.add_price(StockPrice(
+            symbol="SPY",
+            date=to_date("2019-09-19"),
+            open=301.49,
+            high=302.34,
+            low=301.015,
+            close=301.015,
+            volume=4.695743E7
+        ))
+        self.add_price(StockPrice(
+            symbol="SPY",
+            date=to_date("2019-09-20"),
+            open=300.31,
+            high=300.47,
+            low=298.45,
+            close=298.67,
+            volume=4.6894282E7
         ))
 
         return self
