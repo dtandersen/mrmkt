@@ -44,9 +44,14 @@ class FmpClient:
         logging.debug(json)
         return json
 
-    def get_historical_price_full(self, symbol):
+    def get_historical_price_full(self, symbol: str, start: datetime.date = None):
+        if start is not None:
+            xdate = start.strftime("%Y-%m-%d")
+        else:
+            xdate = "2019-01-01"
+
         json = requests \
-            .get(f'{self.endpoint}/historical-price-full/{symbol}?from=2019-01-01') \
+            .get(f'{self.endpoint}/historical-price-full/{symbol}?from={xdate}') \
             .json()
         logging.debug(json)
         return json
@@ -163,8 +168,11 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         return next((x for x in prices if x['date'] == date), None)
 
     def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
-        json = self.client.get_historical_price_full(symbol)
+        json = self.client.get_historical_price_full(symbol, start=start)
         prices = []
+        if "historical" not in json:
+            return prices
+
         for row in json["historical"]:
             try:
                 prices.append(FMPReadOnlyFinancialRepository.map_price(row, symbol))
@@ -194,4 +202,3 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
 
     def get_balance_sheet(self, symbol, date: datetime.date) -> List[BalanceSheet]:
         raise NotImplementedError
-

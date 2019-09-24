@@ -24,8 +24,10 @@ class FetchPricesApp(App):
         usecase.execute(PriceLoaderRequest(), result)
 
     @staticmethod
-    def print_symbol(symbol: str):
-        print(f"Fetching {symbol}...")
+    def print_symbol(data: dict):
+        symbol = data['ticker']
+        date = data["start"]
+        print(f"Fetching {symbol} => {date}...")
 
 
 def main():

@@ -33,7 +33,6 @@ class PriceLoader:
             tickers = []
 
         for ticker in tickers:
-            result.lookup(ticker)
             current_prices = self.dest.list_prices(symbol=ticker)
             if request.start is not None:
                 start = request.start
@@ -41,6 +40,11 @@ class PriceLoader:
                 start = current_prices[-1].date
             else:
                 start = None
+
+            result.lookup({
+                "ticker": ticker,
+                "start": start
+            })
 
             prices = self.source.list_prices(symbol=ticker, start=start, end=request.end)
             self.dest.add_prices(prices)

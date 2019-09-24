@@ -23,7 +23,7 @@ class TestFetchApp(unittest.TestCase):
         self.execute(['AAPL'])
 
         self.thenConsoleIs('''\
-                           Fetching AAPL...
+                           Fetching AAPL => None...
                            ''')
 
     def test_fetch_nvidia_and_google(self):
@@ -33,8 +33,8 @@ class TestFetchApp(unittest.TestCase):
         self.execute()
 
         self.thenConsoleIs('''\
-                           Fetching GOOG...
-                           Fetching NVDA...
+                           Fetching GOOG => None...
+                           Fetching NVDA => None...
                            ''')
 
     def execute(self, args: List[str] = None):

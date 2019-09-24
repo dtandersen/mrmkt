@@ -36,7 +36,10 @@ class TestFetchPricesCommand(unittest.TestCase):
             )
         ]))
 
-        assert_that(self.lookups, equal_to(['AAPL']))
+        assert_that(self.lookups, equal_to([{
+            "ticker": 'AAPL',
+            "start": None
+        }]))
 
     def test_copy_spy_from_start(self):
         self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
@@ -61,6 +64,12 @@ class TestFetchPricesCommand(unittest.TestCase):
                 volume=4.6894282E7
             )
         ]))
+        assert_that(self.lookups, equal_to([{
+            "ticker": 'SPY',
+            "start": to_date("2019-09-19")
+        }
+        ]))
+
 
     def test_copy_spy_to_end(self):
         self.whenExecute(tickers='SPY', end=to_date("2019-09-16"))
@@ -157,4 +166,5 @@ class TestFetchPricesCommand(unittest.TestCase):
 
     def whenExecute(self, tickers=None, start=None, end=None):
         pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end), PriceLoaderResult(lookup=self.handle_looup))
+        pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end),
+                   PriceLoaderResult(lookup=self.handle_looup))

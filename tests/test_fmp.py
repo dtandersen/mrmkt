@@ -169,7 +169,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_historical_price(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA?from=2019-01-01',
                        text=Path('fmp/NVDA-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         price = fmp.list_prices('NVDA')
@@ -185,7 +185,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_historical_price2(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?from=2019-01-01',
                        text=Path('fmp/AAPL-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         price = fmp.list_prices('AAPL')
@@ -209,36 +209,37 @@ class TestFMPFinancialGateway(unittest.TestCase):
         )))
 
     @requests_mock.Mocker()
-    def test_get_historical_price2(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL',
-                       text=Path('fmp/AAPL-historical-price-full.json').read_text())
+    def test_get_historical_price_no_prices(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?from=2019-01-01',
+                       text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
-        price = fmp.list_prices('AAPL')
-        self.assertEqual(vars(price[0]), vars(StockPrice(
-            symbol="AAPL",
-            date=to_date("2014-06-13"),
-            open=84.5035,
-            high=84.7235,
-            low=83.2937,
-            close=83.6603,
-            volume=5.452528E7
-        )))
-        self.assertEqual(vars(price[1]), vars(StockPrice(
-            symbol="AAPL",
-            date=to_date("2014-06-16"),
-            open=83.8711,
-            high=85.0076,
-            low=83.8161,
-            close=84.5035,
-            volume=3.556127E7
-        )))
+        prices = fmp.list_prices('AAPL')
+        assert_that(prices, empty())
 
     @requests_mock.Mocker()
     def test_malformed_price(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT?from=2019-01-01',
                        text=Path('fmp/WMT-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         prices = fmp.list_prices('WMT')
+        assert_that(prices, equal_to([
+            StockPrice(
+                symbol="WMT",
+                date=to_date("2019-05-10"),
+                open=0.3649,
+                high=0.4093,
+                low=0.3599,
+                close=0.3656,
+                volume=5.1037237E7
+            )
+        ]))
+
+    @requests_mock.Mocker()
+    def test_list_prices_from_date(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT?from=2019-05-10',
+                       text=Path('fmp/WMT-historical-price-full.json').read_text())
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        prices = fmp.list_prices(symbol='WMT', start=to_date("2019-05-10"))
         assert_that(prices, equal_to([
             StockPrice(
                 symbol="WMT",
