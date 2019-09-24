@@ -47,11 +47,13 @@ class FmpClient:
     def get_historical_price_full(self, symbol: str, start: datetime.date = None):
         if start is not None:
             xdate = start.strftime("%Y-%m-%d")
+            y = f"from={xdate}"
         else:
-            xdate = "2019-01-01"
+            xdate = None
+            y = ""
 
         json = requests \
-            .get(f'{self.endpoint}/historical-price-full/{symbol}?from={xdate}') \
+            .get(f'{self.endpoint}/historical-price-full/{symbol}?{y}') \
             .json()
         logging.debug(json)
         return json

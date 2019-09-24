@@ -169,7 +169,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_historical_price(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA?from=2019-01-01',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/NVDA?',
                        text=Path('fmp/NVDA-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         price = fmp.list_prices('NVDA')
@@ -185,7 +185,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_historical_price2(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?from=2019-01-01',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?',
                        text=Path('fmp/AAPL-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         price = fmp.list_prices('AAPL')
@@ -210,7 +210,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_historical_price_no_prices(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?from=2019-01-01',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/AAPL?',
                        text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         prices = fmp.list_prices('AAPL')
@@ -218,7 +218,7 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_malformed_price(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT?from=2019-01-01',
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT',
                        text=Path('fmp/WMT-historical-price-full.json').read_text())
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         prices = fmp.list_prices('WMT')
