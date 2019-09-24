@@ -9,6 +9,7 @@ from entity.stock_price import StockPrice
 from ext.fmp import FMPReadOnlyFinancialRepository, FmpClient
 from entity.income_statement import IncomeStatement
 from tests.test_sqlfinrepo import to_date
+from hamcrest import *
 
 
 class TestFMPFinancialGateway(unittest.TestCase):
@@ -95,7 +96,8 @@ class TestFMPFinancialGateway(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_spy_has_no_cash_flow(self, m):
-        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/SPY?period=annual',
+        m.register_uri('GET',
+                       'https://financialmodelingprep.com/api/v3/financials/cash-flow-statement/SPY?period=annual',
                        text="{}")
         fmp = FMPReadOnlyFinancialRepository(FmpClient())
         resp = fmp.list_cash_flows('SPY')
@@ -230,6 +232,24 @@ class TestFMPFinancialGateway(unittest.TestCase):
             close=84.5035,
             volume=3.556127E7
         )))
+
+    @requests_mock.Mocker()
+    def test_malformed_price(self, m):
+        m.register_uri('GET', 'https://financialmodelingprep.com/api/v3/historical-price-full/WMT',
+                       text=Path('fmp/WMT-historical-price-full.json').read_text())
+        fmp = FMPReadOnlyFinancialRepository(FmpClient())
+        prices = fmp.list_prices('WMT')
+        assert_that(prices, equal_to([
+            StockPrice(
+                symbol="WMT",
+                date=to_date("2019-05-10"),
+                open=0.3649,
+                high=0.4093,
+                low=0.3599,
+                close=0.3656,
+                volume=5.1037237E7
+            )
+        ]))
 
     @requests_mock.Mocker()
     def test_get_multiple_cash_flow(self, m):

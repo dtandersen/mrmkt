@@ -2,6 +2,7 @@ import datetime
 from abc import abstractmethod
 from typing import List, Optional
 
+from common.sql import Duplicate
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
@@ -81,8 +82,13 @@ class FinancialRepository(ReadOnlyFinancialRepository):
     def add_price(self, price: StockPrice) -> None:
         raise NotImplementedError
 
+    # @abstractmethod
     def add_prices(self, prices: List[StockPrice]) -> None:
-        raise NotImplementedError
+        for price in prices:
+            try:
+                self.add_price(price)
+            except Duplicate:
+                pass
 
     @abstractmethod
     def add_analysis(self, analysis: Analysis) -> None:

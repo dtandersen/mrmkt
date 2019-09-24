@@ -16,10 +16,13 @@ class TestFetchPricesCommand(unittest.TestCase):
             .with_spy()
 
         self.dest = InMemoryFinancialRepository()
+        self.lookups = []
+
+    def handle_looup(self, ticker: str):
+        self.lookups.append(ticker)
 
     def test_copy_apple(self):
-        pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest(tickers='AAPL'))
+        self.whenExecute(tickers='AAPL')
 
         assert_that(self.dest.list_prices('AAPL'), equal_to([
             StockPrice(
@@ -33,9 +36,10 @@ class TestFetchPricesCommand(unittest.TestCase):
             )
         ]))
 
+        assert_that(self.lookups, equal_to(['AAPL']))
+
     def test_copy_spy_from_start(self):
-        pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest(tickers='SPY', start=to_date("2019-09-19")))
+        self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
 
         assert_that(self.dest.list_prices('SPY'), equal_to([
             StockPrice(
@@ -59,8 +63,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def test_copy_spy_to_end(self):
-        pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest(tickers='SPY', end=to_date("2019-09-16")))
+        self.whenExecute(tickers='SPY', end=to_date("2019-09-16"))
 
         assert_that(self.dest.list_prices('SPY'), equal_to([
             StockPrice(
@@ -74,8 +77,7 @@ class TestFetchPricesCommand(unittest.TestCase):
             )]))
 
     def test_copy_spy_start_to_end(self):
-        pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest(tickers='SPY', start=to_date("2019-09-17"), end=to_date("2019-09-17")))
+        self.whenExecute(tickers='SPY', start=to_date("2019-09-17"), end=to_date("2019-09-17"))
 
         assert_that(self.dest.list_prices('SPY'), equal_to([
             StockPrice(
@@ -108,8 +110,8 @@ class TestFetchPricesCommand(unittest.TestCase):
             close=301.015,
             volume=4.695743E7
         ))
-        pl = PriceLoader(self.source, self.dest)
-        pl.execute(PriceLoaderRequest())
+
+        self.whenExecute()
 
         assert_that(self.dest.list_prices('AAPL'), equal_to([
             StockPrice(
@@ -152,3 +154,7 @@ class TestFetchPricesCommand(unittest.TestCase):
                 volume=4.6894282E7
             )
         ]))
+
+    def whenExecute(self, tickers=None, start=None, end=None):
+        pl = PriceLoader(self.source, self.dest)
+        pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end), PriceLoaderResult(lookup=self.handle_looup))

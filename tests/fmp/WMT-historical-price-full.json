@@ -1,0 +1,27 @@
+{
+  "symbol" : "WFT",
+  "historical" : [ {
+    "date" : "2019-05-10",
+    "open" : 0.3649,
+    "high" : 0.4093,
+    "low" : 0.3599,
+    "close" : 0.3656,
+    "volume" : 5.1037237E7,
+    "unadjustedVolume" : 5.1037237E7,
+    "change" : -0.0145,
+    "changePercent" : -3.815,
+    "vwap" : 0.382965,
+    "label" : "May 10",
+    "changeOverTime" : -0.9826565464895636
+  },
+  {
+    "date" : "2019-05-13",
+    "close" : 0.3656,
+    "volume" : 134114.0,
+    "unadjustedVolume" : 134114.0,
+    "change" : 0.0,
+    "changePercent" : 0.0,
+    "label" : "May 13",
+    "changeOverTime" : -0.9826565464895636
+  } ]
+}

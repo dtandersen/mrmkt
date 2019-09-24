@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List, Optional
 
-from common.finrepo import FinancialRepository
+from common.finrepo import FinancialRepository, ReadOnlyFinancialRepository
 from entity.stock_price import StockPrice
 
 
@@ -15,15 +15,16 @@ class PriceLoaderRequest:
 
 @dataclass
 class PriceLoaderResult:
-    prices: List[StockPrice]
+    lookup: any
+    prices: List[StockPrice] = None
 
 
 class PriceLoader:
-    def __init__(self, source: FinancialRepository, dest: FinancialRepository):
+    def __init__(self, source: ReadOnlyFinancialRepository, dest: FinancialRepository):
         self.source = source
         self.dest = dest
 
-    def execute(self, request: PriceLoaderRequest) -> None:
+    def execute(self, request: PriceLoaderRequest, result: PriceLoaderResult) -> None:
         if request.tickers is None:
             tickers = self.source.get_symbols()
         elif isinstance(request.tickers, str):
@@ -32,6 +33,7 @@ class PriceLoader:
             tickers = []
 
         for ticker in tickers:
+            result.lookup(ticker)
             current_prices = self.dest.list_prices(symbol=ticker)
             if request.start is not None:
                 start = request.start

@@ -171,6 +171,82 @@ class TestStringMethods(unittest.TestCase):
                              volume=3.556127E7
                          )))
 
+    def test_list_prices(self):
+        self.client.append_select(
+            "select * " +
+            "from daily_price "
+            "where symbol = 'GOOG' "
+            "order by date asc",
+            [
+                PriceRow(
+                    symbol='GOOG',
+                    date=datetime.date(2014, 6, 13),
+                    open=552.26,
+                    high=552.3,
+                    low=545.56,
+                    close=551.76,
+                    volume=1217176.0
+                ),
+                PriceRow(
+                    symbol='GOOG',
+                    date=datetime.date(2014, 6, 16),
+                    open=549.26,
+                    high=549.62,
+                    low=541.52,
+                    close=544.28,
+                    volume=1704027.0
+                )])
+
+        prices = self.db.list_prices("GOOG")
+        assert_that(prices, equal_to([
+            StockPrice(
+                symbol='GOOG',
+                date=datetime.date(2014, 6, 13),
+                open=552.26,
+                high=552.3,
+                low=545.56,
+                close=551.76,
+                volume=1217176.0
+            ), StockPrice(
+                symbol='GOOG',
+                date=datetime.date(2014, 6, 16),
+                open=549.26,
+                high=549.62,
+                low=541.52,
+                close=544.28,
+                volume=1704027.0
+            )
+        ]))
+
+    def test_list_prices(self):
+        self.client.append_select(
+            "select * " +
+            "from daily_price "
+            "where symbol = 'AAPL' "
+            "order by date asc",
+            [
+                PriceRow(
+                    symbol='AAPL',
+                    date=datetime.date(2019, 9, 23),
+                    open=218.73,
+                    high=219.575,
+                    low=218.73,
+                    close=218.94,
+                    volume=1.7990369E7
+                )])
+
+        prices = self.db.list_prices("AAPL")
+        assert_that(prices, equal_to([
+            StockPrice(
+                symbol='AAPL',
+                date=datetime.date(2019, 9, 23),
+                open=218.73,
+                high=219.575,
+                low=218.73,
+                close=218.94,
+                volume=1.7990369E7
+            )]))
+
     def test_get_price_on_or_after(self):
         self.client.append_select("select * " +
                                   "from daily_price "

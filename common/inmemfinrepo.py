@@ -114,12 +114,12 @@ class InMemoryFinancialRepository(FinancialRepository):
     def add_price(self, price: StockPrice):
         self.prices.add(price)
 
-    def add_prices(self, prices: List[StockPrice]) -> None:
-        for price in prices:
-            try:
-                self.add_price(price)
-            except Duplicate:
-                pass
+    # def add_prices(self, prices: List[StockPrice]) -> None:
+    #     for price in prices:
+    #         try:
+    #             self.add_price(price)
+    #         except Duplicate:
+    #             pass
 
     def get_symbols(self) -> List[str]:
         return list(self.stocks.all())

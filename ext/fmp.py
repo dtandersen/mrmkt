@@ -162,9 +162,17 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
     def find(prices, date):
         return next((x for x in prices if x['date'] == date), None)
 
-    def list_prices(self, symbol: str) -> List[StockPrice]:
+    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
         json = self.client.get_historical_price_full(symbol)
-        return [FMPReadOnlyFinancialRepository.map_price(row, symbol) for row in json["historical"]]
+        prices = []
+        for row in json["historical"]:
+            try:
+                prices.append(FMPReadOnlyFinancialRepository.map_price(row, symbol))
+            except KeyError:
+                # warn maybe?
+                pass
+
+        return prices
 
     @staticmethod
     def map_price(json, symbol: str) -> StockPrice:
