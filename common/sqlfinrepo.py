@@ -4,7 +4,6 @@ from typing import List
 
 from common.inmemfinrepo import FinancialRepository
 from common.sql import SqlClient, JsonField
-from common.util import to_date
 from entity.analysis import Analysis
 from entity.balance_sheet import BalanceSheet
 from entity.cash_flow import CashFlow
