@@ -41,6 +41,52 @@ class TestFetchPricesCommand(unittest.TestCase):
             "start": None
         }]))
 
+    def test_copy_apple_and_spy(self):
+        self.source.add_netflix_financials()
+
+        self.whenExecute(tickers=['AAPL', 'NFLX'])
+
+        assert_that(self.dest.all_prices(), equal_to([
+            StockPrice(
+                symbol='AAPL',
+                date=datetime.date(2014, 6, 13),
+                open=84.5035,
+                high=84.7235,
+                low=83.2937,
+                close=83.6603,
+                volume=5.452528E7
+            ),
+            StockPrice(
+                symbol='NFLX',
+                date=to_date('2018-12-31'),
+                open=260.16,
+                high=270.1001,
+                low=260.0,
+                close=267.66,
+                volume=1.350892E7
+            ),
+            StockPrice(
+                symbol='NFLX',
+                date=to_date('2019-01-02'),
+                open=259.28,
+                high=269.7499,
+                low=256.58,
+                close=267.66,
+                volume=1.1679528E7
+            )
+        ]))
+
+        assert_that(self.lookups, equal_to([
+            {
+                "ticker": 'AAPL',
+                "start": None
+            },
+            {
+                "ticker": 'NFLX',
+                "start": None
+            }
+        ]))
+
     def test_copy_spy_from_start(self):
         self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
 
@@ -69,7 +115,6 @@ class TestFetchPricesCommand(unittest.TestCase):
             "start": to_date("2019-09-19")
         }
         ]))
-
 
     def test_copy_spy_to_end(self):
         self.whenExecute(tickers='SPY', end=to_date("2019-09-16"))

@@ -37,6 +37,18 @@ class TestFetchApp(unittest.TestCase):
                            Fetching NVDA => None...
                            ''')
 
+    def test_fetch_nvidia_and_google2(self):
+        self.given_apple_financials()
+        self.given_google_financials()
+        self.given_nvidia_financials()
+
+        self.execute(["GOOG", "NVDA"])
+
+        self.thenConsoleIs('''\
+                           Fetching GOOG => None...
+                           Fetching NVDA => None...
+                           ''')
+
     def execute(self, args: List[str] = None):
         if args is None:
             args = []

@@ -124,6 +124,9 @@ class InMemoryFinancialRepository(FinancialRepository):
     def get_symbols(self) -> List[str]:
         return list(self.stocks.all())
 
+    def all_prices(self):
+        return self.prices.all()
+
 
 def symbol_date_key(obj) -> str:
     date = obj.date

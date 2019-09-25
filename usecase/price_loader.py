@@ -29,6 +29,8 @@ class PriceLoader:
             tickers = self.source.get_symbols()
         elif isinstance(request.tickers, str):
             tickers = [request.tickers]
+        elif isinstance(request.tickers, List):
+            tickers = request.tickers
         else:
             tickers = []
 

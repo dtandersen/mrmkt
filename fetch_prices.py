@@ -13,15 +13,14 @@ class FetchPricesApp(App):
     use_case_factory: MrMktUseCaseFactory
 
     def run(self, args: List[str]):
+        request = PriceLoaderRequest()
         result = PriceLoaderResult(lookup=self.print_symbol)
-        # result.on_load_symbol = self.print_symbol
-        # if len(args) > 0:
-        #     symbol = args[0]
-        # else:
-        #     symbol = None
-        #
+
+        if len(args) > 0:
+          request.tickers = args
+
         usecase = self.use_case_factory.fetch_prices()
-        usecase.execute(PriceLoaderRequest(), result)
+        usecase.execute(request, result)
 
     @staticmethod
     def print_symbol(data: dict):
