@@ -1,23 +1,18 @@
 import datetime
-import json
 import unittest
-from dataclasses import asdict
-
-from psycopg2._json import Json
-
-from common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, PriceRow, \
-    FinancialRow, CashFlowRow, EnterpriseValueRow
-from common.util import to_date, EnhancedJSONEncoder
-from entity.balance_sheet import BalanceSheet
-from entity.analysis import Analysis
-from entity.cash_flow import CashFlow
-from entity.enterprise_value import EnterpriseValue
-from entity.finrep import FinancialReport
-from entity.income_statement import IncomeStatement
-from common.sql import MockSqlClient
-from entity.stock_price import StockPrice
-from common.testfinrepo import FinancialTestRepository
 from hamcrest import *
+
+from mrmkt.common.sql import MockSqlClient
+from mrmkt.common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, \
+    CashFlowRow, EnterpriseValueRow, PriceRow
+from mrmkt.common.testfinrepo import FinancialTestRepository
+from mrmkt.common.util import to_date
+from mrmkt.entity.analysis import Analysis
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
+from mrmkt.entity.stock_price import StockPrice
 
 
 class TestStringMethods(unittest.TestCase):

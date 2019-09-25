@@ -2,11 +2,10 @@ import json
 import unittest
 from dataclasses import dataclass, asdict
 
-from common.sql import InsecureSqlGenerator
 from hamcrest import *
 
-from common.sqlfinrepo import JsonField
-from common.util import EnhancedJSONEncoder
+from mrmkt.common.sql import JsonField, InsecureSqlGenerator
+from mrmkt.common.util import EnhancedJSONEncoder
 
 
 @dataclass

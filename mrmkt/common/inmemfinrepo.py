@@ -2,15 +2,14 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
-from common.finrepo import FinancialRepository
-from common.sql import Duplicate
-from common.table import Table
-from entity.analysis import Analysis
-from entity.balance_sheet import BalanceSheet
-from entity.cash_flow import CashFlow
-from entity.enterprise_value import EnterpriseValue
-from entity.income_statement import IncomeStatement
-from entity.stock_price import StockPrice
+from mrmkt.common.finrepo import FinancialRepository
+from mrmkt.common.table import Table
+from mrmkt.entity.analysis import Analysis
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
+from mrmkt.entity.stock_price import StockPrice
 
 
 @dataclass

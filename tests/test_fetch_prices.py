@@ -1,12 +1,13 @@
 import datetime
 import unittest
 
-from common.inmemfinrepo import InMemoryFinancialRepository
-from common.testfinrepo import FinancialTestRepository
-from common.util import to_date
-from entity.stock_price import StockPrice
-from usecase.price_loader import PriceLoader, PriceLoaderRequest, PriceLoaderResult
 from hamcrest import *
+
+from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.common.testfinrepo import FinancialTestRepository
+from mrmkt.common.util import to_date
+from mrmkt.entity.stock_price import StockPrice
+from mrmkt.usecase.price_loader import PriceLoader, PriceLoaderRequest, PriceLoaderResult
 
 
 class TestFetchPricesCommand(unittest.TestCase):

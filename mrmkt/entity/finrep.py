@@ -2,10 +2,10 @@ import datetime
 from dataclasses import dataclass
 from typing import Optional, List
 
-from entity.balance_sheet import BalanceSheet
-from entity.cash_flow import CashFlow
-from entity.enterprise_value import EnterpriseValue
-from entity.income_statement import IncomeStatement
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
 
 
 @dataclass

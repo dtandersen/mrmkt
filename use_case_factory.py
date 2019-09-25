@@ -1,10 +1,9 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from common.inmemfinrepo import FinancialRepository
-from common.finrepo import ReadOnlyFinancialRepository
-from usecase.fetch import FinancialLoader
-from usecase.price_loader import PriceLoader
+from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.usecase.fetch import FinancialLoader
+from mrmkt.usecase.price_loader import PriceLoader
 
 
 class MrMktUseCaseFactory:

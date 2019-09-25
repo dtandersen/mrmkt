@@ -1,10 +1,9 @@
-import logging
 import sys
 from typing import List
 
 from bootstrapper import bootstrap
-from usecase.fetch import FinancialLoaderResult, FinancialLoaderRequest
-from apprunner.runner import App
+from mrmkt.apprunner.runner import App
+from mrmkt.usecase.fetch import FinancialLoaderResult, FinancialLoaderRequest
 from use_case_factory import MrMktUseCaseFactory
 
 

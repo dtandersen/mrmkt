@@ -1,13 +1,13 @@
 import psycopg2
 
-from common.sql import InsecureSqlGenerator
-from common.sqlfinrepo import SqlFinancialRepository
-from ext.postgres import PostgresSqlClient
-from usecase.runmodel import RunModel
-from ext.fmp import FMPReadOnlyFinancialRepository, FmpClient
 # logging.basicConfig(level=logging.DEBUG)
 # api = FmpApi()
 # fin_gtwy = FMPFinancialGateway(api)
+from mrmkt.common.sql import InsecureSqlGenerator
+from mrmkt.common.sqlfinrepo import SqlFinancialRepository
+from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.usecase.runmodel import RunModel
+
 cnv = InsecureSqlGenerator()
 pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",
                                           password="local",

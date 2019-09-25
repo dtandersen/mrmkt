@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from common.inmemfinrepo import FinancialRepository
+from mrmkt.common.finrepo import FinancialRepository
 
 
 @dataclass

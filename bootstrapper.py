@@ -2,11 +2,11 @@ from typing import Type, List
 
 import psycopg2
 
-from common.sqlfinrepo import SqlFinancialRepository
-from ext.fmp import FMPReadOnlyFinancialRepository, FmpClient
-from ext.postgres import PostgresSqlClient
-from apprunner.runner import App, AppRunner, Injector
-from common.sql import InsecureSqlGenerator
+from mrmkt.apprunner.runner import Injector, App, AppRunner
+from mrmkt.common.sql import InsecureSqlGenerator
+from mrmkt.common.sqlfinrepo import SqlFinancialRepository
+from mrmkt.ext.fmp import FmpClient, FMPReadOnlyFinancialRepository
+from mrmkt.ext.postgres import PostgresSqlClient
 from use_case_factory import TestMrMktUseCaseFactory, MrMktUseCaseFactory
 
 

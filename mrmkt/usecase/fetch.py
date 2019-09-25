@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
-from common.inmemfinrepo import FinancialRepository
-from common.finrepo import ReadOnlyFinancialRepository
-from common.sql import Duplicate
+from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.common.sql import Duplicate
 
 
 @dataclass

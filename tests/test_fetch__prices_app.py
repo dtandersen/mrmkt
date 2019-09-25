@@ -4,12 +4,11 @@ import unittest
 from contextlib import redirect_stdout
 from typing import List
 
-from apprunner.runner import AppRunner
 from bootstrapper import UseCaseFactoryInjector
-from common.inmemfinrepo import InMemoryFinancialRepository
-from common.testfinrepo import FinancialTestRepository
-from fetch import FetchFinancialsApp
 from fetch_prices import FetchPricesApp
+from mrmkt.apprunner.runner import AppRunner
+from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.common.testfinrepo import FinancialTestRepository
 from use_case_factory import TestMrMktUseCaseFactory
 
 

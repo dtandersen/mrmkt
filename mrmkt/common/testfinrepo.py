@@ -1,12 +1,12 @@
 import datetime
 
-from common.inmemfinrepo import InMemoryFinancialRepository
-from common.util import to_date
-from entity.balance_sheet import BalanceSheet
-from entity.cash_flow import CashFlow
-from entity.enterprise_value import EnterpriseValue
-from entity.income_statement import IncomeStatement
-from entity.stock_price import StockPrice
+from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.common.util import to_date
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
+from mrmkt.entity.stock_price import StockPrice
 
 
 class FinancialTestRepository(InMemoryFinancialRepository):

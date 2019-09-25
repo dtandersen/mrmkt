@@ -3,7 +3,7 @@ import unittest
 
 from hamcrest import *
 
-from common.util import to_date
+from mrmkt.common.util import to_date
 
 
 class TestFMPFinancialGateway(unittest.TestCase):

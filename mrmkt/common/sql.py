@@ -4,7 +4,7 @@ from abc import abstractmethod
 from dataclasses import asdict
 from typing import List, Callable
 
-from common.util import EnhancedJSONEncoder
+from mrmkt.common.util import EnhancedJSONEncoder
 
 
 @dataclasses.dataclass

@@ -4,7 +4,8 @@ from typing import Callable
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import AbstractConnectionPool
-from common.sql import SqlGenerator, SqlClient, Duplicate
+
+from mrmkt.common.sql import SqlClient, SqlGenerator, Duplicate
 
 
 class PostgresSqlClient(SqlClient):

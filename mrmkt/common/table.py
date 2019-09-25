@@ -2,7 +2,7 @@ import copy
 from dataclasses import dataclass
 from typing import Generic, TypeVar, Iterable, Callable
 
-from common.sql import Duplicate
+from mrmkt.common.sql import Duplicate
 
 T = TypeVar('T')
 

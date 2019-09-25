@@ -2,15 +2,15 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from common.finrepo import ReadOnlyFinancialRepository
-from entity.balance_sheet import BalanceSheet
-from entity.cash_flow import CashFlow
-from entity.enterprise_value import EnterpriseValue
-from entity.income_statement import IncomeStatement
 import requests
 
-from entity.stock_price import StockPrice
-from tests.test_sqlfinrepo import to_date
+from mrmkt.common.finrepo import ReadOnlyFinancialRepository
+from mrmkt.common.util import to_date
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
+from mrmkt.entity.stock_price import StockPrice
 
 
 class FmpClient:
@@ -49,7 +49,6 @@ class FmpClient:
             xdate = start.strftime("%Y-%m-%d")
             y = f"from={xdate}"
         else:
-            xdate = None
             y = ""
 
         json = requests \

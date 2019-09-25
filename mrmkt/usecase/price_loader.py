@@ -2,8 +2,8 @@ import datetime
 from dataclasses import dataclass
 from typing import List, Optional
 
-from common.finrepo import FinancialRepository, ReadOnlyFinancialRepository
-from entity.stock_price import StockPrice
+from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.entity.stock_price import StockPrice
 
 
 @dataclass

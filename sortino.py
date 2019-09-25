@@ -1,8 +1,8 @@
 import psycopg2
 
-from common.sql import InsecureSqlGenerator
-from common.sqlfinrepo import SqlFinancialRepository
-from ext.postgres import PostgresSqlClient
+from mrmkt.common.sql import InsecureSqlGenerator
+from mrmkt.common.sqlfinrepo import SqlFinancialRepository
+from mrmkt.ext.postgres import PostgresSqlClient
 
 cnv = InsecureSqlGenerator()
 pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",

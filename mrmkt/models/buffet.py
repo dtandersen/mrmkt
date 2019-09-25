@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import List
 
-from entity.analysis import Analysis
-from entity.finmodel import FinancialModel
-from entity.finrep import FinancialReports
+from mrmkt.entity.analysis import Analysis
+from mrmkt.entity.finmodel import FinancialModel
+from mrmkt.entity.finrep import FinancialReports
 
 
 @dataclass

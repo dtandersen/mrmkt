@@ -3,10 +3,9 @@ import sys
 from typing import List
 
 from bootstrapper import bootstrap
-from usecase.fetch import FinancialLoaderResult, FinancialLoaderRequest
-from apprunner.runner import App
+from mrmkt.apprunner.runner import App
+from mrmkt.usecase.price_loader import PriceLoaderRequest, PriceLoaderResult
 from use_case_factory import MrMktUseCaseFactory
-from usecase.price_loader import PriceLoaderResult, PriceLoaderRequest
 
 
 class FetchPricesApp(App):
