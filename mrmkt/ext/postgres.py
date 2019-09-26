@@ -5,7 +5,8 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import AbstractConnectionPool
 
-from mrmkt.common.sql import SqlClient, SqlGenerator, Duplicate
+from mrmkt.common.sql import SqlClient, SqlGenerator, Duplicate, InsecureSqlGenerator
+from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 
 
 class PostgresSqlClient(SqlClient):
@@ -55,3 +56,15 @@ class PostgresSqlClient(SqlClient):
                     cur.execute(sql)
         finally:
             self.pool.putconn(conn)
+
+
+def postgresx() -> SqlFinancialRepository:
+    cnv = InsecureSqlGenerator()
+    pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",
+                                              password="local",
+                                              host="127.0.0.1",
+                                              port="5432",
+                                              database="mrmkt")
+    sql = PostgresSqlClient(cnv, pool)
+    repo = SqlFinancialRepository(sql)
+    return repo
