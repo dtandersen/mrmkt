@@ -213,7 +213,7 @@ class TestStringMethods(unittest.TestCase):
             )
         ]))
 
-    def test_list_prices(self):
+    def test_list_prices2(self):
         self.client.append_select(
             "select * " +
             "from daily_price "
@@ -241,6 +241,62 @@ class TestStringMethods(unittest.TestCase):
                 close=218.94,
                 volume=1.7990369E7
             )]))
+
+    def test_get_price_on_or_after2(self):
+        self.client.append_select("select * " +
+                                  "from daily_price "
+                                  "where symbol = 'AAPL' "
+                                  "and date >= '2014-06-15' "
+                                  "order by date asc",
+                                  [PriceRow(
+                                      symbol='AAPL',
+                                      date=datetime.date(2014, 6, 16),
+                                      open=83.8711,
+                                      high=85.0076,
+                                      low=83.8161,
+                                      close=84.5035,
+                                      volume=3.556127E7
+                                  )])
+
+        prices = self.db.list_prices("AAPL", start=to_date("2014-06-15"))
+        assert_that(prices, equal_to(
+            [StockPrice(
+                symbol='AAPL',
+                date=datetime.date(2014, 6, 16),
+                open=83.8711,
+                high=85.0076,
+                low=83.8161,
+                close=84.5035,
+                volume=3.556127E7)
+            ]))
+
+    def test_get_price_on_or_before(self):
+        self.client.append_select("select * " +
+                                  "from daily_price "
+                                  "where symbol = 'AAPL' "
+                                  "and date <= '2014-06-15' "
+                                  "order by date asc",
+                                  [PriceRow(
+                                      symbol='AAPL',
+                                      date=datetime.date(2014, 6, 16),
+                                      open=83.8711,
+                                      high=85.0076,
+                                      low=83.8161,
+                                      close=84.5035,
+                                      volume=3.556127E7
+                                  )])
+
+        prices = self.db.list_prices("AAPL", end=to_date("2014-06-15"))
+        assert_that(prices, equal_to(
+            [StockPrice(
+                symbol='AAPL',
+                date=datetime.date(2014, 6, 16),
+                open=83.8711,
+                high=85.0076,
+                low=83.8161,
+                close=84.5035,
+                volume=3.556127E7)
+            ]))
 
     def test_get_price_on_or_after(self):
         self.client.append_select("select * " +

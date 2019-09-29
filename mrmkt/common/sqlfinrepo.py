@@ -165,10 +165,22 @@ class SqlFinancialRepository(FinancialRepository):
         self.sql_client.insert("daily_price", row)
 
     def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        start_sql = ""
+        end_sql = ""
+        if start is not None:
+            start_str = start.strftime("%Y-%m-%d")
+            start_sql = f"and date >= '{start_str}' "
+
+        if end is not None:
+            end_str = end.strftime("%Y-%m-%d")
+            end_sql = f"and date <= '{end_str}' "
+
         rows = self.sql_client.select(
             "select * " +
-            "from daily_price "
-            f"where symbol = '{symbol}' "
+            "from daily_price " +
+            f"where symbol = '{symbol}' " +
+            start_sql +
+            end_sql +
             "order by date asc",
             self.price_mapper)
 
