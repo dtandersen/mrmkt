@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from mrmkt.common.finrepo import FinancialRepository
 from mrmkt.common.sql import SqlClient, JsonField
@@ -223,6 +223,17 @@ class SqlFinancialRepository(FinancialRepository):
         )
         self.sql_client.insert2("financials", f)
 
+    def get_symbols(self) -> Optional[List[str]]:
+        rows = self.sql_client.select(
+            "select distinct symbol " +
+            "from daily_price ",
+            self.symbol_mapper)
+
+        return rows
+
+    def symbol_mapper(self, row):
+        return row["symbol"]
+
 
 @dataclass
 class BalanceSheetRow:
@@ -292,3 +303,8 @@ class FinancialRow:
     symbol: str
     date: datetime.date
     data: JsonField
+
+
+@dataclass
+class SymbolRow:
+    symbol: str

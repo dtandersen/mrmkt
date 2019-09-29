@@ -22,15 +22,15 @@ class SortinoIndicator(object):
         # print("annual_downside_deviation=" + str(annual_downside_deviation))
         average_period_return = sum(series) / len(series)
 
-        print("average_period_return=" + str(average_period_return))
-        print("target return=" + str(self.dtr))
-        print("target_downside_deviation=" + str(target_downside_deviation))
+        # print("average_period_return=" + str(average_period_return))
+        # print("target return=" + str(self.dtr))
+        # print("target_downside_deviation=" + str(target_downside_deviation))
         # ret = sum(series)
         # print(ret)
         numerator = average_period_return - self.dtr
-        print("numerator=" + str(numerator))
+        # print("numerator=" + str(numerator))
         ratio = (numerator) / target_downside_deviation
-        print("sortino=" + str(ratio))
+        # print("sortino=" + str(ratio))
         return ratio
 
     @staticmethod
@@ -46,7 +46,7 @@ class SortinoIndicator(object):
             else:
                 negative.append(0)
 
-        print(negative)
+        # print(negative)
         s = sqrt(sum(negative) / len(returns))
         # print(s)
         # series.add()

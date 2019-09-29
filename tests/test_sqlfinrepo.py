@@ -4,7 +4,7 @@ from hamcrest import *
 
 from mrmkt.common.sql import MockSqlClient
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, \
-    CashFlowRow, EnterpriseValueRow, PriceRow
+    CashFlowRow, EnterpriseValueRow, PriceRow, SymbolRow
 from mrmkt.common.testfinrepo import FinancialTestRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.analysis import Analysis
@@ -656,3 +656,12 @@ class TestStringMethods(unittest.TestCase):
                 market_cap=7
             )
         }])
+
+    def test_get_symbols(self):
+        self.client.append_select(
+            "select distinct symbol " +
+            "from daily_price ",
+            [SymbolRow(symbol='ABC'), SymbolRow(symbol='XYZ')])
+
+        prices = self.db.get_symbols()
+        assert_that(prices, equal_to(['ABC', 'XYZ']))
