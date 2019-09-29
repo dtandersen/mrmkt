@@ -1,6 +1,8 @@
 from math import sqrt
 from typing import List
 
+import numpy
+
 
 class SortinoIndicator(object):
     def __init__(self, dtr: float):
@@ -20,7 +22,10 @@ class SortinoIndicator(object):
         # print(monthly_downside_deviation)
         # annual_downside_deviation = monthly_downside_deviation * pow(12, .5)
         # print("annual_downside_deviation=" + str(annual_downside_deviation))
+        # avg
         average_period_return = sum(series) / len(series)
+        a = numpy.array(series)
+        average_period_return= a.prod() ** (1.0 / len(a))
 
         # print("average_period_return=" + str(average_period_return))
         # print("target return=" + str(self.dtr))
