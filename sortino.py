@@ -15,10 +15,10 @@ res = []
 for ticker in tickers:
     try:
         end = date.today()
-        start = end - timedelta(days=365*2)
+        start = end - timedelta(days=30)
         price_data = repo.list_prices(ticker, start=start, end=end)
 
-        sortino = SortinoIndicator(1.06 ** (1 / 365))
+        sortino = SortinoIndicator(1.15 ** (1 / 252))
         close = list(map(lambda p: p.close, price_data))
         p = []
         # print(close)
