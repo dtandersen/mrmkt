@@ -1,3 +1,4 @@
+from builtins import sum
 from math import sqrt
 from typing import List
 
@@ -12,7 +13,7 @@ class SortinoIndicator(object):
         self.dtr = dtr
         # self.risk_free_rate = risk_free_rate
 
-    def go(self, series: List[float]):
+    def go(self, series: List[float], geom=False):
         slen = len(series)
         # x= -.0582 - .02
         # x=x*x
@@ -25,7 +26,10 @@ class SortinoIndicator(object):
         # avg
         average_period_return = sum(series) / len(series)
         a = numpy.array(series)
-        average_period_return= a.prod() ** (1.0 / len(a))
+        if geom:
+            average_period_return= a.prod() ** (1.0 / len(a))
+        else:
+            average_period_return = sum(series) / len(series)
 
         # print("average_period_return=" + str(average_period_return))
         # print("target return=" + str(self.dtr))
