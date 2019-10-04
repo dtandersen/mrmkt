@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List, Optional
 
-from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
 from mrmkt.entity.stock_price import StockPrice
 
 
@@ -20,7 +20,7 @@ class PriceLoaderResult:
 
 
 class PriceLoader:
-    def __init__(self, source: ReadOnlyFinancialRepository, dest: FinancialRepository):
+    def __init__(self, source: ReadOnlyAllRepository, dest: AllRepository):
         self.source = source
         self.dest = dest
 

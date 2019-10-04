@@ -1,8 +1,8 @@
 import datetime
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
-from mrmkt.common.finrepo import FinancialRepository
+from mrmkt.repo.all import AllRepository
 from mrmkt.common.sql import SqlClient, JsonField
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -13,7 +13,7 @@ from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 
 
-class SqlFinancialRepository(FinancialRepository):
+class SqlFinancialRepository(AllRepository):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
 
@@ -223,7 +223,7 @@ class SqlFinancialRepository(FinancialRepository):
         )
         self.sql_client.insert2("financials", f)
 
-    def get_symbols(self) -> Optional[List[str]]:
+    def get_symbols(self) -> List[str]:
         rows = self.sql_client.select(
             "select distinct symbol " +
             "from daily_price ",
@@ -233,6 +233,21 @@ class SqlFinancialRepository(FinancialRepository):
 
     def symbol_mapper(self, row):
         return row["symbol"]
+
+    def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
+        raise NotImplementedError
+
+    def list_income_statements(self, symbol: str) -> List[IncomeStatement]:
+        raise NotImplementedError
+
+    def get_balance_sheet(self, symbol, date: datetime.date) -> List[BalanceSheet]:
+        raise NotImplementedError
+
+    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
+        raise NotImplementedError
+
+    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+        raise NotImplementedError
 
 
 @dataclass

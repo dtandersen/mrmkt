@@ -4,7 +4,7 @@ from typing import Optional, List
 
 import requests
 
-from mrmkt.common.finrepo import ReadOnlyFinancialRepository
+from mrmkt.repo.all import ReadOnlyAllRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
@@ -65,7 +65,7 @@ class FmpClient:
         return json
 
 
-class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
+class FMPReadOnlyFinancialRepository(ReadOnlyAllRepository):
     def __init__(self, client: FmpClient):
         self.client = client
 
@@ -160,7 +160,7 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
 
         return price['close']
 
-    def get_symbols(self) -> Optional[List[str]]:
+    def get_symbols(self) -> List[str]:
         json = self.client.get_stocks()
         return list(map(lambda row: row['symbol'], json['symbolsList']))
 
@@ -202,4 +202,10 @@ class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository):
         raise NotImplementedError
 
     def get_balance_sheet(self, symbol, date: datetime.date) -> List[BalanceSheet]:
+        raise NotImplementedError
+
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        raise NotImplementedError
+
+    def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
         raise NotImplementedError

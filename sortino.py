@@ -2,7 +2,6 @@ import csv
 from datetime import date, timedelta
 
 import mrmkt
-from mrmkt.indicator.sma import sma
 from mrmkt.indicator.sortino import SortinoIndicator
 
 repo = mrmkt.ext.postgresx()

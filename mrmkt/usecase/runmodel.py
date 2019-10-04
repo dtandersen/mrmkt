@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from mrmkt.common.finrepo import FinancialRepository
+from mrmkt.repo.all import AllRepository
 
 
 @dataclass
@@ -10,7 +10,7 @@ class RunModelRequest:
 
 
 class RunModel:
-    def __init__(self, financial_repository: FinancialRepository):
+    def __init__(self, financial_repository: AllRepository):
         self.financial_repository = financial_repository
 
     def execute(self, req: RunModelRequest) -> None:

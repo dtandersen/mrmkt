@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
 from mrmkt.usecase.fetch import FinancialLoader
 from mrmkt.usecase.price_loader import PriceLoader
 
@@ -18,8 +18,8 @@ class MrMktUseCaseFactory:
 
 @dataclass
 class TestMrMktUseCaseFactory(MrMktUseCaseFactory):
-    fingate: ReadOnlyFinancialRepository
-    findb: FinancialRepository
+    fingate: ReadOnlyAllRepository
+    findb: AllRepository
 
     def fetch_financials(self):
         return FinancialLoader(self.fingate, self.findb)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from mrmkt.common.finrepo import ReadOnlyFinancialRepository, FinancialRepository
+from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
 from mrmkt.common.sql import Duplicate
 
 
@@ -21,7 +21,7 @@ class UseCase:
 class FinancialLoader(UseCase):
     result: FinancialLoaderResult
 
-    def __init__(self, sourcerepo: ReadOnlyFinancialRepository, destrepo: FinancialRepository):
+    def __init__(self, sourcerepo: ReadOnlyAllRepository, destrepo: AllRepository):
         self.destrepo = destrepo
         self.sourcerepo = sourcerepo
 

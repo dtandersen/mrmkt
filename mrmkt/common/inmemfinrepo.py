@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
-from mrmkt.common.finrepo import FinancialRepository
+from mrmkt.repo.all import AllRepository
 from mrmkt.common.table import Table
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -13,7 +13,7 @@ from mrmkt.entity.stock_price import StockPrice
 
 
 @dataclass
-class InMemoryFinancialRepository(FinancialRepository):
+class InMemoryFinancialRepository(AllRepository):
     incomes: Table
     balances: Table
     analysis: Table
