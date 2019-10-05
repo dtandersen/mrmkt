@@ -1,5 +1,5 @@
 import datetime
-from abc import abstractmethod, ABC, ABCMeta
+from abc import abstractmethod, ABCMeta
 from typing import List
 
 from mrmkt.entity.analysis import Analysis

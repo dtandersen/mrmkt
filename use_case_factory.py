@@ -1,9 +1,9 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 
-from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.usecase.fetch import FinancialLoader
 from mrmkt.usecase.price_loader import PriceLoader
+from tests.testenv import MrMktEnvironment
 
 
 class MrMktUseCaseFactory(ABC):
@@ -18,11 +18,10 @@ class MrMktUseCaseFactory(ABC):
 
 @dataclass
 class TestMrMktUseCaseFactory(MrMktUseCaseFactory):
-    fingate2: ReadOnlyMarketDataProvider
-    findb2: MarketDataProvider
+    env: MrMktEnvironment
 
     def fetch_financials(self):
-        return FinancialLoader(self.fingate2, self.findb2)
+        return FinancialLoader(self.env.remote, self.env.local)
 
     def fetch_prices(self) -> PriceLoader:
-        return PriceLoader(self.fingate2, self.findb2)
+        return PriceLoader(self.env.remote, self.env.local)

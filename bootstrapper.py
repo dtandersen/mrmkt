@@ -24,7 +24,7 @@ def prod_injector() -> Injector:
     pg = SqlFinancialRepository(sql)
     rorepo = ReadOnlyMarketDataProvider(financials=fin_gtwy, prices=fin_gtwy, tickers=fin_gtwy)
     rwrepo = MarketDataProvider(financials=pg, prices=pg, tickers=pg)
-    f = TestMrMktUseCaseFactory(fingate=fin_gtwy, findb=pg, fingate2=rorepo, findb2=rwrepo)
+    f = TestMrMktUseCaseFactory(remote=rorepo, local=rwrepo, env=None)
     injector = UseCaseFactoryInjector(f)
     return injector
 

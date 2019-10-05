@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 from unittest import TestCase
-from unittest.mock import Mock
 from hamcrest import *
 from tiingo import TiingoClient
 

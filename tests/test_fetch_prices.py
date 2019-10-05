@@ -3,21 +3,19 @@ import unittest
 
 from hamcrest import *
 
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
-from mrmkt.common.testfinrepo import FinancialTestRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
-from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.usecase.price_loader import PriceLoader, PriceLoaderRequest, PriceLoaderResult
+from tests.testenv import TestEnvironment
 
 
 class TestFetchPricesCommand(unittest.TestCase):
     def setUp(self) -> None:
-        self.source = FinancialTestRepository() \
-            .add_apple_financials() \
-            .with_spy()
+        self.env = TestEnvironment()
 
-        self.dest = InMemoryFinancialRepository()
+        self.env.remote.add_apple_financials()
+        self.env.remote.with_spy()
+
         self.lookups = []
 
     def handle_looup(self, ticker: str):
@@ -26,7 +24,7 @@ class TestFetchPricesCommand(unittest.TestCase):
     def test_copy_apple(self):
         self.whenExecute(tickers='AAPL')
 
-        assert_that(self.dest.list_prices('AAPL'), equal_to([
+        assert_that(self.env.remote.prices.list_prices('AAPL'), equal_to([
             StockPrice(
                 symbol='AAPL',
                 date=datetime.date(2014, 6, 13),
@@ -44,11 +42,11 @@ class TestFetchPricesCommand(unittest.TestCase):
         }]))
 
     def test_copy_apple_and_spy(self):
-        self.source.add_netflix_financials()
+        self.env.remote.add_netflix_financials()
 
         self.whenExecute(tickers=['AAPL', 'NFLX'])
 
-        assert_that(self.dest.all_prices(), equal_to([
+        assert_that(self.env.local.prices.all_prices(), equal_to([
             StockPrice(
                 symbol='AAPL',
                 date=datetime.date(2014, 6, 13),
@@ -92,7 +90,7 @@ class TestFetchPricesCommand(unittest.TestCase):
     def test_copy_spy_from_start(self):
         self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
 
-        assert_that(self.dest.list_prices('SPY'), equal_to([
+        assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
             StockPrice(
                 symbol="SPY",
                 date=to_date("2019-09-19"),
@@ -121,7 +119,7 @@ class TestFetchPricesCommand(unittest.TestCase):
     def test_copy_spy_to_end(self):
         self.whenExecute(tickers='SPY', end=to_date("2019-09-16"))
 
-        assert_that(self.dest.list_prices('SPY'), equal_to([
+        assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
             StockPrice(
                 symbol="SPY",
                 date=to_date("2019-09-16"),
@@ -135,7 +133,7 @@ class TestFetchPricesCommand(unittest.TestCase):
     def test_copy_spy_start_to_end(self):
         self.whenExecute(tickers='SPY', start=to_date("2019-09-17"), end=to_date("2019-09-17"))
 
-        assert_that(self.dest.list_prices('SPY'), equal_to([
+        assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
             StockPrice(
                 symbol="SPY",
                 date=to_date("2019-09-17"),
@@ -148,7 +146,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def test_load_prices_after_date(self):
-        self.dest.add_price(StockPrice(
+        self.env.local.prices.add_price(StockPrice(
             symbol="SPY",
             date=to_date("2019-09-17"),
             open=301.49,
@@ -157,7 +155,7 @@ class TestFetchPricesCommand(unittest.TestCase):
             close=301.015,
             volume=4.695743E7
         ))
-        self.dest.add_price(StockPrice(
+        self.env.local.prices.add_price(StockPrice(
             symbol="SPY",
             date=to_date("2019-09-19"),
             open=301.49,
@@ -169,7 +167,7 @@ class TestFetchPricesCommand(unittest.TestCase):
 
         self.whenExecute()
 
-        assert_that(self.dest.list_prices('AAPL'), equal_to([
+        assert_that(self.env.local.prices.list_prices('AAPL'), equal_to([
             StockPrice(
                 symbol='AAPL',
                 date=datetime.date(2014, 6, 13),
@@ -181,7 +179,7 @@ class TestFetchPricesCommand(unittest.TestCase):
             )
         ]))
 
-        assert_that(self.dest.list_prices('SPY'), equal_to([
+        assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
             StockPrice(
                 symbol="SPY",
                 date=to_date("2019-09-17"),
@@ -212,8 +210,6 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def whenExecute(self, tickers=None, start=None, end=None):
-        source = ReadOnlyMarketDataProvider(financials=self.source, prices=self.source, tickers=self.source)
-        dest = MarketDataProvider(financials=self.dest, prices=self.dest, tickers=self.dest)
-        pl = PriceLoader(source, dest)
+        pl = PriceLoader(self.env.remote, self.env.local)
         pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end),
                    PriceLoaderResult(lookup=self.handle_looup))

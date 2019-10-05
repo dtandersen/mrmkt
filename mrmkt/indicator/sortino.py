@@ -14,7 +14,7 @@ class SortinoIndicator(object):
         # self.risk_free_rate = risk_free_rate
 
     def go(self, series: List[float], geom=False):
-        slen = len(series)
+        # slen = len(series)
         # x= -.0582 - .02
         # x=x*x
         # print(x)
@@ -24,7 +24,7 @@ class SortinoIndicator(object):
         # annual_downside_deviation = monthly_downside_deviation * pow(12, .5)
         # print("annual_downside_deviation=" + str(annual_downside_deviation))
         # avg
-        average_period_return = sum(series) / len(series)
+        # average_period_return = sum(series) / len(series)
         a = numpy.array(series)
         if geom:
             average_period_return= a.prod() ** (1.0 / len(a))

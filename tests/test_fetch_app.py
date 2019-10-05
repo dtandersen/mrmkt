@@ -7,15 +7,14 @@ from typing import List
 from bootstrapper import UseCaseFactoryInjector
 from fetch import FetchFinancialsApp
 from mrmkt.apprunner.runner import AppRunner
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
-from mrmkt.common.testfinrepo import FinancialTestRepository
-from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
+from tests.testenv import TestEnvironment
 from use_case_factory import TestMrMktUseCaseFactory
 
 
 class TestFetchApp(unittest.TestCase):
     def setUp(self):
-        self.sourcerepo = FinancialTestRepository()
+        self.env = TestEnvironment()
+        self.sourcerepo = self.env.remote
 
     def test_fetch_apple(self):
         self.execute(['AAPL'])
@@ -39,12 +38,7 @@ class TestFetchApp(unittest.TestCase):
         if args is None:
             args = []
 
-        destrepo = InMemoryFinancialRepository()
-        all = ReadOnlyMarketDataProvider(financials=self.sourcerepo, prices=self.sourcerepo, tickers=self.sourcerepo)
-        allw = MarketDataProvider(financials=destrepo, prices=destrepo, tickers=destrepo)
-        injector = UseCaseFactoryInjector(TestMrMktUseCaseFactory(
-            fingate2=all,
-            findb2=allw))
+        injector = UseCaseFactoryInjector(TestMrMktUseCaseFactory(env=self.env))
         runner = AppRunner(injector)
 
         stdout = io.StringIO()

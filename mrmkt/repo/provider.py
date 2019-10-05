@@ -11,9 +11,10 @@ class ReadOnlyMarketDataProvider:
         self.financials = financials
 
 
-class MarketDataProvider:
-    def __init__(self, financials: FinancialRepository, prices: PriceRepository,
-                 tickers: ReadOnlyTickerRepository):
-        self.tickers = tickers
-        self.prices = prices
-        self.financials = financials
+class MarketDataProvider(ReadOnlyMarketDataProvider):
+    def __init__(self, financials: FinancialRepository, prices: PriceRepository, tickers: ReadOnlyTickerRepository):
+        super().__init__(financials, prices, tickers)
+        # self.tickers = tickers
+        # self.prices = prices
+        # self.financials = financials
+        # print(self.financials)
