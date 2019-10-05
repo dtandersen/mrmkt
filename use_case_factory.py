@@ -1,12 +1,12 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from dataclasses import dataclass
 
-from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.usecase.fetch import FinancialLoader
 from mrmkt.usecase.price_loader import PriceLoader
 
 
-class MrMktUseCaseFactory:
+class MrMktUseCaseFactory(ABC):
     @abstractmethod
     def fetch_financials(self) -> FinancialLoader:
         pass
@@ -18,11 +18,11 @@ class MrMktUseCaseFactory:
 
 @dataclass
 class TestMrMktUseCaseFactory(MrMktUseCaseFactory):
-    fingate: ReadOnlyAllRepository
-    findb: AllRepository
+    fingate2: ReadOnlyMarketDataProvider
+    findb2: MarketDataProvider
 
     def fetch_financials(self):
-        return FinancialLoader(self.fingate, self.findb)
+        return FinancialLoader(self.fingate2, self.findb2)
 
     def fetch_prices(self) -> PriceLoader:
-        return PriceLoader(self.fingate, self.findb)
+        return PriceLoader(self.fingate2, self.findb2)

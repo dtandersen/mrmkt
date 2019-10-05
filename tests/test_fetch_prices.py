@@ -7,6 +7,7 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.common.testfinrepo import FinancialTestRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.usecase.price_loader import PriceLoader, PriceLoaderRequest, PriceLoaderResult
 
 
@@ -211,6 +212,8 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def whenExecute(self, tickers=None, start=None, end=None):
-        pl = PriceLoader(self.source, self.dest)
+        source = ReadOnlyMarketDataProvider(financials=self.source, prices=self.source, tickers=self.source)
+        dest = MarketDataProvider(financials=self.dest, prices=self.dest, tickers=self.dest)
+        pl = PriceLoader(source, dest)
         pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end),
                    PriceLoaderResult(lookup=self.handle_looup))

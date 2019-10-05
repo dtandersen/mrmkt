@@ -9,6 +9,7 @@ from fetch import FetchFinancialsApp
 from mrmkt.apprunner.runner import AppRunner
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.common.testfinrepo import FinancialTestRepository
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from use_case_factory import TestMrMktUseCaseFactory
 
 
@@ -38,9 +39,12 @@ class TestFetchApp(unittest.TestCase):
         if args is None:
             args = []
 
+        destrepo = InMemoryFinancialRepository()
+        all = ReadOnlyMarketDataProvider(financials=self.sourcerepo, prices=self.sourcerepo, tickers=self.sourcerepo)
+        allw = MarketDataProvider(financials=destrepo, prices=destrepo, tickers=destrepo)
         injector = UseCaseFactoryInjector(TestMrMktUseCaseFactory(
-            fingate=self.sourcerepo,
-            findb=InMemoryFinancialRepository()))
+            fingate2=all,
+            findb2=allw))
         runner = AppRunner(injector)
 
         stdout = io.StringIO()

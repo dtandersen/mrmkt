@@ -11,13 +11,17 @@ from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.models.buffet import BuffetModel
+from mrmkt.repo.provider import MarketDataProvider, ReadOnlyMarketDataProvider
 from mrmkt.usecase.runmodel import RunModel, RunModelRequest
 
 
 class TestBuffetModel(unittest.TestCase):
     def setUp(self):
-        self.finrepo = InMemoryFinancialRepository()
         self.source = FinancialTestRepository().with_all()
+        self.finrepo = InMemoryFinancialRepository()
+
+        self.src = ReadOnlyMarketDataProvider(financials=self.source, prices=self.source, tickers=self.source)
+        self.dst = MarketDataProvider(financials=self.finrepo, prices=self.finrepo, tickers=self.finrepo)
 
         self.with_income(IncomeStatement(
             symbol='ICECREAM',
@@ -100,7 +104,7 @@ class TestBuffetModel(unittest.TestCase):
             shares_outstanding=1000,
             market_cap=10000))
 
-        self.buf = RunModel(self.finrepo)
+        self.buf = RunModel(self.dst)
 
     def test_analyze_two_periods(self):
         self.when_analyzed('ICECREAM')

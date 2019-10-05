@@ -12,6 +12,7 @@ from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.usecase.fetch import FinancialLoader, FinancialLoaderRequest, FinancialLoaderResult
 
 
@@ -21,7 +22,10 @@ class TestFetch(unittest.TestCase):
     def setUp(self) -> None:
         self.sourcerepo = FinancialTestRepository()
         self.destrepo = InMemoryFinancialRepository()
-        self.loader = FinancialLoader(self.sourcerepo, self.destrepo)
+        all = ReadOnlyMarketDataProvider(financials=self.sourcerepo, prices=self.sourcerepo, tickers=self.sourcerepo)
+        allw = MarketDataProvider(financials=self.destrepo, prices=self.destrepo, tickers=self.destrepo)
+
+        self.loader = FinancialLoader(all, allw)
         self.symbols = []
 
     def test_load_two_symbols(self):

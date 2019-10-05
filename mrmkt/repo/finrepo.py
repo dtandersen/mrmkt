@@ -44,7 +44,7 @@ class ReadOnlyFinancialRepository(metaclass=ABCMeta):
         pass
 
 
-class FinancialRepository(metaclass=ABCMeta):
+class FinancialRepository(ReadOnlyFinancialRepository, metaclass=ABCMeta):
     @abstractmethod
     def add_income(self, income_statement: IncomeStatement) -> None:
         pass

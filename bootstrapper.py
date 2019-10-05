@@ -7,6 +7,7 @@ from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.fmp import FmpClient, FMPReadOnlyFinancialRepository
 from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from use_case_factory import TestMrMktUseCaseFactory, MrMktUseCaseFactory
 
 
@@ -21,7 +22,9 @@ def prod_injector() -> Injector:
                                               database="mrmkt")
     sql = PostgresSqlClient(cnv, pool)
     pg = SqlFinancialRepository(sql)
-    f = TestMrMktUseCaseFactory(fin_gtwy, pg)
+    rorepo = ReadOnlyMarketDataProvider(financials=fin_gtwy, prices=fin_gtwy, tickers=fin_gtwy)
+    rwrepo = MarketDataProvider(financials=pg, prices=pg, tickers=pg)
+    f = TestMrMktUseCaseFactory(fingate=fin_gtwy, findb=pg, fingate2=rorepo, findb2=rwrepo)
     injector = UseCaseFactoryInjector(f)
     return injector
 

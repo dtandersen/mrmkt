@@ -6,6 +6,9 @@ from mrmkt.common.tiingorepo import TingoGateway
 
 
 class MockTiingoClient(TiingoClient):
+    def __init__(self):
+        pass
+
     def get_ticker_price(self, ticker,
                          startDate=None, endDate=None,
                          fmt='json', frequency='daily'):

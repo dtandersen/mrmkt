@@ -2,7 +2,6 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
-from mrmkt.repo.all import AllRepository
 from mrmkt.common.sql import SqlClient, JsonField
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -11,9 +10,12 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.repo.finrepo import FinancialRepository
+from mrmkt.repo.prices import PriceRepository
+from mrmkt.repo.tickers import ReadOnlyTickerRepository
 
 
-class SqlFinancialRepository(AllRepository):
+class SqlFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTickerRepository):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
 

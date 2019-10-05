@@ -1,6 +1,7 @@
+from abc import ABC
 from dataclasses import dataclass
 
-from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
+from mrmkt.repo.provider import MarketDataProvider, ReadOnlyMarketDataProvider
 from mrmkt.common.sql import Duplicate
 
 
@@ -14,16 +15,19 @@ class FinancialLoaderResult:
         pass
 
 
-class UseCase:
+class UseCase(ABC):
     result: object
+
+    # def execute(self):
+    #     pass
 
 
 class FinancialLoader(UseCase):
     result: FinancialLoaderResult
 
-    def __init__(self, sourcerepo: ReadOnlyAllRepository, destrepo: AllRepository):
-        self.destrepo = destrepo
-        self.sourcerepo = sourcerepo
+    def __init__(self, source: ReadOnlyMarketDataProvider, dest: MarketDataProvider):
+        self.source = source
+        self.dest = dest
 
     def execute(self, request: FinancialLoaderRequest, result: FinancialLoaderResult):
         self.result = result
@@ -33,39 +37,42 @@ class FinancialLoader(UseCase):
             self.load_all()
 
     def load(self, symbol: str):
+        source = self.source
+        dest = self.dest
+
         self.result.on_load_symbol(symbol)
 
-        prices = self.sourcerepo.list_prices(symbol)
-        self.destrepo.add_prices(prices)
+        prices = source.prices.list_prices(symbol)
+        dest.prices.add_prices(prices)
 
-        income_statements = self.sourcerepo.list_income_statements(symbol)
+        income_statements = self.source.financials.list_income_statements(symbol)
         for i in income_statements:
             try:
-                self.destrepo.add_income(i)
+                self.dest.financials.add_income(i)
             except Duplicate:
                 pass
 
-        balance_sheets = self.sourcerepo.list_balance_sheets(symbol)
+        balance_sheets = self.source.financials.list_balance_sheets(symbol)
         for c in balance_sheets:
             try:
-                self.destrepo.add_balance_sheet(c)
+                self.dest.financials.add_balance_sheet(c)
             except Duplicate:
                 pass
 
-        cash_flows = self.sourcerepo.list_cash_flows(symbol)
+        cash_flows = self.source.financials.list_cash_flows(symbol)
         for c in cash_flows:
             try:
-                self.destrepo.add_cash_flow(c)
+                self.dest.financials.add_cash_flow(c)
             except Duplicate:
                 pass
 
-        enterprise_value = self.sourcerepo.list_enterprise_value(symbol)
+        enterprise_value = self.source.financials.list_enterprise_value(symbol)
         for e in enterprise_value:
             try:
-                self.destrepo.add_enterprise_value(e)
+                self.dest.financials.add_enterprise_value(e)
             except Duplicate:
                 pass
 
     def load_all(self):
-        for symbol in self.sourcerepo.get_symbols():
+        for symbol in self.source.tickers.get_symbols():
             self.load(symbol)

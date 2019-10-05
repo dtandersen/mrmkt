@@ -4,13 +4,15 @@ from typing import Optional, List
 
 import requests
 
-from mrmkt.repo.all import ReadOnlyAllRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.repo.finrepo import ReadOnlyFinancialRepository
+from mrmkt.repo.prices import ReadOnlyPriceRepository
+from mrmkt.repo.tickers import ReadOnlyTickerRepository
 
 
 class FmpClient:
@@ -65,7 +67,7 @@ class FmpClient:
         return json
 
 
-class FMPReadOnlyFinancialRepository(ReadOnlyAllRepository):
+class FMPReadOnlyFinancialRepository(ReadOnlyFinancialRepository, ReadOnlyPriceRepository, ReadOnlyTickerRepository):
     def __init__(self, client: FmpClient):
         self.client = client
 

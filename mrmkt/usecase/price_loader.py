@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List, Optional
 
-from mrmkt.repo.all import AllRepository, ReadOnlyAllRepository
+from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.entity.stock_price import StockPrice
 
 
@@ -20,13 +20,13 @@ class PriceLoaderResult:
 
 
 class PriceLoader:
-    def __init__(self, source: ReadOnlyAllRepository, dest: AllRepository):
+    def __init__(self, source: ReadOnlyMarketDataProvider, dest: MarketDataProvider):
         self.source = source
         self.dest = dest
 
     def execute(self, request: PriceLoaderRequest, result: PriceLoaderResult) -> None:
         if request.tickers is None:
-            tickers = self.source.get_symbols()
+            tickers = self.source.tickers.get_symbols()
         elif isinstance(request.tickers, str):
             tickers = [request.tickers]
         elif isinstance(request.tickers, List):
@@ -35,7 +35,7 @@ class PriceLoader:
             tickers = []
 
         for ticker in tickers:
-            current_prices = self.dest.list_prices(symbol=ticker)
+            current_prices = self.dest.prices.list_prices(symbol=ticker)
             if request.start is not None:
                 start = request.start
             elif len(current_prices) > 0:
@@ -48,5 +48,5 @@ class PriceLoader:
                 "start": start
             })
 
-            prices = self.source.list_prices(symbol=ticker, start=start, end=request.end)
-            self.dest.add_prices(prices)
+            prices = self.source.prices.list_prices(symbol=ticker, start=start, end=request.end)
+            self.dest.prices.add_prices(prices)
