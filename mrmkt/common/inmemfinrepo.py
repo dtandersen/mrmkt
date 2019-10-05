@@ -96,8 +96,8 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, ReadOnly
     def get_price(self, symbol, date: datetime.date):
         return self.prices.get(self.key(symbol, date))
 
-    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
-        prices = self.prices.filter(lambda p: p.symbol == symbol)
+    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        prices = self.prices.filter(lambda p: p.symbol == ticker)
 
         if start is not None:
             prices = list(filter(lambda p: p.date >= start, prices))

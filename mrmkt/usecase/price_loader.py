@@ -35,7 +35,7 @@ class PriceLoader:
             tickers = []
 
         for ticker in tickers:
-            current_prices = self.dest.prices.list_prices(symbol=ticker)
+            current_prices = self.dest.prices.list_prices(ticker=ticker)
             if request.start is not None:
                 start = request.start
             elif len(current_prices) > 0:
@@ -48,5 +48,5 @@ class PriceLoader:
                 "start": start
             })
 
-            prices = self.source.prices.list_prices(symbol=ticker, start=start, end=request.end)
+            prices = self.source.prices.list_prices(ticker=ticker, start=start, end=request.end)
             self.dest.prices.add_prices(prices)

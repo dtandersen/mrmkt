@@ -166,7 +166,7 @@ class SqlFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTicke
 
         self.sql_client.insert("daily_price", row)
 
-    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
         start_sql = ""
         end_sql = ""
         if start is not None:
@@ -180,7 +180,7 @@ class SqlFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTicke
         rows = self.sql_client.select(
             "select * " +
             "from daily_price " +
-            f"where symbol = '{symbol}' " +
+            f"where symbol = '{ticker}' " +
             start_sql +
             end_sql +
             "order by date asc",

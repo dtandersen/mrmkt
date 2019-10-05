@@ -12,7 +12,7 @@ class ReadOnlyPriceRepository(ABC):
         pass
 
     @abstractmethod
-    def list_prices(self, symbol: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
         """
         Return value is sorted
         """

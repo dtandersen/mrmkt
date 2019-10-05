@@ -1,0 +1,30 @@
+[{
+        "date": "2019-10-03T00:00:00.000Z",
+        "close": 1187.83,
+        "high": 1189.06,
+        "low": 1162.43,
+        "open": 1180.0,
+        "volume": 1663656,
+        "adjClose": 1187.83,
+        "adjHigh": 1189.06,
+        "adjLow": 1162.43,
+        "adjOpen": 1180.0,
+        "adjVolume": 1663656,
+        "divCash": 0.0,
+        "splitFactor": 1.0
+    }, {
+        "date": "2019-10-04T00:00:00.000Z",
+        "close": 1209.0,
+        "high": 1211.44,
+        "low": 1189.17,
+        "open": 1191.89,
+        "volume": 1147871,
+        "adjClose": 1209.0,
+        "adjHigh": 1211.44,
+        "adjLow": 1189.17,
+        "adjOpen": 1191.89,
+        "adjVolume": 1147871,
+        "divCash": 0.0,
+        "splitFactor": 1.0
+    }
+]
