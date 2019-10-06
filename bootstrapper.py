@@ -1,4 +1,3 @@
-import logging
 from typing import Type, List
 
 import psycopg2
@@ -10,7 +9,7 @@ from mrmkt.common.clock import WallClock, Clock
 from mrmkt.common.environment import MrMktEnvironment
 from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
-from mrmkt.common.tiingorepo import TiingoPriceRepository
+from mrmkt.ext.tiingo import TiingoPriceRepository
 from mrmkt.ext.fmp import FmpClient, FMPReadOnlyFinancialRepository
 from mrmkt.ext.postgres import PostgresSqlClient
 from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider

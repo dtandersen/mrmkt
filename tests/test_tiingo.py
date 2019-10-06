@@ -5,8 +5,9 @@ from typing import Optional
 from unittest import TestCase
 from hamcrest import *
 from tiingo import TiingoClient
+from tiingo.restclient import RestClientError
 
-from mrmkt.common.tiingorepo import TiingoPriceRepository
+from mrmkt.ext.tiingo import TiingoPriceRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
 
@@ -26,7 +27,11 @@ class MockTiingoClient(TiingoClient):
     def get_ticker_price(self, ticker,
                          startDate=None, endDate=None,
                          fmt='json', frequency='daily'):
-        return self.data[str(TickerArgs(symbol=ticker, startDate=startDate, endDate=endDate))]
+        value = self.data[str(TickerArgs(symbol=ticker, startDate=startDate, endDate=endDate))]
+        if isinstance(value, Exception):
+            raise value
+        else:
+            return value
 
 
 class TestTiingoGateway(TestCase):
@@ -77,9 +82,19 @@ class TestTiingoGateway(TestCase):
             )
         ]))
 
+    def test_not_found(self):
+        self.load_data('GOOG', None, None, RestClientError())
+
+        prices = self.x.list_prices('GOOG')
+
+        assert_that(prices, equal_to([]))
+
     def load_data(self, ticker, start, end, file):
-        self.client.data[str(TickerArgs(symbol=ticker, startDate=start, endDate=end))] = json.loads(
-            Path(file).read_text())
+        if isinstance(file, Exception):
+            self.client.data[str(TickerArgs(symbol=ticker, startDate=start, endDate=end))] = file
+        else:
+            self.client.data[str(TickerArgs(symbol=ticker, startDate=start, endDate=end))] = json.loads(
+                Path(file).read_text())
 
 
 def mock_responses(responses, default_response=None):
