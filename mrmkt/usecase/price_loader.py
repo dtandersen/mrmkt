@@ -46,7 +46,7 @@ class PriceLoader:
                 start = None
 
             if request.end is None:
-                end = self.clock.iso_time()
+                end = self.clock.today()
             else:
                 end = request.end
 

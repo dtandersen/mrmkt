@@ -4,13 +4,28 @@ from abc import ABC, abstractmethod
 
 class Clock(ABC):
     @abstractmethod
-    def iso_time(self) -> datetime.date:
+    def today(self) -> datetime.date:
         pass
 
 
-class WallClock(Clock):
-    def iso_time(self) -> datetime.date:
+class TimeSource(ABC):
+    @abstractmethod
+    def now(self) -> datetime.datetime:
+        pass
+
+
+class SystemTimeSource(TimeSource):
+    def now(self) -> datetime.datetime:
         return datetime.datetime.now()
+
+
+class WallClock(Clock):
+    def __init__(self, time_source: TimeSource = SystemTimeSource()):
+        self.time_source = time_source
+
+    def today(self) -> datetime.date:
+        now = self.time_source.now()
+        return datetime.date(now.year, now.month, now.day)
 
 
 class ClockStub(Clock):
@@ -20,5 +35,5 @@ class ClockStub(Clock):
     def set_time(self, time: datetime.date):
         self.time = time
 
-    def iso_time(self) -> datetime.date:
+    def today(self) -> datetime.date:
         return self.time
