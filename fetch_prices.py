@@ -24,7 +24,8 @@ class FetchPricesApp(App):
     def print_symbol(data: dict):
         symbol = data['ticker']
         date = data["start"]
-        print(f"Fetching {symbol} => {date}...")
+        end = data["end"]
+        print(f"Fetching {symbol}: {date} -> {end}")
 
 
 def main():

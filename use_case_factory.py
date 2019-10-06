@@ -24,4 +24,4 @@ class TestMrMktUseCaseFactory(MrMktUseCaseFactory):
         return FinancialLoader(self.env.remote, self.env.local)
 
     def fetch_prices(self) -> PriceLoader:
-        return PriceLoader(self.env.remote, self.env.local)
+        return PriceLoader(self.env.remote, self.env.local, self.env.clock)

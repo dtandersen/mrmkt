@@ -7,6 +7,7 @@ from typing import List
 from bootstrapper import UseCaseFactoryInjector
 from fetch_prices import FetchPricesApp
 from mrmkt.apprunner.runner import AppRunner
+from mrmkt.common.util import to_date
 from tests.testenv import TestEnvironment
 from use_case_factory import TestMrMktUseCaseFactory
 
@@ -16,12 +17,13 @@ class TestFetchApp(unittest.TestCase):
         self.env = TestEnvironment()
 
     def test_fetch_apple(self):
+        self.env.clock.set_time(to_date("2019-10-05"))
         self.given_apple_financials()
 
         self.execute(['AAPL'])
 
         self.thenConsoleIs('''\
-                           Fetching AAPL => None...
+                           Fetching AAPL: None -> 2019-10-05
                            ''')
 
     def test_fetch_nvidia_and_google(self):
@@ -31,8 +33,8 @@ class TestFetchApp(unittest.TestCase):
         self.execute()
 
         self.thenConsoleIs('''\
-                           Fetching GOOG => None...
-                           Fetching NVDA => None...
+                           Fetching GOOG: None -> None
+                           Fetching NVDA: None -> None
                            ''')
 
     def test_fetch_nvidia_and_google2(self):
@@ -43,8 +45,8 @@ class TestFetchApp(unittest.TestCase):
         self.execute(["GOOG", "NVDA"])
 
         self.thenConsoleIs('''\
-                           Fetching GOOG => None...
-                           Fetching NVDA => None...
+                           Fetching GOOG: None -> None
+                           Fetching NVDA: None -> None
                            ''')
 
     def execute(self, args: List[str] = None):

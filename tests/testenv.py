@@ -1,3 +1,4 @@
+from mrmkt.common.clock import ClockStub
 from mrmkt.common.environment import MrMktEnvironment
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.common.testfinrepo import FinancialTestRepository
@@ -33,6 +34,7 @@ class TestEnvironment(MrMktEnvironment):
         self._local = MarketDataProvider(financials=local, prices=local, tickers=local)
         self._remote = TestMarketDataProvider(remote)
         # self._test_data = TestMarketDataProvider(td)
+        self._clock = ClockStub()
 
     @property
     def local(self) -> MarketDataProvider:
@@ -41,6 +43,10 @@ class TestEnvironment(MrMktEnvironment):
     @property
     def remote(self) -> TestMarketDataProvider:
         return self._remote
+
+    @property
+    def clock(self) -> ClockStub:
+        return self._clock
 
     # @property
     # def test_data(self) -> TestMarketDataProvider:

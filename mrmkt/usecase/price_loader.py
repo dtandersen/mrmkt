@@ -2,6 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List, Optional
 
+from mrmkt.common.clock import Clock
 from mrmkt.repo.provider import ReadOnlyMarketDataProvider, MarketDataProvider
 from mrmkt.entity.stock_price import StockPrice
 
@@ -20,7 +21,8 @@ class PriceLoaderResult:
 
 
 class PriceLoader:
-    def __init__(self, source: ReadOnlyMarketDataProvider, dest: MarketDataProvider):
+    def __init__(self, source: ReadOnlyMarketDataProvider, dest: MarketDataProvider, clock: Clock):
+        self.clock = clock
         self.source = source
         self.dest = dest
 
@@ -43,10 +45,16 @@ class PriceLoader:
             else:
                 start = None
 
+            if request.end is None:
+                end = self.clock.iso_time()
+            else:
+                end = request.end
+
             result.lookup({
                 "ticker": ticker,
-                "start": start
+                "start": start,
+                "end": end
             })
 
-            prices = self.source.prices.list_prices(ticker=ticker, start=start, end=request.end)
+            prices = self.source.prices.list_prices(ticker=ticker, start=start, end=end)
             self.dest.prices.add_prices(prices)

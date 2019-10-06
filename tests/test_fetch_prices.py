@@ -21,7 +21,8 @@ class TestFetchPricesCommand(unittest.TestCase):
     def handle_looup(self, ticker: str):
         self.lookups.append(ticker)
 
-    def test_copy_apple(self):
+    def test_one_ticker_one_price(self):
+        self.env.clock.set_time(to_date("2019-10-05"))
         self.whenExecute(tickers='AAPL')
 
         assert_that(self.env.remote.prices.list_prices('AAPL'), equal_to([
@@ -38,10 +39,12 @@ class TestFetchPricesCommand(unittest.TestCase):
 
         assert_that(self.lookups, equal_to([{
             "ticker": 'AAPL',
-            "start": None
+            "start": None,
+            "end": to_date("2019-10-05")
         }]))
 
-    def test_copy_apple_and_spy(self):
+    def test_multiple_tickers_multiple_prices(self):
+        self.env.clock.set_time(to_date("2019-01-02"))
         self.env.remote.add_netflix_financials()
 
         self.whenExecute(tickers=['AAPL', 'NFLX'])
@@ -79,15 +82,18 @@ class TestFetchPricesCommand(unittest.TestCase):
         assert_that(self.lookups, equal_to([
             {
                 "ticker": 'AAPL',
-                "start": None
+                "start": None,
+                "end": to_date("2019-01-02")
             },
             {
                 "ticker": 'NFLX',
-                "start": None
+                "start": None,
+                "end": to_date("2019-01-02")
             }
         ]))
 
-    def test_copy_spy_from_start(self):
+    def test_read_tickers_until_current_date(self):
+        self.env.clock.set_time(to_date("2019-09-19"))
         self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
 
         assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
@@ -99,20 +105,22 @@ class TestFetchPricesCommand(unittest.TestCase):
                 low=301.015,
                 close=301.015,
                 volume=4.695743E7
-            ),
-            StockPrice(
-                symbol="SPY",
-                date=to_date("2019-09-20"),
-                open=300.31,
-                high=300.47,
-                low=298.45,
-                close=298.67,
-                volume=4.6894282E7
             )
+            # ,
+            # StockPrice(
+            #     symbol="SPY",
+            #     date=to_date("2019-09-20"),
+            #     open=300.31,
+            #     high=300.47,
+            #     low=298.45,
+            #     close=298.67,
+            #     volume=4.6894282E7
+            # )
         ]))
         assert_that(self.lookups, equal_to([{
             "ticker": 'SPY',
-            "start": to_date("2019-09-19")
+            "start": to_date("2019-09-19"),
+            "end": to_date("2019-09-19")
         }
         ]))
 
@@ -210,6 +218,6 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def whenExecute(self, tickers=None, start=None, end=None):
-        pl = PriceLoader(self.env.remote, self.env.local)
+        pl = PriceLoader(self.env.remote, self.env.local, self.env.clock)
         pl.execute(PriceLoaderRequest(tickers=tickers, start=start, end=end),
                    PriceLoaderResult(lookup=self.handle_looup))
