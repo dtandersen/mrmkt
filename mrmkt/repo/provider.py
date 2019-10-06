@@ -1,4 +1,4 @@
-from mrmkt.repo.finrepo import FinancialRepository, ReadOnlyFinancialRepository
+from mrmkt.repo.financials import FinancialRepository, ReadOnlyFinancialRepository
 from mrmkt.repo.prices import PriceRepository, ReadOnlyPriceRepository
 from mrmkt.repo.tickers import ReadOnlyTickerRepository
 

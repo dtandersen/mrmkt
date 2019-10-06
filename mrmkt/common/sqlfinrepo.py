@@ -10,7 +10,7 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
-from mrmkt.repo.finrepo import FinancialRepository
+from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import ReadOnlyTickerRepository
 
