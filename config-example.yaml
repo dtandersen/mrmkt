@@ -1,0 +1,8 @@
+tiingo:
+  api_key: mykey
+database:
+  user: mrmkt
+  password: mypassword
+  host: 127.0.0.1
+  port: 5432
+  database: mrmkt
