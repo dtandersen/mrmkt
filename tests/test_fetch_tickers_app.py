@@ -9,20 +9,23 @@ from fetch_prices import FetchPricesApp
 from fetch_tickers import FetchTickersApp
 from mrmkt.apprunner.runner import AppRunner
 from mrmkt.common.util import to_date
+from mrmkt.entity.ticker import Ticker
 from tests.testenv import TestEnvironment
 from use_case_factory import TestMrMktUseCaseFactory
 
 
-class TestFetchApp(unittest.TestCase):
+class TestFetchTickersApp(unittest.TestCase):
     def setUp(self):
         self.env = TestEnvironment()
 
     def test_fetch_apple(self):
+        self.add_remote_ticker(Ticker(ticker='SPY', exchange='ABC', type='ETF'))
 
         self.execute()
 
         self.thenConsoleIs('''\
                            Fetching tickers...
+                           Fetched 1 tickers
                            ''')
 
     def execute(self, args: List[str] = None):
@@ -38,14 +41,8 @@ class TestFetchApp(unittest.TestCase):
 
         self.console = stdout.getvalue()
 
-    def given_nvidia_financials(self):
-        self.env.remote.add_nvidia_financials()
-
-    def given_google_financials(self):
-        self.env.remote.add_google_financials()
+    def add_remote_ticker(self, ticker: Ticker):
+        self.env.remote.tickers.add_ticker(ticker)
 
     def thenConsoleIs(self, expected: str):
         self.assertEqual(self.console, textwrap.dedent(expected))
-
-    def given_apple_financials(self):
-        self.env.remote.add_apple_financials()

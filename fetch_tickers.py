@@ -3,7 +3,12 @@ from typing import List
 
 from bootstrapper import bootstrap
 from mrmkt.apprunner.runner import App
+from mrmkt.usecase.fetch_tickers import FetchTickersResult
 from use_case_factory import MrMktUseCaseFactory
+
+class AppFetchTickersResult(FetchTickersResult):
+    def on_tickers_updated(self, count: int):
+        pass
 
 
 class FetchTickersApp(App):
@@ -17,14 +22,12 @@ class FetchTickersApp(App):
         #   request.tickers = args
         print("Fetching tickers...")
         usecase = self.use_case_factory.fetch_tickers()
+        usecase.result = FetchTickersResult(on_tickers_updated=FetchTickersApp.print_symbol)
         usecase.execute()
 
     @staticmethod
-    def print_symbol(data: dict):
-        symbol = data['ticker']
-        date = data["start"]
-        end = data["end"]
-        print(f"Fetching {symbol}: {date} -> {end}")
+    def print_symbol(count: int):
+        print(f"Fetched {count} tickers")
 
 
 def main():
