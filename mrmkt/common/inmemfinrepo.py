@@ -9,20 +9,21 @@ from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tickers import ReadOnlyTickerRepository
+from mrmkt.repo.tickers import TickerRepository
 
 
 @dataclass
-class InMemoryFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTickerRepository):
+class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRepository):
     incomes: Table
     balances: Table
     analysis: Table
     cashflows: Table
     enterprises: Table
     prices: Table
-    stocks: Table
+    tickers: Table
 
     def __init__(self):
         self.incomes = Table(symbol_date_key)
@@ -31,7 +32,7 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, ReadOnly
         self.prices = Table(symbol_date_key)
         self.cashflows = Table(symbol_date_key)
         self.enterprises = Table(symbol_date_key)
-        self.stocks = Table(string_key)
+        self.tickers = Table(ticker_exchange_key)
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
         return self.incomes.get(self.key(symbol, date))
@@ -116,7 +117,16 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, ReadOnly
         self.prices.add(price)
 
     def get_symbols(self) -> List[str]:
-        return list(self.stocks.all())
+        return list(map(lambda t: t.ticker, self.tickers.all()))
+
+    def get_tickers(self) -> List[Ticker]:
+        raise NotImplementedError
+
+    def add_ticker(self, ticker: Ticker):
+        self.tickers.add(ticker)
+
+    def add_ticker_only(self, ticker):
+        self.add_ticker(Ticker(ticker=ticker, exchange='', type=''))
 
     def all_prices(self):
         return self.prices.all()
@@ -131,3 +141,9 @@ def symbol_date_key(obj) -> str:
 
 def string_key(symbol: str) -> str:
     return symbol
+
+
+def ticker_exchange_key(obj) -> str:
+    ticker = obj.ticker
+    exchange = obj.exchange
+    return f"{ticker}-{exchange}"

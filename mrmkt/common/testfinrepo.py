@@ -7,6 +7,7 @@ from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 
 
 class FinancialTestRepository(InMemoryFinancialRepository):
@@ -20,7 +21,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         return self
 
     def add_google_financials(self):
-        self.stocks.add('GOOG')
+        self.add_ticker_only('GOOG')
         self.add_income(IncomeStatement(
             symbol='GOOG',
             date=datetime.date(2018, 12, 1),
@@ -75,7 +76,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_nvidia_financials(self):
-        self.stocks.add('NVDA')
+        self.add_ticker_only('NVDA')
         self.add_income(IncomeStatement(
             symbol='NVDA',
             date=datetime.date(2019, 1, 27),
@@ -102,7 +103,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_apple_financials(self):
-        self.stocks.add('AAPL')
+        self.add_ticker_only('AAPL')
         self.add_income(IncomeStatement(
             symbol='AAPL',
             date=datetime.date(2018, 9, 29),
@@ -163,7 +164,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         return self
 
     def add_netflix_financials(self):
-        self.stocks.add('NFLX')
+        self.add_ticker_only('NFLX')
         self.add_income(IncomeStatement(
             symbol='NFLX',
             date=datetime.date(2018, 12, 31),
@@ -214,13 +215,13 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def add_spy_financials(self):
-        self.stocks.add('SPY')
+        self.add_ticker_only('SPY')
 
     def addSpyFinancials(self):
-        self.stocks.add('SPY')
+        self.add_ticker_only('SPY')
 
     def add_walmart(self):
-        self.stocks.add('WMT')
+        self.add_ticker_only('WMT')
 
         self.add_income(IncomeStatement(
             symbol='WMT',
@@ -257,7 +258,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         ))
 
     def with_disney(self):
-        self.stocks.add('DIS')
+        self.add_ticker_only('DIS')
 
         self.add_income(IncomeStatement(
             symbol='DIS',
@@ -296,7 +297,7 @@ class FinancialTestRepository(InMemoryFinancialRepository):
         return self
 
     def with_spy(self):
-        self.stocks.add('SPY')
+        self.add_ticker_only('SPY')
         self.add_price(StockPrice(
             symbol="SPY",
             date=to_date("2019-09-16"),

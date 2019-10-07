@@ -4,7 +4,7 @@ from hamcrest import *
 
 from mrmkt.common.sql import MockSqlClient
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository, BalanceSheetRow, IncomeStatementRow, AnalysisRow, \
-    CashFlowRow, EnterpriseValueRow, PriceRow, SymbolRow
+    CashFlowRow, EnterpriseValueRow, PriceRow, SymbolRow, TickerRow
 from mrmkt.common.testfinrepo import FinancialTestRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.analysis import Analysis
@@ -13,6 +13,7 @@ from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 
 
 class TestStringMethods(unittest.TestCase):
@@ -665,3 +666,50 @@ class TestStringMethods(unittest.TestCase):
 
         prices = self.db.get_symbols()
         assert_that(prices, equal_to(['ABC', 'XYZ']))
+
+    def test_get_tickers(self):
+        self.client.append_select(
+            "select * " +
+            "from ticker",
+            [
+                TickerRow(
+                    ticker='ABC',
+                    exchange='NYSE ARCA',
+                    type='ETF'
+                ),
+                TickerRow(
+                    ticker='XYZ',
+                    exchange='NASDAQ',
+                    type='Stock'
+                )
+            ])
+
+        prices = self.db.get_tickers()
+        assert_that(prices, equal_to([
+            Ticker(
+                ticker='ABC',
+                exchange='NYSE ARCA',
+                type='ETF'
+            ),
+            Ticker(
+                ticker='XYZ',
+                exchange='NASDAQ',
+                type='Stock'
+            )
+        ]))
+
+    def test_add_ticker(self):
+        self.db.add_ticker(Ticker(
+            ticker='ABC',
+            exchange='NYSE ARCA',
+            type='ETF'
+        ))
+
+        self.assertEqual(self.client.inserts, [{
+            "table": "ticker",
+            "values": TickerRow(
+                ticker='ABC',
+                exchange='NYSE ARCA',
+                type='ETF'
+            )
+        }])

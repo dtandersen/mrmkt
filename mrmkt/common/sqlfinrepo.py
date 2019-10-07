@@ -10,12 +10,13 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tickers import ReadOnlyTickerRepository
+from mrmkt.repo.tickers import TickerRepository
 
 
-class SqlFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTickerRepository):
+class SqlFinancialRepository(FinancialRepository, PriceRepository, TickerRepository):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
 
@@ -236,6 +237,30 @@ class SqlFinancialRepository(FinancialRepository, PriceRepository, ReadOnlyTicke
     def symbol_mapper(self, row):
         return row["symbol"]
 
+    def get_tickers(self) -> List[Ticker]:
+        rows = self.sql_client.select(
+            "select * " +
+            "from ticker",
+            self.ticker_mapper)
+
+        return rows
+
+    def ticker_mapper(self, row):
+        return Ticker(
+            ticker=row["ticker"],
+            exchange=row["exchange"],
+            type=row["type"]
+        )
+
+    def add_ticker(self, ticker: Ticker):
+        row = TickerRow(
+            ticker=ticker.ticker,
+            exchange=ticker.exchange,
+            type=ticker.type
+        )
+
+        self.sql_client.insert("ticker", row)
+
     def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
         raise NotImplementedError
 
@@ -325,3 +350,10 @@ class FinancialRow:
 @dataclass
 class SymbolRow:
     symbol: str
+
+
+@dataclass
+class TickerRow:
+    ticker: str
+    exchange: str
+    type: str
