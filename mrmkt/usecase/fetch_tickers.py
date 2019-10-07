@@ -1,3 +1,4 @@
+from mrmkt.common.sql import Duplicate
 from mrmkt.repo.tickers import ReadOnlyTickerRepository, TickerRepository
 
 
@@ -7,4 +8,9 @@ class FetchTickersUseCase:
         self.remote = remote
 
     def execute(self):
-        pass
+        tickers = self.remote.get_tickers()
+        for ticker in tickers:
+            try:
+                self.local.add_ticker(ticker)
+            except Duplicate:
+                pass

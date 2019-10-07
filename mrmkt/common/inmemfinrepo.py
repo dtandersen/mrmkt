@@ -120,7 +120,7 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRe
         return list(map(lambda t: t.ticker, self.tickers.all()))
 
     def get_tickers(self) -> List[Ticker]:
-        raise NotImplementedError
+        return list(self.tickers.all())
 
     def add_ticker(self, ticker: Ticker):
         self.tickers.add(ticker)
