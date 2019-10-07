@@ -6,10 +6,12 @@ from tiingo.restclient import RestClientError
 
 from mrmkt.common.util import to_date, to_iso
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.prices import ReadOnlyPriceRepository
+from mrmkt.repo.tickers import ReadOnlyTickerRepository
 
 
-class TiingoPriceRepository(ReadOnlyPriceRepository):
+class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
     def __init__(self, tiingo: TiingoClient):
         self.tiingo = tiingo
 
@@ -43,3 +45,27 @@ class TiingoPriceRepository(ReadOnlyPriceRepository):
             close=json['adjClose'],
             volume=json['volume']
         )
+
+    def get_tickers(self) -> List[Ticker]:
+        tickers = []
+
+        for ticker in self.tiingo.list_stock_tickers():
+            tickers.append(self.map_ticker(ticker))
+
+        for ticker in self.tiingo.list_etf_tickers():
+            tickers.append(self.map_ticker(ticker))
+
+        for ticker in self.tiingo.list_fund_tickers():
+            tickers.append(self.map_ticker(ticker))
+
+        return tickers
+
+    def map_ticker(self, ticker: dict) -> Ticker:
+        return Ticker(
+            ticker=ticker['ticker'],
+            exchange=ticker['exchange'],
+            type=ticker['assetType']
+        )
+
+    def get_symbols(self) -> List[str]:
+        raise NotImplementedError

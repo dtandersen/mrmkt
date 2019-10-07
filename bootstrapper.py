@@ -47,7 +47,7 @@ class ProdEnv(MrMktEnvironment):
         cnv = InsecureSqlGenerator()
         sql = PostgresSqlClient(cnv, pool)
         pg = SqlFinancialRepository(sql)
-        self._remote = ReadOnlyMarketDataProvider(financials=fin_gtwy, prices=tg, tickers=fin_gtwy)
+        self._remote = ReadOnlyMarketDataProvider(financials=fin_gtwy, prices=tg, tickers=tg)
         self._local = MarketDataProvider(financials=pg, prices=pg, tickers=pg)
         self._clock = WallClock()
 

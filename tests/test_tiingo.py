@@ -7,6 +7,7 @@ from hamcrest import *
 from tiingo import TiingoClient
 from tiingo.restclient import RestClientError
 
+from mrmkt.entity.ticker import Ticker
 from mrmkt.ext.tiingo import TiingoPriceRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
@@ -23,6 +24,7 @@ class MockTiingoClient(TiingoClient):
     # noinspection PyMissingConstructor
     def __init__(self):
         self.data = dict()
+        self.tickers = []
 
     def get_ticker_price(self, ticker,
                          startDate=None, endDate=None,
@@ -32,6 +34,14 @@ class MockTiingoClient(TiingoClient):
             raise value
         else:
             return value
+
+    def list_tickers(self, assetType):
+        result = []
+        for ticker in self.tickers:
+            if ticker['assetType'] == assetType:
+                result.append(ticker)
+
+        return result
 
 
 class TestTiingoGateway(TestCase):
@@ -88,6 +98,32 @@ class TestTiingoGateway(TestCase):
         prices = self.x.list_prices('GOOG')
 
         assert_that(prices, equal_to([]))
+
+    def test_fetch_all_tickers(self):
+        self.client.tickers = [
+            {
+                "ticker": "ABC",
+                "exchange": "E1",
+                "assetType": "Stock"
+            },
+            {
+                "ticker": "DEF",
+                "exchange": "E2",
+                "assetType": "ETF"
+            },
+            {
+                "ticker": "XYZ",
+                "exchange": "E3",
+                "assetType": "Mutual Fund"
+            }
+        ]
+
+        tickers = self.x.get_tickers()
+
+        assert_that(tickers, equal_to([
+            Ticker(ticker='ABC', exchange='E1', type='Stock'),
+            Ticker(ticker='DEF', exchange='E2', type='ETF'),
+            Ticker(ticker='XYZ', exchange='E3', type='Mutual Fund')]))
 
     def load_data(self, ticker, start, end, file):
         if isinstance(file, Exception):
