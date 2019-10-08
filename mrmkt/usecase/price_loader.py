@@ -28,7 +28,7 @@ class PriceLoader:
 
     def execute(self, request: PriceLoaderRequest, result: PriceLoaderResult) -> None:
         if request.tickers is None:
-            tickers = self.source.tickers.get_symbols()
+            tickers = self.dest.tickers.get_symbols()
         elif isinstance(request.tickers, str):
             tickers = [request.tickers]
         elif isinstance(request.tickers, List):
