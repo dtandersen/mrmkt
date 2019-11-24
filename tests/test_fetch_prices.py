@@ -1,10 +1,12 @@
 import datetime
 import unittest
+from typing import List
 
 from hamcrest import *
 
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
 from mrmkt.usecase.price_loader import PriceLoader, PriceLoaderRequest, PriceLoaderResult
 from tests.testenv import TestEnvironment
 
@@ -22,6 +24,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         self.lookups.append(ticker)
 
     def test_one_ticker_one_price(self):
+        self.add_local_ticker('AAPL')
         self.env.clock.set_time(to_date("2019-10-05"))
         self.whenExecute(tickers='AAPL')
 
@@ -43,7 +46,18 @@ class TestFetchPricesCommand(unittest.TestCase):
             "end": to_date("2019-10-05")
         }]))
 
+    def add_local_ticker(self, ticker):
+        if isinstance(ticker, str):
+            self.env.local.tickers.add_ticker(Ticker(ticker=ticker, exchange='', type=''))
+        elif isinstance(ticker, List):
+            for t in ticker:
+                self.env.local.tickers.add_ticker(Ticker(ticker=t, exchange='', type=''))
+        else:
+            raise Exception()
+
     def test_multiple_tickers_multiple_prices(self):
+        self.add_local_ticker(['AAPL', 'NFLX'])
+
         self.env.clock.set_time(to_date("2019-01-02"))
         self.env.remote.add_netflix_financials()
 
@@ -93,6 +107,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def test_read_tickers_until_current_date(self):
+        self.add_local_ticker('SPY')
         self.env.clock.set_time(to_date("2019-09-19"))
         self.whenExecute(tickers='SPY', start=to_date("2019-09-19"))
 
@@ -125,6 +140,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def test_copy_spy_to_end(self):
+        self.add_local_ticker('SPY')
         self.whenExecute(tickers='SPY', end=to_date("2019-09-16"))
 
         assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
@@ -139,6 +155,7 @@ class TestFetchPricesCommand(unittest.TestCase):
             )]))
 
     def test_copy_spy_start_to_end(self):
+        self.add_local_ticker('SPY')
         self.whenExecute(tickers='SPY', start=to_date("2019-09-17"), end=to_date("2019-09-17"))
 
         assert_that(self.env.local.prices.list_prices('SPY'), equal_to([
@@ -154,6 +171,7 @@ class TestFetchPricesCommand(unittest.TestCase):
         ]))
 
     def test_load_prices_after_date(self):
+        self.add_local_ticker(['SPY', 'AAPL'])
         self.env.local.prices.add_price(StockPrice(
             symbol="SPY",
             date=to_date("2019-09-17"),

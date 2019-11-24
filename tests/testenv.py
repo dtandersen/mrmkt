@@ -29,15 +29,15 @@ class TestMarketDataProvider(MarketDataProvider):
 class TestEnvironment(MrMktEnvironment):
     def __init__(self):
         # td = FinancialTestRepository()
-        local = InMemoryFinancialRepository()
+        local = FinancialTestRepository()
         remote = FinancialTestRepository()
-        self._local = MarketDataProvider(financials=local, prices=local, tickers=local)
+        self._local = TestMarketDataProvider(local)
         self._remote = TestMarketDataProvider(remote)
         # self._test_data = TestMarketDataProvider(td)
         self._clock = ClockStub()
 
     @property
-    def local(self) -> MarketDataProvider:
+    def local(self) -> TestMarketDataProvider:
         return self._local
 
     @property

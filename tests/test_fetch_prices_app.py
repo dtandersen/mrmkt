@@ -23,7 +23,7 @@ class TestFetchApp(unittest.TestCase):
         self.execute(['AAPL'])
 
         self.thenConsoleIs('''\
-                           Fetching AAPL: None -> 2019-10-05
+                           Fetching AAPL: 2014-06-13 -> 2019-10-05
                            ''')
 
     def test_fetch_nvidia_and_google(self):
@@ -33,8 +33,8 @@ class TestFetchApp(unittest.TestCase):
         self.execute()
 
         self.thenConsoleIs('''\
-                           Fetching GOOG: None -> None
-                           Fetching NVDA: None -> None
+                           Fetching GOOG: 2018-12-03 -> None
+                           Fetching NVDA: 2014-06-13 -> None
                            ''')
 
     def test_fetch_nvidia_and_google2(self):
@@ -45,8 +45,8 @@ class TestFetchApp(unittest.TestCase):
         self.execute(["GOOG", "NVDA"])
 
         self.thenConsoleIs('''\
-                           Fetching GOOG: None -> None
-                           Fetching NVDA: None -> None
+                           Fetching GOOG: 2018-12-03 -> None
+                           Fetching NVDA: 2014-06-13 -> None
                            ''')
 
     def execute(self, args: List[str] = None):
@@ -63,13 +63,13 @@ class TestFetchApp(unittest.TestCase):
         self.console = stdout.getvalue()
 
     def given_nvidia_financials(self):
-        self.env.remote.add_nvidia_financials()
+        self.env.local.add_nvidia_financials()
 
     def given_google_financials(self):
-        self.env.remote.add_google_financials()
+        self.env.local.add_google_financials()
+
+    def given_apple_financials(self):
+        self.env.local.add_apple_financials()
 
     def thenConsoleIs(self, expected: str):
         self.assertEqual(self.console, textwrap.dedent(expected))
-
-    def given_apple_financials(self):
-        self.env.remote.add_apple_financials()
