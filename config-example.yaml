@@ -6,3 +6,8 @@ database:
   host: 127.0.0.1
   port: 5432
   database: mrmkt
+ameritrade:
+  username: name
+  password: pw
+  redirect: http://localhost:8080
+  consumer_key: 12345678

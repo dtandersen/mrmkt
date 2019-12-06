@@ -1,3 +1,5 @@
+tdameritrade
+mechanize
 backtrader==1.9.74.123
 certifi==2019.6.16
 cffi==1.12.3
