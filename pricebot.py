@@ -81,7 +81,12 @@ prices = {}
 delay = 3 * 60
 # delay = 10
 while True:
-    print(datetime.now().strftime('%H:%M:%S'))
+    rawt = datetime.now()
+    t_in_s = rawt.hour * 3600 + rawt.minute * 60 + rawt.second
+    if t_in_s % delay > 0:
+        time.sleep(1)
+        continue
+    print(rawt.strftime('%H:%M:%S'))
     response = tdlogin(redirect=redirect, consumer_key=consumer_key, username=username, password=password)
 
     access_token = response['access_token']
@@ -102,4 +107,4 @@ while True:
             r = "REVERSED"
         print(f"{ticker}: {price} " + arrow(pd.direction) + f" ({cp}%) {r}")
 
-    time.sleep(delay)
+    # time.sleep(delay)
