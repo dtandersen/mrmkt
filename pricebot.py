@@ -8,20 +8,6 @@ from tdameritrade import TDClient
 from datetime import datetime
 
 
-def read_config():
-    with open('config.yaml') as f:
-        config = yaml.safe_load(f)
-        return config
-
-
-config = read_config()
-ameritrade = config["ameritrade"]
-redirect = ameritrade["redirect"]
-consumer_key = ameritrade["consumer_key"]
-username = ameritrade["username"]
-password = ameritrade["password"]
-
-
 @dataclass
 class PriceData:
     ticker: str
@@ -71,14 +57,44 @@ def arrow(direction):
 
 
 def change(old, new):
-    return (old - new) / old
+    return (new - old) / old
+
+
+def read_portfolio(my_file):
+    tickers = [line.rstrip() for line in open(my_file)]
+    return tickers
+
+
+def get_td_client() -> TDClient:
+    def read_config():
+        with open('config.yaml') as f:
+            config = yaml.safe_load(f)
+            return config
+
+    config = read_config()
+    ameritrade = config["ameritrade"]
+    redirect = ameritrade["redirect"]
+    consumer_key = ameritrade["consumer_key"]
+    username = ameritrade["username"]
+    password = ameritrade["password"]
+    tdclient = None
+    while tdclient is None:
+        try:
+            response = tdlogin(redirect=redirect, consumer_key=consumer_key, username=username, password=password)
+            access_token = response['access_token']
+            tdclient = TDClient(access_token)
+        except KeyError as e:
+            print(e)
+
+    return tdclient
 
 
 pt = PriceTracker()
 
-tickers = ['ENPH', 'XLE', 'XOP', 'SPX']
+tickers = read_portfolio("portfolio.txt")
 prices = {}
-delay = 3 * 60
+
+delay = 15 * 60
 # delay = 10
 while True:
     rawt = datetime.now()
@@ -87,12 +103,9 @@ while True:
         time.sleep(1)
         continue
     print(rawt.strftime('%H:%M:%S'))
-    response = tdlogin(redirect=redirect, consumer_key=consumer_key, username=username, password=password)
-
-    access_token = response['access_token']
+    tdclient = get_td_client()
     # print(access_token)
 
-    tdclient = TDClient(access_token)
     for ticker in tickers:
         quote = tdclient.quote(ticker)
         price = quote[ticker]["lastPrice"]
