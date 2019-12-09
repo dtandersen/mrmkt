@@ -3,9 +3,10 @@ from dataclasses import dataclass
 
 import yaml
 
-from atradeauth import tdlogin
 from tdameritrade import TDClient
 from datetime import datetime
+
+from mrmkt.ext.tdameritrade import TDAmeritradeClient
 
 
 @dataclass
@@ -80,7 +81,8 @@ def get_td_client() -> TDClient:
     tdclient = None
     while tdclient is None:
         try:
-            response = tdlogin(redirect=redirect, consumer_key=consumer_key, username=username, password=password)
+            client = TDAmeritradeClient(redirect, consumer_key, username, password)
+            response = client.authenticate()
             access_token = response['access_token']
             tdclient = TDClient(access_token)
         except KeyError as e:

@@ -1,7 +1,8 @@
 import yaml
 
-from atradeauth import tdlogin
 from tdameritrade import TDClient
+
+from mrmkt.ext.tdameritrade import TDAmeritradeClient, TokenGenerator
 
 
 def read_config():
@@ -17,7 +18,9 @@ consumer_key = ameritrade["consumer_key"]
 username = ameritrade["username"]
 password = ameritrade["password"]
 
-response = tdlogin(redirect=redirect, consumer_key=consumer_key, username=username, password=password)
+token_generator = TokenGenerator(redirect, consumer_key, username, password)
+client = TDAmeritradeClient(token_generator)
+response = token_generator.authenticate()
 print(response)
 access_token = response['access_token']
 

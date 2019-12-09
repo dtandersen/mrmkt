@@ -1,0 +1,20 @@
+{
+    "candles": [{
+            "open": 310.91,
+            "high": 311.11,
+            "low": 310.91,
+            "close": 311.03,
+            "volume": 8190,
+            "datetime": 1574424000000
+        }, {
+            "open": 311.05,
+            "high": 311.09,
+            "low": 310.96,
+            "close": 311.01,
+            "volume": 15366,
+            "datetime": 1574424900000
+        }
+    ],
+    "symbol": "SPY",
+    "empty": false
+}

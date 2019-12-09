@@ -3,7 +3,6 @@ from typing import List
 
 import yaml
 
-from atradeauth import tdlogin
 from tdameritrade import TDClient
 from datetime import datetime
 
