@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 from urllib import parse as up
 
 import datetime as datetime
@@ -14,6 +15,19 @@ class Candle:
     close: float
     volume: float
     datetime: datetime
+
+
+@dataclass
+class Position:
+    symbol: str
+    shares: float
+    price: float
+
+
+@dataclass
+class Portfolio:
+    equity: float
+    positions: List[Position]
 
 
 class TokenGenerator:
@@ -33,6 +47,7 @@ class TokenGenerator:
       'token_type': 'Bearer'
     }
     """
+
     def authenticate(self):
         client_id = self.consumer_key + '@AMER.OAUTHAP'
         url = 'https://auth.tdameritrade.com/auth?response_type=code&redirect_uri=' + up.quote(
@@ -71,7 +86,7 @@ class TokenGenerator:
                                    'client_id': client_id,
                                    'redirect_uri': self.redirect})
         json = resp.json()
-        print(json)
+        # print(json)
         self._access_code = json["access_token"]
         return json
 
@@ -104,3 +119,23 @@ class TDAmeritradeClient:
         return {
             "Authorization": f"Bearer {self.tokenGenerator.access_token()}"
         }
+
+    def list_positions(self, accountid):
+        def map_portfolio(json):
+            def map_position(json):
+                return Position(
+                    symbol=json["instrument"]["symbol"],
+                    shares=json["longQuantity"],
+                    price=json["averagePrice"]
+                )
+
+            securitiesAccount = json["securitiesAccount"]
+            equity = securitiesAccount["currentBalances"]["equity"]
+            positions = [map_position(c) for c in securitiesAccount["positions"]]
+
+            return Portfolio(equity=equity, positions=positions)
+
+        response = requests.get(f"https://api.tdameritrade.com/v1/accounts/{accountid}?fields=positions",
+                                headers=self.headers())
+        # print(response.text)
+        return map_portfolio(response.json())

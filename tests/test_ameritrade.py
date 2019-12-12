@@ -6,16 +6,16 @@ import requests_mock
 from hamcrest import *
 
 from mrmkt.common.util import to_datetime_utc
-from mrmkt.ext.tdameritrade import TDAmeritradeClient, Candle, TokenGenerator
+from mrmkt.ext.tdameritrade import TDAmeritradeClient, Candle, TokenGenerator, Position
 
 
 class MockTokenGenerator(TokenGenerator):
-    def __init__(self):
+    def __init__(self, access_code):
         super().__init__(None, None, None, None)
+        self._access_code = access_code
 
     def authenticate(self):
-        self._access_code = 1234
-        return {"access_token": 1234}
+        return {"access_token": self._access_code}
 
 
 class TestTDAmeritradeClient(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestTDAmeritradeClient(unittest.TestCase):
                            "Authorization": "Bearer 1234"
                        },
                        text=Path('tdameritrade/SPY-history.json').read_text())
-        client = TDAmeritradeClient(MockTokenGenerator())
+        client = TDAmeritradeClient(MockTokenGenerator("1234"))
         history = client.history('SPY')
         assert_that(history, equal_to([
             Candle(
@@ -45,4 +45,30 @@ class TestTDAmeritradeClient(unittest.TestCase):
                 close=311.01,
                 volume=15366,
                 datetime=to_datetime_utc("2019-11-22 12:15:00")
+            )]))
+
+    @requests_mock.Mocker()
+    def test_fetch_portfolio(self, m):
+        m.register_uri('GET',
+                       'https://api.tdameritrade.com/v1/accounts/12345678?fields=positions',
+                       request_headers={
+                           "Authorization": "Bearer 2345"
+                       },
+                       text=Path('tdameritrade/account-12345678.json').read_text())
+        client = TDAmeritradeClient(MockTokenGenerator("2345"))
+
+        portfolio = client.list_positions('12345678')
+        assert_that(portfolio.equity, equal_to(3441.67))
+
+        positions = portfolio.positions
+        assert_that(positions, equal_to([
+            Position(
+                symbol="ENPH",
+                shares=35.0,
+                price=23.901414
+            ),
+            Position(
+                symbol="WOOD",
+                shares=5.0,
+                price=65.22
             )]))
