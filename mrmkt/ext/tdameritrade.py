@@ -110,8 +110,17 @@ class TDAmeritradeClient:
                 datetime=datetime.datetime.fromtimestamp(candle["datetime"] / 1000, datetime.timezone.utc)
             )
 
-        json = requests.get("https://api.tdameritrade.com/v1/marketdata/SPY/pricehistory", headers=self.headers()) \
+        d = datetime.datetime.utcnow()
+        epoch = datetime.datetime(1970, 1, 1)
+        endDate = (d - epoch).total_seconds()
+        startDate = endDate - (3600 * 24)
+        # print(f"endData={endDate}")
+        # print(f"startDate={startDate}")
+        endms = int(endDate * 1000)
+        startms = int(startDate * 1000)
+        json = requests.get(f"https://api.tdameritrade.com/v1/marketdata/{symbol}/pricehistory?frequencyType=minute&frequency=15&startDate={startms}&endDate={endms}", headers=self.headers()) \
             .json()
+        # print(json)
         candles = [map_candle(c) for c in json["candles"]]
         return candles
 
