@@ -48,14 +48,14 @@ for p in positions:
     pd.set_option('display.max_columns', 10)
     # df['time'] = df['datetime'].dt.strftime('%m/%d/%Y %H:%M')
     df["time"] = df["datetime"].dt.tz_convert('US/Eastern')
-    simple = df[['close', "ema8", 'time', 'diff']].tail(2)
+    simple = df[['close', "ema8", 'time', 'diff']].tail(3)
     # x0 = simple.iloc[-2]
     # x1 = simple.iloc[-1]
     print(simple)
     diff = simple["diff"].to_numpy()
-    if diff[-2] < 0 and diff[-1] > 0:
+    if diff[-3] < 0 and diff[-2] > 0:
         print("buy")
-    elif diff[-2] > 0 and diff[-1] < 0:
+    elif diff[-3] > 0 and diff[-2] < 0:
         print("sell")
     # print(df.to_string())
     # print(df)
