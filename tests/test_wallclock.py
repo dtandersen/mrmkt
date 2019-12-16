@@ -12,6 +12,9 @@ class TimeSourceStub(TimeSource):
     def now(self) -> datetime:
         return self.current_time
 
+    def set_time(self, time: datetime):
+        self.current_time = time
+
 
 class TestWallClock(TestCase):
     def test_convert_to_date(self):

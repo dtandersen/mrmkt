@@ -9,12 +9,12 @@ import requests
 
 @dataclass
 class Candle:
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    datetime: datetime
+    open: float = None
+    high: float = None
+    low: float = None
+    close: float = None
+    volume: float = None
+    datetime: datetime = None
 
 
 @dataclass

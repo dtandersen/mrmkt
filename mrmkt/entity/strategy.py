@@ -1,4 +1,7 @@
 from abc import ABCMeta, abstractmethod
+from typing import List
+
+from mrmkt.ext.tdameritrade import Candle
 
 
 class Trader(metaclass=ABCMeta):
@@ -17,6 +20,7 @@ class Trader(metaclass=ABCMeta):
 
 class Strategy(metaclass=ABCMeta):
     def __init__(self, ticker: str, trader: Trader):
+        self.candles: List[Candle] = []
         self.ticker = ticker
         self.trader = trader
         self.data = []

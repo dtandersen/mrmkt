@@ -6,7 +6,7 @@ import yaml
 from tdameritrade import TDClient
 from datetime import datetime
 
-from strategy import EMA8Strategy, Trader, Strategy
+from mrmkt.entity.strategy import EMA8Strategy, Trader, Strategy
 
 
 def read_portfolio(my_file):
