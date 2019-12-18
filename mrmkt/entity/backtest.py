@@ -1,23 +1,16 @@
-from abc import ABCMeta, abstractmethod
-from typing import List
+from abc import ABCMeta
 
 from mrmkt.common.clock import TimeSource
+from mrmkt.entity.feed import Feed
 from mrmkt.entity.strategy import Strategy
-from mrmkt.ext.tdameritrade import Candle
 
 
 class StrategyDriver(metaclass=ABCMeta):
     pass
 
 
-class DataFeed(metaclass=ABCMeta):
-    @abstractmethod
-    def get_candles(self) -> List[Candle]:
-        pass
-
-
 class BacktestDriver(StrategyDriver):
-    def __init__(self, feed: DataFeed, strategy: Strategy, clock: TimeSource):
+    def __init__(self, feed: Feed, strategy: Strategy, clock: TimeSource):
         self.clock = clock
         self.strategy = strategy
         self.feed = feed

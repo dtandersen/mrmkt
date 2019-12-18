@@ -6,7 +6,8 @@ import yaml
 from tdameritrade import TDClient
 from datetime import datetime
 
-from mrmkt.entity.strategy import EMA8Strategy, Trader, Strategy
+from mrmkt.entity.strategy import EMA8Strategy, Strategy
+from mrmkt.entity.broker import Broker
 
 
 def read_portfolio(my_file):
@@ -38,7 +39,7 @@ def get_td_client() -> TDClient:
     return tdclient
 
 
-def create_strategy(tickers: List, trader: Trader) -> List[Strategy]:
+def create_strategy(tickers: List, trader: Broker) -> List[Strategy]:
     strats = []
     for ticker in tickers:
         strat = EMA8Strategy(ticker, trader)
@@ -51,7 +52,7 @@ class EMA8Strategy(Strategy):
         pass
 
 
-class TDTrader(Trader):
+class TDBroker(Broker):
     def get_client(self) -> TDClient:
         return get_td_client()
 

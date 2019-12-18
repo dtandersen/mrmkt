@@ -13,8 +13,13 @@ def to_date(d: str) -> datetime.date:
 def to_datetime_utc(d: str) -> datetime:
     x = datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S')
     epoch = datetime.datetime(1970, 1, 1)
-    x1 = datetime.datetime.fromtimestamp((x-epoch).total_seconds(), datetime.timezone.utc)
+    x1 = datetime.datetime.fromtimestamp((x - epoch).total_seconds(), datetime.timezone.utc)
     return x1
+
+
+def to_datetime(d: str) -> datetime:
+    x = datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S')
+    return x
 
 
 def to_iso(d: datetime.date) -> str:
