@@ -64,7 +64,7 @@ class TestBuffetModel(TestCase):
 
     def test_buy_pending(self):
         feed = CsvFeed('backtest/test2.csv')
-      //////////////////  broker = MockBroker()
+        broker = MockBroker()
         strategy = DumbStrategy(ticker="X", broker=broker)
         loop = BacktestLoop(strategy=strategy)
         loop.cash = 200
