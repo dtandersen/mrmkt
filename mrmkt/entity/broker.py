@@ -8,11 +8,11 @@ class Broker(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def buy(self):
+    def buy(self, quantity: int = 0, symbol: str = None):
         pass
 
     @abstractmethod
-    def sell(self):
+    def sell(self, quantity: int = 0, symbol: str = None):
         pass
 
 
@@ -20,11 +20,11 @@ class MockBroker(Broker):
     def __init__(self):
         self.orders = []
 
-    def buy(self):
-        self.orders.append(Order(type="buy"))
+    def buy(self, quantity: int = 0, symbol: str = None):
+        self.orders.append(Order(type="buy", quantity=quantity, symbol=symbol, status="PENDING"))
 
-    def sell(self):
-        self.orders.append(Order(type="sell"))
+    def sell(self, quantity: int = 0, symbol: str = None):
+        self.orders.append(Order(type="sell", quantity=quantity, symbol=symbol, status="PENDING"))
 
     def ema15min8(self):
         pass
@@ -33,3 +33,6 @@ class MockBroker(Broker):
 @dataclass
 class Order:
     type: str
+    quantity: int
+    symbol: str
+    status: str

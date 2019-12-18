@@ -19,6 +19,7 @@ class TestBacktestDriver(TestCase):
         clock = TimeSourceStub()
         trader = MockBroker()
         strategy = DumbStrategy("SPY", trader)
+        strategy.cash = 100
         prices = MockFeed(clock, 15 * 60)
         # prices.add([
         #     1, 2, 3
@@ -46,12 +47,15 @@ class TestBacktestDriver(TestCase):
 
         clock.set_time(to_datetime_utc("2019-12-12 09:00:00"))
         driver.go()
-        assert_that(trader.orders, equal_to([Order(type="buy")]))
+        assert_that(trader.orders, equal_to([Order(type="buy", quantity=50, symbol="SPY", status="PENDING")]))
         assert_that(strategy.data, equal_to([1, 2]))
 
         clock.set_time(to_datetime_utc("2019-12-12 09:15:00"))
         driver.go()
-        assert_that(trader.orders, equal_to([Order(type="buy"), Order(type="sell")]))
+        assert_that(trader.orders, equal_to([
+            Order(type="buy", quantity=50, symbol="SPY", status="PENDING"),
+            Order(type="sell", quantity=50, symbol="SPY", status="PENDING")
+        ]))
         assert_that(strategy.data, equal_to([1, 2, 3]))
 
         driver.go()
