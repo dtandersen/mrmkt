@@ -16,9 +16,14 @@ class BacktestLoop:
 
     def run(self):
         self.strategy.cash = self.cash
+        self.broker.add_listener(self.strategy)
         try:
             while True:
-                candles = self.feed.get_candles()
+                # candles = self.feed.get_candles()
+                candle = self.feed.next()
+                self.broker.process(candle)
+                self.strategy.candles.append(candle)
+                candles = self.strategy.candles
                 self.buy_sell()
                 self.strategy.candles = candles
                 self.strategy.data = [c.close for c in candles]
@@ -49,13 +54,17 @@ class TestBuffetModel(TestCase):
         loop.run()
         assert_that(strategy.times_run, equal_to(3))
         assert_that(broker.orders, equal_to([
-            Order(type="buy", quantity=50, symbol="X", status="PENDING"),
+            Order(type="buy", quantity=50, symbol="X", status="FULFILLED"),
             Order(type="sell", quantity=50, symbol="X", status="PENDING")
+        ]))
+        assert_that(strategy.order_notifications, equal_to([
+            Order(type='buy', quantity=50, symbol='X', status='PENDING'),
+            Order(type='buy', quantity=50, symbol='X', status='FULFILLED')
         ]))
 
     def test_buy_pending(self):
         feed = CsvFeed('backtest/test2.csv')
-        broker = MockBroker()
+      //////////////////  broker = MockBroker()
         strategy = DumbStrategy(ticker="X", broker=broker)
         loop = BacktestLoop(strategy=strategy)
         loop.cash = 200
@@ -66,4 +75,26 @@ class TestBuffetModel(TestCase):
         assert_that(broker.orders, has_length(1))
         order = broker.orders[0]
         assert_that(order, equal_to(Order(type="buy", quantity=100, symbol="X", status="PENDING")))
+        assert_that(strategy.order_notifications, equal_to([
+            Order(type="buy", quantity=100, symbol="X", status="PENDING")
+        ]))
+        assert_that(strategy.positions["X"].quantity, equal_to(100))
+
+    def test_buy_fulfilled(self):
+        feed = CsvFeed('backtest/test3.csv')
+        broker = MockBroker()
+        strategy = DumbStrategy(ticker="X", broker=broker)
+        loop = BacktestLoop(strategy=strategy)
+        loop.cash = 200
+        loop.broker = broker
+        loop.add_feed(feed)
+        loop.run()
+        assert_that(strategy.times_run, equal_to(3))
+        assert_that(broker.orders, has_length(1))
+        order = broker.orders[0]
+        assert_that(order, equal_to(Order(type="buy", quantity=100, symbol="X", status="FULFILLED")))
+        assert_that(strategy.order_notifications, equal_to([
+            Order(type="buy", quantity=100, symbol="X", status="PENDING"),
+            Order(type="buy", quantity=100, symbol="X", status="FULFILLED")
+        ]))
         assert_that(strategy.positions["X"].quantity, equal_to(100))

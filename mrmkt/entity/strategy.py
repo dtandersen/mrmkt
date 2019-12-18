@@ -1,8 +1,9 @@
+import copy
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import List
 
-from mrmkt.entity.broker import Broker
+from mrmkt.entity.broker import Broker, Order, OrderListener
 from mrmkt.ext.tdameritrade import Candle
 
 
@@ -11,7 +12,7 @@ class Position:
     quantity: int
 
 
-class Strategy(metaclass=ABCMeta):
+class Strategy(OrderListener, metaclass=ABCMeta):
     def __init__(self, ticker: str, broker: Broker):
         self.candles: List[Candle] = []
         self.ticker = ticker
@@ -19,6 +20,7 @@ class Strategy(metaclass=ABCMeta):
         self.data: List[float] = []
         self.cash = 0
         self.positions = dict()
+        self.order_notifications: List[Order] = []
 
     @abstractmethod
     def trade(self):
@@ -39,3 +41,6 @@ class DumbStrategy(Strategy):
             self.broker.buy(quantity=quantity, symbol=self.ticker)
         elif self.data[-1] == 3:
             self.broker.sell(quantity=self.shares, symbol=self.ticker)
+
+    def on_order(self, order: Order):
+        self.order_notifications.append(copy.copy(order))

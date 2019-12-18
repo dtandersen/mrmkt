@@ -1,7 +1,7 @@
 import csv
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
-from typing import List
+from typing import List, Optional
 
 from mrmkt.common.clock import TimeSource
 from mrmkt.common.util import to_datetime
@@ -17,12 +17,17 @@ class Feed(metaclass=ABCMeta):
     def get_candles(self) -> List[Candle]:
         pass
 
+    @abstractmethod
+    def next(self) -> Optional[Candle]:
+        pass
+
 
 class MockFeed(Feed):
     def __init__(self, clock: TimeSource, window: int):
         self.clock = clock
         self.window = window
         self.candles = []
+        self.index = 0
 
     def get_candles(self) -> List[Candle]:
         prices = [c for c in self.candles if c.datetime + timedelta(seconds=self.window) <= self.clock.now()]
@@ -31,6 +36,14 @@ class MockFeed(Feed):
     def add_candles(self, candles):
         for c in candles:
             self.candles.append(c)
+
+    def next(self) -> Optional[Candle]:
+        if self.index >= len(self.candles):
+            raise EndOfFeed
+
+        candle = self.candles[self.index]
+        self.index = self.index + 1
+        return candle
 
 
 class CsvFeed(Feed):
@@ -60,3 +73,11 @@ class CsvFeed(Feed):
             return z
         except IndexError:
             raise EndOfFeed()
+
+    def next(self) -> Optional[Candle]:
+        if self.index >= len(self.candles):
+            raise EndOfFeed
+
+        candle = self.candles[self.index]
+        self.index = self.index + 1
+        return candle
