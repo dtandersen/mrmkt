@@ -13,7 +13,7 @@ kiwisolver==1.1.0
 lxml==4.6.5
 matplotlib==3.1.1
 mechanize==0.4.4
-numpy==1.17.2
+numpy==1.22.0
 pandas==0.25.1
 pandas-datareader==0.8.1
 pg8000==1.13.2
