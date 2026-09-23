@@ -12,22 +12,28 @@ from mrmkt.backtest.portfolio import PortfolioResult, TradeSummary, run_portfoli
 from mrmkt.backtest.signals import BacktestParams, entry_signals, exit_signals
 from mrmkt.backtest.strategy import (
     BuyRedStrategy,
+    ParamSpec,
     SignalSet,
     SmaCrossStrategy,
     Strategy,
     StrategyRunner,
+    build_strategy,
+    parse_params,
 )
 
 __all__ = [
     "BacktestParams",
     "BuyRedStrategy",
+    "ParamSpec",
     "PortfolioResult",
     "SignalSet",
     "SmaCrossStrategy",
     "Strategy",
     "StrategyRunner",
     "TradeSummary",
+    "build_strategy",
     "entry_signals",
     "exit_signals",
+    "parse_params",
     "run_portfolio",
 ]

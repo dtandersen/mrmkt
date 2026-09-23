@@ -6,6 +6,8 @@ which slices warm-up history and runs the vectorbt fill simulator with
 an explicit portfolio overlay.
 """
 
+import dataclasses
+import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -33,6 +35,15 @@ class SignalSet:
     exits: pd.DataFrame
 
 
+@dataclass
+class ParamSpec:
+    """One tunable strategy parameter: type, default, help."""
+
+    type: type
+    default: object
+    help: str = ""
+
+
 class Strategy(ABC):
     """Signal definition: parameters, booleans per bar, description."""
 
@@ -48,6 +59,16 @@ class Strategy(ABC):
     @abstractmethod
     def describe(self) -> str:
         """Human-readable rule summary for notes and logs."""
+
+    @classmethod
+    @abstractmethod
+    def param_specs(cls) -> dict[str, ParamSpec]:
+        """Tunable parameters with types, defaults, and help."""
+
+    @classmethod
+    def construct(cls, kwargs: dict) -> "Strategy":
+        """Build from coerced params; override when construction differs."""
+        return cls(**kwargs)
 
 
 class StrategyRunner:
@@ -121,6 +142,33 @@ class StrategyRunner:
         return aggregate_trades(full.loc[window], kept, self.max_positions)
 
 
+BUY_RED_HELP = {
+    "width": "Risk range half-width in vol-scaled units",
+    "vol_period": "Trailing returns for realized volatility",
+    "anchor_period": "Trailing mean the range is centered on",
+    "horizon_days": "Range horizon in trading days (15 = TRADE, 63 = TREND)",
+    "trend_fast": "Fast trend SMA period",
+    "trend_slow": "Slow trend SMA period",
+    "dist_lo_min": "Min fraction above trailing low",
+    "dd_max": "Max trailing drawdown fraction",
+    "vov_max": "Max vol-of-vol percentile for entries",
+    "use_vov": "Require compressed vol-of-vol for entries",
+    "vov_lookback": "Trailing values ranked for the percentile",
+}
+
+
+def _backtest_param_specs() -> dict[str, ParamSpec]:
+    hints = typing.get_type_hints(BacktestParams)
+    specs = {}
+    for field in dataclasses.fields(BacktestParams):
+        specs[field.name] = ParamSpec(
+            type=hints[field.name],
+            default=field.default,
+            help=BUY_RED_HELP.get(field.name, ""),
+        )
+    return specs
+
+
 class BuyRedStrategy(Strategy):
     """Long-only buy-red-in-uptrends with optional VoV compression."""
 
@@ -142,6 +190,16 @@ class BuyRedStrategy(Strategy):
         for key, value in overrides.items():
             setattr(params, key, value)
         return cls(params=params)
+
+    @classmethod
+    def param_specs(cls) -> dict[str, ParamSpec]:
+        """Tunable parameters with types, defaults, and help."""
+        return _backtest_param_specs()
+
+    @classmethod
+    def construct(cls, kwargs: dict) -> "BuyRedStrategy":
+        """Build from coerced params via BacktestParams."""
+        return cls(params=BacktestParams(**kwargs))
 
     def generate(
         self,
@@ -186,6 +244,14 @@ class SmaCrossStrategy(Strategy):
         self.fast_period = fast_period
         self.slow_period = slow_period
 
+    @classmethod
+    def param_specs(cls) -> dict[str, ParamSpec]:
+        """Tunable parameters with types, defaults, and help."""
+        return {
+            "fast_period": ParamSpec(int, 50, "Fast SMA period"),
+            "slow_period": ParamSpec(int, 200, "Slow SMA period"),
+        }
+
     def generate(
         self,
         close: pd.DataFrame,
@@ -211,3 +277,52 @@ class SmaCrossStrategy(Strategy):
             f"Golden cross: enter when {self.fast_period}D SMA crosses above "
             f"{self.slow_period}D SMA, exit on cross down."
         )
+
+
+STRATEGIES: dict[str, type[Strategy]] = {
+    "buy-red": BuyRedStrategy,
+    "sma-cross": SmaCrossStrategy,
+}
+
+
+def parse_params(text: str | None) -> dict[str, str]:
+    """Parse ``k=v,k2=v2`` into raw strings; blank means defaults."""
+    if not text or not text.strip():
+        return {}
+    parsed = {}
+    for chunk in text.split(","):
+        if "=" not in chunk:
+            raise ValueError(f"params must look like k=v,k2=v2, got {chunk.strip()!r}")
+        key, _, value = chunk.partition("=")
+        key, value = key.strip(), value.strip()
+        if not key or not value:
+            raise ValueError(f"params must look like k=v,k2=v2, got {chunk.strip()!r}")
+        parsed[key] = value
+    return parsed
+
+
+def build_strategy(name: str, raw: dict[str, str]) -> Strategy:
+    """Build a registered strategy, coercing raw ``k=v`` strings."""
+    key = name.strip().lower()
+    if key not in STRATEGIES:
+        raise ValueError(f"unknown strategy {name!r} (choose from {sorted(STRATEGIES)})")
+    cls = STRATEGIES[key]
+    specs = cls.param_specs()
+    unknown = sorted(k for k in raw if k not in specs)
+    if unknown:
+        raise ValueError(f"unknown params {unknown} for {name} (choose from {sorted(specs)})")
+    return cls.construct({k: _coerce(specs[k].type, v, k) for k, v in raw.items()})
+
+
+def _coerce(pytype: type, text: str, name: str):
+    stripped = text.strip()
+    if pytype is bool:
+        if stripped.lower() in ("1", "true", "yes", "y", "on"):
+            return True
+        if stripped.lower() in ("0", "false", "no", "n", "off"):
+            return False
+        raise ValueError(f"param {name} must be true/false, got {text!r}")
+    try:
+        return pytype(stripped)
+    except ValueError:
+        raise ValueError(f"param {name} must be {pytype.__name__}, got {text!r}") from None

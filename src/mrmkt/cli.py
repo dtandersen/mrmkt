@@ -17,8 +17,7 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
-from mrmkt.backtest.signals import BacktestParams
-from mrmkt.backtest.strategy import BuyRedStrategy, SmaCrossStrategy, StrategyRunner
+from mrmkt.backtest.strategy import StrategyRunner, build_strategy, parse_params
 from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
@@ -614,21 +613,16 @@ def run_backtest(
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
     from_date: str | None = typer.Option(None, "--from", help="Test window start (defaults to auto warm-up)"),
     to_date: str | None = typer.Option(None, "--to", help="Test window end (defaults to today)"),
-    width: float = typer.Option(0.5, help="Risk range half-width in vol-scaled units"),
-    use_vov: bool = typer.Option(True, help="Require compressed vol-of-vol for entries"),
     strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy: buy-red or sma-cross"),
-    fast_period: int = typer.Option(50, "--fast-period", help="Fast SMA period (sma-cross only)"),
-    slow_period: int = typer.Option(200, "--slow-period", help="Slow SMA period (sma-cross only)"),
+    params_text: str | None = typer.Option(None, "--params", help="Strategy params as k=v,... (defaults when omitted)"),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
     chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
 ) -> None:
-    """Backtest long-only buy-red-in-uptrend signals with vectorbt."""
+    """Backtest a strategy over stored prices with vectorbt."""
     selector_count = sum((bool(symbols), all_symbols, bool(tags)))
     if selector_count != 1:
         raise typer.BadParameter("provide symbols, --all, or --tag")
-    if width <= 0:
-        raise typer.BadParameter("width must be positive")
     if not 0 < size_pct <= 100:
         raise typer.BadParameter("size_pct must be between 0 and 100")
     if not 0 < stop < 1:
@@ -644,6 +638,11 @@ def run_backtest(
         raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
     if start_date is not None and start_date > end_date:
         raise typer.BadParameter("--from must be on or before --to")
+
+    try:
+        strategy = build_strategy(strategy_name, parse_params(params_text))
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
 
     close_repository: Callable[[], None] | None = None
     try:
@@ -692,18 +691,8 @@ def run_backtest(
             return
         n_symbols = sum(frame[0].shape[1] for frame in chunks)
 
-        params = BacktestParams(width=width, use_vov=use_vov)
         runner = StrategyRunner(size_pct=size_pct, stop=stop)
-        if strategy_name == "sma-cross":
-            strategy = SmaCrossStrategy(
-                fast_period=fast_period,
-                slow_period=slow_period,
-            )
-        elif strategy_name == "buy-red":
-            strategy = BuyRedStrategy(params=params)
-        else:
-            raise typer.BadParameter("strategy must be buy-red or sma-cross")
-        start: date = start_date if start_date is not None else union_idx.date[300]
+        start: date = start_date if start_date is not None else list(union_idx)[300].date()
         result = runner.run_chunked(strategy, chunks, start=start)
     except Exception as error:
         typer.echo(f"Failed to run backtest: {error}", err=True)

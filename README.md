@@ -33,6 +33,7 @@ uv run mrmkt indicators volatility-percentile AAPL --period 21 --lookback 252 --
 uv run mrmkt indicators vol-of-vol-percentile AAPL --vol-period 21 --vov-period 21 --lookback 252 --from 180d
 uv run mrmkt indicators risk-range AAPL --horizon 15 --vol-period 21 --width 0.5
 uv run mrmkt backtest run --tag sp500 --from 2023-01-01
+uv run mrmkt backtest run --tag sp500 --strategy sma-cross --params fast_period=20,slow_period=100
 ```
 
 Ticker tags are static labels (for example, `sp500`); comma-separated symbols
@@ -50,7 +51,8 @@ volatility. Separate percentile commands rank each value against the preceding
 `--lookback` observations (default 252), with results on a 0-100 scale. They need
 sufficient history before the requested output range. Risk ranges are
 volatility-implied buy/sell bands anchored on a fast trailing mean;
-`backtest run` evaluates buy-red-in-uptrend signals with the vectorbt
+`backtest run` evaluates a strategy (`--strategy`, params as `--params k=v,...`
+with defaults when omitted) with the vectorbt
 engine (long-only, 2% sizing, 8% stop) over symbols, `--all`, or `--tag`.
 The commands use the
 local, git-ignored `alpaca.yaml` and `dbschema.yml` files. BDD tests use in-memory
