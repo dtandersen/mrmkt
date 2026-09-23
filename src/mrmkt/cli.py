@@ -17,8 +17,8 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
-from mrmkt.backtest.portfolio import run_portfolio
-from mrmkt.backtest.signals import BacktestParams, entry_signals, exit_signals, vov_percentile
+from mrmkt.backtest.signals import BacktestParams
+from mrmkt.backtest.strategy import BuyRedStrategy, SmaCrossStrategy
 from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
@@ -629,6 +629,9 @@ def run_backtest(
     to_date: str | None = typer.Option(None, "--to", help="Test window end (defaults to today)"),
     width: float = typer.Option(0.5, help="Risk range half-width in vol-scaled units"),
     use_vov: bool = typer.Option(True, help="Require compressed vol-of-vol for entries"),
+    strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy: buy-red or sma-cross"),
+    fast_period: int = typer.Option(50, "--fast-period", help="Fast SMA period (sma-cross only)"),
+    slow_period: int = typer.Option(200, "--slow-period", help="Slow SMA period (sma-cross only)"),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
 ) -> None:
@@ -684,18 +687,23 @@ def run_backtest(
         low = pd.DataFrame(lows).sort_index().reindex_like(close)
 
         params = BacktestParams(width=width, use_vov=use_vov)
-        ranking = vov_percentile(close) if use_vov else None
-        entries = entry_signals(close, low, params, ranking)
-        exits = exit_signals(close, high, params)
+        if strategy_name == "sma-cross":
+            strategy = SmaCrossStrategy(
+                fast_period=fast_period,
+                slow_period=slow_period,
+                size_pct=size_pct,
+                stop=stop,
+            )
+        elif strategy_name == "buy-red":
+            strategy = BuyRedStrategy(
+                params=params,
+                size_pct=size_pct,
+                stop=stop,
+            )
+        else:
+            raise typer.BadParameter("strategy must be buy-red or sma-cross")
         start: date = start_date if start_date is not None else _warmup_start(closes)
-        window = close.index >= pd.Timestamp(start)
-        result = run_portfolio(
-            close.loc[window],
-            entries.loc[window],
-            exits.loc[window],
-            size_pct=size_pct,
-            stop=stop,
-        )
+        result = strategy.backtest(close, high, low, start=start)
     except Exception as error:
         typer.echo(f"Failed to run backtest: {error}", err=True)
         raise typer.Exit(code=1) from error

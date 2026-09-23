@@ -8,12 +8,23 @@ top (ranges update every bar, per Hedgeye's dynamic signals), TREND
 breaks, and a stop-loss.
 """
 
-from mrmkt.backtest.portfolio import PortfolioResult, run_portfolio
+from mrmkt.backtest.portfolio import PortfolioResult, TradeSummary, run_portfolio
 from mrmkt.backtest.signals import BacktestParams, entry_signals, exit_signals
+from mrmkt.backtest.strategy import (
+    BuyRedStrategy,
+    SignalSet,
+    SmaCrossStrategy,
+    VectorStrategy,
+)
 
 __all__ = [
     "BacktestParams",
+    "BuyRedStrategy",
     "PortfolioResult",
+    "SignalSet",
+    "SmaCrossStrategy",
+    "TradeSummary",
+    "VectorStrategy",
     "entry_signals",
     "exit_signals",
     "run_portfolio",

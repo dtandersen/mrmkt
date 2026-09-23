@@ -20,13 +20,13 @@ def frame_from_closes(closes):
     )
 
 
-def v_dip(n=400, dip_day=320, dip_pct=0.15):
-    closes = [100.0 * (1.002**i) for i in range(n)]
-    for k in range(1, 4):
-        closes[dip_day + k] = closes[dip_day] * (1 - dip_pct * k / 3)
-    for i in range(dip_day + 4, n):
-        closes[i] = closes[i - 1] * 1.005
-    return closes
+def v_dip(n=400, dip_day=320, dip=(-0.04, -0.03)):
+    rng = np.random.default_rng(42)
+    drift = np.full(n, 0.002) + rng.normal(0, 0.003, n)
+    drift[dip_day + 1 : dip_day + 1 + len(dip)] = dip
+    tail = dip_day + 1 + len(dip)
+    drift[tail:] = 0.005 + rng.normal(0, 0.003, n - tail)
+    return (100.0 * np.cumprod(1 + drift)).tolist()
 
 
 class TestBacktestSignals(unittest.TestCase):
