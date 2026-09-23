@@ -4,7 +4,7 @@ from typing import List
 
 from backtrader import Order
 
-from mrmkt.ext.tdameritrade import Candle
+from mrmkt.entity.candle import Candle
 
 
 class OrderListener(metaclass=ABCMeta):

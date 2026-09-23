@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import List
 
 from mrmkt.entity.broker import Broker, Order, OrderListener
-from mrmkt.ext.tdameritrade import Candle
+from mrmkt.entity.candle import Candle
 
 
 @dataclass

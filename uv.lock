@@ -202,19 +202,6 @@ wheels = [
 ]
 
 [[package]]
-name = "html5lib"
-version = "1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "six" },
-    { name = "webencodings" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/b6/b55c3f49042f1df3dcd422b7f224f939892ee94f22abcf503a9b7339eaf2/html5lib-1.1.tar.gz", hash = "sha256:b2e5b40261e20f354d198eae92afc10d750afb487ed5e50f9c4eaf07c184146f", size = 272215, upload-time = "2020-06-22T23:32:38.834Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/dd/a834df6482147d48e225a49515aabc28974ad5a4ca3215c18a882565b028/html5lib-1.1-py2.py3-none-any.whl", hash = "sha256:0d78f8fde1c230e99fe37986a60526d7049ed4bf8a9fadbad5f00e22e58e041d", size = 112173, upload-time = "2020-06-22T23:32:36.781Z" },
-]
-
-[[package]]
 name = "idna"
 version = "3.20"
 source = { registry = "https://pypi.org/simple" }
@@ -356,25 +343,12 @@ wheels = [
 ]
 
 [[package]]
-name = "mechanize"
-version = "0.4.10"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "html5lib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/ce/35d356959be6d8cdd5a3c8b6ea74548281ea9ae71c4d4538c076c4c986a2/mechanize-0.4.10.tar.gz", hash = "sha256:1dea947f9be7ea0ab610f7bbc4a4e36b45d6bfdfceea29ad3d389a88a1957ddf", size = 218291, upload-time = "2024-04-26T01:26:04.501Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/35/fabdeabeb9c0d72f0d21b3022a0f003e5c3722f4f80a13a416b06bc2a0a9/mechanize-0.4.10-py2.py3-none-any.whl", hash = "sha256:246e21aa30a74ca608c2a06a922454e699fcb37edc9b79fcbba0c67712c2ec79", size = 110390, upload-time = "2024-04-26T01:26:02.292Z" },
-]
-
-[[package]]
 name = "mrmkt"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "backtrader" },
     { name = "dbschema" },
-    { name = "mechanize" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
@@ -382,7 +356,6 @@ dependencies = [
     { name = "psycopg2-binary" },
     { name = "pyyaml" },
     { name = "requests" },
-    { name = "tdameritrade" },
     { name = "tiingo" },
     { name = "websocket-client" },
 ]
@@ -397,14 +370,12 @@ dev = [
 requires-dist = [
     { name = "backtrader" },
     { name = "dbschema" },
-    { name = "mechanize" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pandas-datareader" },
     { name = "psycopg2-binary" },
     { name = "pyyaml" },
     { name = "requests" },
-    { name = "tdameritrade" },
     { name = "tiingo" },
     { name = "websocket-client" },
 ]
@@ -860,19 +831,6 @@ wheels = [
 ]
 
 [[package]]
-name = "tdameritrade"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pandas" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/c1/56a790c36e702e555a90b9b8ec237c0aca4d9ee79199af4de93c6c0268a0/tdameritrade-0.2.1.tar.gz", hash = "sha256:7ef13cf4bbef50633df3d5e3f263bc6a4a301e4b2ff3397077927a9fae0c709a", size = 28497, upload-time = "2023-06-15T18:42:11.422Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/14/55def97725823a4e01ea2c64ce330e4bf92dffb212c3ced70d2abf248c30/tdameritrade-0.2.1-py2.py3-none-any.whl", hash = "sha256:2c51f3887634b617810bc9908d0b7bd70ff6d7b17a2efe6d270d509c9d99c528", size = 28472, upload-time = "2023-06-15T18:42:10.155Z" },
-]
-
-[[package]]
 name = "tiingo"
 version = "0.16.1"
 source = { registry = "https://pypi.org/simple" }
@@ -901,15 +859,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
-]
-
-[[package]]
-name = "webencodings"
-version = "0.6.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d5/a0/8fd707bcb776a7be556bad06a2ea5fb9bd519df78ef8e26f70ccf0f38bff/webencodings-0.6.1.tar.gz", hash = "sha256:565f9ad031c702dae404e27a099e3e09186a3ab1b9520f06d215502b651fd910", size = 15001, upload-time = "2026-08-15T14:22:57.549Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/c6/040cbc72480d789a5f40d63fb484d3106554c4dfa2d2b70ad5022057750f/webencodings-0.6.1-py3-none-any.whl", hash = "sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b", size = 8745, upload-time = "2026-08-15T14:22:56.31Z" },
 ]
 
 [[package]]

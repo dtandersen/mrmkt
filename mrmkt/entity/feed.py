@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from mrmkt.common.clock import TimeSource
 from mrmkt.common.util import to_datetime
-from mrmkt.ext.tdameritrade import Candle
+from mrmkt.entity.candle import Candle
 
 
 class EndOfFeed(Exception):

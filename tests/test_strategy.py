@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from mrmkt.common.util import to_datetime_utc
 from mrmkt.entity.backtest import BacktestDriver
-from mrmkt.ext.tdameritrade import Candle
+from mrmkt.entity.candle import Candle
 from mrmkt.entity.strategy import DumbStrategy
 from mrmkt.entity.broker import MockBroker, Order
 from mrmkt.entity.feed import MockFeed
