@@ -6,8 +6,10 @@ from hamcrest import assert_that, equal_to
 
 from mrmkt.backtest.strategy import (
     BuyRedStrategy,
+    STRATEGIES,
     SmaCrossStrategy,
     build_strategy,
+    register,
 )
 
 
@@ -73,3 +75,11 @@ class TestBuildStrategy(unittest.TestCase):
     def test_constructor_validation_still_applies(self):
         with self.assertRaises(ValueError):
             build_strategy("sma-cross", {"fast_period": "200", "slow_period": "50"})
+
+
+class TestRegister(unittest.TestCase):
+    def test_duplicate_registration_raises_without_clobbering(self):
+        with self.assertRaises(ValueError):
+            register("buy-red")(SmaCrossStrategy)
+
+        assert_that(STRATEGIES["buy-red"], equal_to(BuyRedStrategy))

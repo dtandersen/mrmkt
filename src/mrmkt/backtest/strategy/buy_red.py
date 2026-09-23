@@ -12,6 +12,7 @@ from mrmkt.backtest.signals import (
     vov_percentile,
 )
 from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+from mrmkt.backtest.strategy.registry import register
 
 BUY_RED_HELP = {
     "width": "Risk range half-width in vol-scaled units",
@@ -40,6 +41,7 @@ def _backtest_param_specs() -> dict[str, ParamSpec]:
     return specs
 
 
+@register("buy-red")
 class BuyRedStrategy(Strategy):
     """Long-only buy-red-in-uptrends with optional VoV compression."""
 

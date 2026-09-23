@@ -3,8 +3,10 @@
 import pandas as pd
 
 from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+from mrmkt.backtest.strategy.registry import register
 
 
+@register("sma-cross")
 class SmaCrossStrategy(Strategy):
     """Classic golden-cross long: fast SMA crossing above slow SMA."""
 

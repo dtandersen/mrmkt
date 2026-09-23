@@ -1,13 +1,27 @@
 """Strategy registry with k=v parsing and typed construction."""
 
 from mrmkt.backtest.strategy.base import Strategy
-from mrmkt.backtest.strategy.buy_red import BuyRedStrategy
-from mrmkt.backtest.strategy.sma_cross import SmaCrossStrategy
 
-STRATEGIES: dict[str, type[Strategy]] = {
-    "buy-red": BuyRedStrategy,
-    "sma-cross": SmaCrossStrategy,
-}
+STRATEGIES: dict[str, type[Strategy]] = {}
+
+
+def register(name: str):
+    """Name a Strategy subclass so build_strategy() can find it.
+
+    Applied as ``@register("name")`` where the strategy is defined;
+    importing the module performs the registration.
+    """
+    key = name.strip().lower()
+    if not key:
+        raise ValueError("strategy name must not be blank")
+
+    def decorator(cls: type[Strategy]) -> type[Strategy]:
+        if key in STRATEGIES:
+            raise ValueError(f"strategy {key!r} is already registered")
+        STRATEGIES[key] = cls
+        return cls
+
+    return decorator
 
 
 def parse_params(text: str | None) -> dict[str, str]:
