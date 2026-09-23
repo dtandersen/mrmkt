@@ -1,17 +1,17 @@
+import re
 from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
-import re
 from urllib.parse import urlsplit
 
+import typer
+import yaml
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
 from psycopg2.pool import SimpleConnectionPool
-import typer
-import yaml
 
 from mrmkt.common.clock import Clock, WallClock
-from mrmkt.common.sql import InsecureSqlGenerator
+from mrmkt.common.sql import Duplicate, InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
@@ -53,6 +53,20 @@ def parse_cli_date(value: str, today: date) -> date:
         return today - timedelta(days=days)
 
     return date.fromisoformat(normalized)
+
+
+def normalize_tag(tag: str) -> str:
+    normalized = tag.strip().lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", normalized) is None:
+        raise typer.BadParameter("tags must start with a letter or number and contain only letters, numbers, '_' or '-'")
+    return normalized
+
+
+def normalize_symbol(symbol: str) -> str:
+    normalized = symbol.strip().upper()
+    if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", normalized) is None:
+        raise typer.BadParameter(f"invalid stock symbol: {symbol}")
+    return normalized
 
 
 def _run_indicator_series(
@@ -179,12 +193,20 @@ def import_symbols(
 
 
 @symbols_app.command("list")
-def list_symbols() -> None:
+def list_symbols(
+    tag: str | None = typer.Option(None, "--tag", help="Only show symbols with this tag"),
+) -> None:
+    normalized_tag = normalize_tag(tag) if tag is not None else None
     close_repository: Callable[[], None] | None = None
     try:
         repository, close_repository = create_local_ticker_repository()
+        source_tickers = (
+            repository.list_tickers_by_tag(normalized_tag)
+            if normalized_tag is not None
+            else repository.get_tickers()
+        )
         tickers = sorted(
-            repository.get_tickers(),
+            source_tickers,
             key=lambda ticker: (ticker.ticker, ticker.exchange, ticker.type),
         )
     except Exception as error:
@@ -203,20 +225,82 @@ def list_symbols() -> None:
         typer.echo(f"{ticker.ticker} | {ticker.exchange} | {ticker.type}")
 
 
+@symbols_app.command("label")
+def label_symbols(symbols: str, tag: str) -> None:
+    _change_symbol_tags(symbols, tag, add=True)
+
+
+@symbols_app.command("unlabel")
+def unlabel_symbols(symbols: str, tag: str) -> None:
+    _change_symbol_tags(symbols, tag, add=False)
+
+
+def _change_symbol_tags(symbols: str, tag: str, add: bool) -> None:
+    normalized_symbols = list(
+        dict.fromkeys(normalize_symbol(symbol) for symbol in symbols.split(",") if symbol.strip())
+    )
+    if not normalized_symbols:
+        raise typer.BadParameter("provide at least one comma-separated symbol")
+    tag = normalize_tag(tag)
+
+    close_repository: Callable[[], None] | None = None
+    changed_count = 0
+    matched_symbols = set()
+    unmatched_symbols = []
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        tickers_by_symbol: dict[str, list] = {}
+        for ticker in repository.get_tickers():
+            tickers_by_symbol.setdefault(ticker.ticker, []).append(ticker)
+
+        for symbol in normalized_symbols:
+            matching = tickers_by_symbol.get(symbol, [])
+            if not matching:
+                unmatched_symbols.append(symbol)
+                continue
+            matched_symbols.add(symbol)
+            for ticker in matching:
+                if add:
+                    try:
+                        repository.add_tag(ticker.ticker, ticker.exchange, tag)
+                    except Duplicate:
+                        continue
+                    changed_count += 1
+                elif repository.remove_tag(ticker.ticker, ticker.exchange, tag):
+                    changed_count += 1
+    except Exception as error:
+        typer.echo(f"Failed to {'label' if add else 'unlabel'} symbols: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    if not matched_symbols:
+        raise typer.BadParameter("none of the supplied symbols are in the local ticker catalog")
+    action = "Added" if add else "Removed"
+    typer.echo(
+        f"{action} {changed_count} '{tag}' tag assignment"
+        f"{'s' if changed_count != 1 else ''} for {len(matched_symbols)} symbols."
+    )
+    if unmatched_symbols:
+        typer.echo(f"Skipped {len(unmatched_symbols)} symbols not in the local ticker catalog.", err=True)
+
+
 @prices_app.command("import")
 def import_prices(
     symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
     provider: str = typer.Option(..., "--provider", help="Price source (currently: alpaca)"),
     all_symbols: bool = typer.Option(False, "--all", help="Import every locally cataloged symbol"),
+    tag: str | None = typer.Option(None, "--tag", help="Import symbols with this tag"),
     from_date: str = typer.Option(..., "--from", help="Start date (YYYY-MM-DD or duration such as 180d)"),
     to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today)"),
 ) -> None:
     if provider.lower() != "alpaca":
         raise typer.BadParameter("only the 'alpaca' provider is currently supported")
-    if all_symbols and symbols:
-        raise typer.BadParameter("provide symbols or use --all, not both")
-    if not all_symbols and not symbols:
-        raise typer.BadParameter("provide one or more symbols or use --all")
+    selector_count = sum((bool(symbols), all_symbols, tag is not None))
+    if selector_count != 1:
+        raise typer.BadParameter("provide symbols, --all, or --tag")
+    normalized_tag = normalize_tag(tag) if tag is not None else None
     today = create_clock().today()
     try:
         start_date = parse_cli_date(from_date, today)
@@ -229,18 +313,27 @@ def import_prices(
     close_repository: Callable[[], None] | None = None
     try:
         local_repository, close_repository = create_local_ticker_repository()
-        selected_symbols = (
-            [ticker.ticker for ticker in local_repository.get_tickers()]
-            if all_symbols
-            else symbols or []
-        )
+        if normalized_tag is not None:
+            selected_symbols = local_repository.get_symbols_by_tag(normalized_tag)
+        elif all_symbols:
+            selected_symbols = [ticker.ticker for ticker in local_repository.get_tickers()]
+        else:
+            selected_symbols = symbols or []
         selected_symbols = list(dict.fromkeys(symbol.upper() for symbol in selected_symbols))
         if not selected_symbols:
             typer.echo("No symbols to import.")
             return
 
         price_source = AlpacaPriceSource(create_alpaca_data_client())
-        imported_count = ImportPricesUseCase(price_source, local_repository).execute(
+
+        def report_progress(done: int, total: int) -> None:
+            typer.echo(f"Imported prices for {done}/{total} symbols...", err=True)
+
+        result = ImportPricesUseCase(
+            price_source,
+            local_repository,
+            on_progress=report_progress,
+        ).execute(
             selected_symbols,
             start_date,
             end_date,
@@ -253,9 +346,16 @@ def import_prices(
             close_repository()
 
     typer.echo(
-        f"Imported {imported_count} new daily bar{'s' if imported_count != 1 else ''} for "
+        f"Imported {result.imported} new daily bar{'s' if result.imported != 1 else ''} for "
         f"{len(selected_symbols)} symbol{'s' if len(selected_symbols) != 1 else ''}."
     )
+    if result.failed_batches:
+        for batch in result.failed_batches:
+            typer.echo(
+                f"Failed to import prices for: {', '.join(batch)}",
+                err=True,
+            )
+        raise typer.Exit(code=1)
 
 
 @prices_app.command("list")

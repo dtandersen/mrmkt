@@ -57,6 +57,16 @@ class PostgresSqlClient(SqlClient):
         finally:
             self.pool.putconn(conn)
 
+    def delete2(self, query: str, params: tuple) -> bool:
+        conn = self.pool.getconn()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, params)
+                    return cur.rowcount > 0
+        finally:
+            self.pool.putconn(conn)
+
 
 def postgresx() -> SqlFinancialRepository:
     cnv = InsecureSqlGenerator()

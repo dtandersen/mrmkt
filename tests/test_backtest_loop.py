@@ -1,10 +1,13 @@
+from pathlib import Path
 from typing import Optional
 from unittest import TestCase
-from hamcrest import *
+from hamcrest import assert_that, equal_to, has_length
 
 from mrmkt.entity.broker import MockBroker, Order, Broker
 from mrmkt.entity.feed import Feed, CsvFeed, EndOfFeed
 from mrmkt.entity.strategy import Strategy, DumbStrategy, Position
+
+FEEDS = Path(__file__).parent / "backtest"
 
 
 class BacktestLoop:
@@ -15,18 +18,21 @@ class BacktestLoop:
         self.cash = 0
 
     def run(self):
+        assert self.feed is not None, "BacktestLoop needs a feed; call add_feed() first"
+        assert self.broker is not None, "BacktestLoop needs a broker"
         self.strategy.cash = self.cash
         self.broker.add_listener(self.strategy)
         try:
             while True:
                 # candles = self.feed.get_candles()
                 candle = self.feed.next()
+                assert candle is not None, "feed ended without EndOfFeed"
                 self.broker.process(candle)
                 self.strategy.candles.append(candle)
                 candles = self.strategy.candles
                 self.buy_sell()
                 self.strategy.candles = candles
-                self.strategy.data = [c.close for c in candles]
+                self.strategy.data = [c.close for c in candles if c.close is not None]
                 self.strategy.trade()
         except EndOfFeed:
             pass
@@ -44,7 +50,7 @@ class TestBuffetModel(TestCase):
         pass
 
     def test_buy_and_sell(self):
-        feed = CsvFeed('backtest/test1.csv')
+        feed = CsvFeed(str(FEEDS / 'test1.csv'))
         broker = MockBroker()
         strategy = DumbStrategy(ticker="X", broker=broker)
         loop = BacktestLoop(strategy=strategy)
@@ -63,7 +69,7 @@ class TestBuffetModel(TestCase):
         ]))
 
     def test_buy_pending(self):
-        feed = CsvFeed('backtest/test2.csv')
+        feed = CsvFeed(str(FEEDS / 'test2.csv'))
         broker = MockBroker()
         strategy = DumbStrategy(ticker="X", broker=broker)
         loop = BacktestLoop(strategy=strategy)
@@ -81,7 +87,7 @@ class TestBuffetModel(TestCase):
         assert_that(strategy.positions["X"].quantity, equal_to(100))
 
     def test_buy_fulfilled(self):
-        feed = CsvFeed('backtest/test3.csv')
+        feed = CsvFeed(str(FEEDS / 'test3.csv'))
         broker = MockBroker()
         strategy = DumbStrategy(ticker="X", broker=broker)
         loop = BacktestLoop(strategy=strategy)

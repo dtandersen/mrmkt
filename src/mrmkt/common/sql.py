@@ -26,6 +26,10 @@ class SqlClient:
         pass
 
     @abstractmethod
+    def delete2(self, query: str, params: tuple) -> bool:
+        pass
+
+    @abstractmethod
     def insert2(self, table: str, params):
         pass
 
@@ -37,6 +41,7 @@ class MockSqlClient(SqlClient):
     def __init__(self):
         self.inserts2 = []
         self.queries = []
+        self.delete2_calls = []
         self.inserts = []
         self.selects = {}
 
@@ -50,6 +55,10 @@ class MockSqlClient(SqlClient):
 
     def delete(self, query: str):
         self.queries.append(query)
+
+    def delete2(self, query: str, params: tuple) -> bool:
+        self.delete2_calls.append({"query": query, "params": params})
+        return False
 
     def append_select(self, query: str, rows: list):
         self.selects[query] = [asdict(row) for row in rows]

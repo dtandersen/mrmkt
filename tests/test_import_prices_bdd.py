@@ -100,6 +100,11 @@ def local_catalog_contains_symbols(price_import_context, datatable):
         )
 
 
+@given(parsers.parse('ticker "{symbol}" on "{exchange}" already has tag "{tag}"'))
+def ticker_already_has_tag(price_import_context, symbol, exchange, tag):
+    price_import_context.local.add_tag(symbol, exchange, tag)
+
+
 @given("the local price catalog already contains these daily bars:")
 def seed_local_price_catalog(price_import_context, datatable):
     for row in _table_rows(datatable):

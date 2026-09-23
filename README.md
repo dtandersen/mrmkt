@@ -17,6 +17,11 @@ catalog with:
 ```shell
 uv run mrmkt symbols import --provider alpaca
 uv run mrmkt symbols list
+uv run mrmkt symbols label AAPL sp500
+uv run mrmkt symbols label AAPL,MSFT sp500
+uv run mrmkt symbols unlabel AAPL sp500
+uv run mrmkt symbols list --tag sp500
+uv run mrmkt prices import --provider alpaca --tag sp500 --from 180d
 uv run mrmkt prices import --provider alpaca AAPL MSFT --from 180d
 uv run mrmkt prices import --provider alpaca --all --from 180d
 uv run mrmkt prices list AAPL MSFT --from 7d
@@ -28,10 +33,14 @@ uv run mrmkt indicators volatility-percentile AAPL --period 21 --lookback 252 --
 uv run mrmkt indicators vol-of-vol-percentile AAPL --vol-period 21 --vov-period 21 --lookback 252 --from 180d
 ```
 
-Price imports use daily adjusted bars; `--all` imports symbols from the local
-catalog. Relative dates such as `180d` are measured back from today, and an
-omitted `--to` defaults to today. Price listing requires explicit symbols and
-can optionally filter by date range. Indicators read stored close prices and
+Ticker tags are static labels (for example, `sp500`); comma-separated symbols
+can be labeled together, and each label applies to all matching exchange listings. Price imports use daily adjusted bars;
+`--all` imports symbols from the local catalog, while `--tag` imports only
+symbols with that label. Imports run in batches of 100 symbols with retries and
+progress output; batches that keep failing are listed at the end and the command
+exits nonzero. Relative dates such as `180d` are measured back from
+today, and an omitted `--to` defaults to today. Price listing requires explicit
+symbols and can optionally filter by date range. Indicators read stored close prices and
 return dated values; prior bars are used as warm-up, but only the requested
 range is printed. Volatility is annualized from log returns; volatility of
 volatility is the rolling standard deviation of log changes in realized

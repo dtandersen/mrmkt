@@ -2,6 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import List
 
+from mrmkt.common.sql import Duplicate
 from mrmkt.common.table import Table
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -13,10 +14,16 @@ from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
+from mrmkt.repo.tags import TickerTagRepository
 
 
 @dataclass
-class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRepository):
+class InMemoryFinancialRepository(
+    FinancialRepository,
+    PriceRepository,
+    TickerRepository,
+    TickerTagRepository,
+):
     incomes: Table
     balances: Table
     analysis: Table
@@ -24,6 +31,7 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRe
     enterprises: Table
     prices: Table
     tickers: Table
+    tag_assignments: set[tuple[str, str, str]]
 
     def __init__(self):
         self.incomes = Table(symbol_date_key)
@@ -33,6 +41,7 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRe
         self.cashflows = Table(symbol_date_key)
         self.enterprises = Table(symbol_date_key)
         self.tickers = Table(ticker_exchange_key)
+        self.tag_assignments = set()
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
         return self.incomes.get(self.key(symbol, date))
@@ -124,6 +133,40 @@ class InMemoryFinancialRepository(FinancialRepository, PriceRepository, TickerRe
 
     def add_ticker(self, ticker: Ticker):
         self.tickers.add(ticker)
+
+    def add_tag(self, ticker: str, exchange: str, tag: str) -> None:
+        assignment = (ticker, exchange, tag)
+        if assignment in self.tag_assignments:
+            raise Duplicate(f"{assignment} already exists")
+        self.tag_assignments.add(assignment)
+
+    def remove_tag(self, ticker: str, exchange: str, tag: str) -> bool:
+        assignment = (ticker, exchange, tag)
+        if assignment not in self.tag_assignments:
+            return False
+        self.tag_assignments.remove(assignment)
+        return True
+
+    def get_tags(self, ticker: str, exchange: str) -> list[str]:
+        return sorted(
+            tag
+            for tagged_ticker, tagged_exchange, tag in self.tag_assignments
+            if tagged_ticker == ticker and tagged_exchange == exchange
+        )
+
+    def list_tickers_by_tag(self, tag: str) -> list[Ticker]:
+        tagged = {
+            (ticker, exchange)
+            for ticker, exchange, assigned_tag in self.tag_assignments
+            if assigned_tag == tag
+        }
+        return sorted(
+            (ticker for ticker in self.get_tickers() if (ticker.ticker, ticker.exchange) in tagged),
+            key=lambda ticker: (ticker.ticker, ticker.exchange),
+        )
+
+    def get_symbols_by_tag(self, tag: str) -> list[str]:
+        return sorted({ticker.ticker for ticker in self.list_tickers_by_tag(tag)})
 
     def add_ticker_only(self, ticker):
         self.add_ticker(Ticker(ticker=ticker, exchange='', type=''))

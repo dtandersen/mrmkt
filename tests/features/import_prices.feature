@@ -34,6 +34,24 @@ Feature: Import daily prices from Alpaca
     And Alpaca receives the symbols "AAPL,MSFT"
     And the import reports 2 new daily bars
 
+  Scenario: Import symbols selected by tag
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAPL   | NASDAQ   | us_equity |
+      | MSFT   | NASDAQ   | us_equity |
+      | NVDA   | NASDAQ   | us_equity |
+    And ticker "AAPL" on "NASDAQ" already has tag "sp500"
+    And ticker "MSFT" on "NASDAQ" already has tag "sp500"
+    And Alpaca returns these daily bars:
+      | symbol | date       | open | high | low | close | volume |
+      | AAPL   | 2024-01-02 | 100  | 105  | 99  | 104   | 1000   |
+      | MSFT   | 2024-01-02 | 300  | 305  | 299 | 304   | 800    |
+      | NVDA   | 2024-01-02 | 500  | 510  | 490 | 505   | 700    |
+    When I execute "mrmkt prices import --provider alpaca --tag sp500 --from 2024-01-01 --to 2024-01-31"
+    Then the command succeeds
+    And Alpaca receives the symbols "AAPL,MSFT"
+    And the import reports 2 new daily bars
+
   Scenario: Re-importing existing bars does not create duplicates
     Given the local price catalog already contains these daily bars:
       | symbol | date       | open | high | low | close | volume |
@@ -59,17 +77,6 @@ Feature: Import daily prices from Alpaca
     And the local price catalog remains empty
 
   Scenario: Use the fake clock as the end of a relative date range
-    Given the fake clock says today is "2026-06-28"
-    And Alpaca returns these daily bars:
-      | symbol | date       | open | high | low | close | volume |
-      | AAPL   | 2026-01-02 | 100  | 105  | 99  | 104   | 1000   |
-    When I execute "mrmkt prices import --provider alpaca AAPL --from 180d"
-    Then the command succeeds
-    And Alpaca receives the symbols "AAPL"
-    And Alpaca receives the date range from "2025-12-30" to "2026-06-28"
-    And the import reports 1 new daily bar
-
-  Scenario: Default the end date to today for a relative start date
     Given the fake clock says today is "2026-06-28"
     And Alpaca returns these daily bars:
       | symbol | date       | open | high | low | close | volume |

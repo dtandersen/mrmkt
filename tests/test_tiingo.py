@@ -1,33 +1,35 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 from unittest import TestCase
-from hamcrest import *
+
+from hamcrest import assert_that, equal_to
 from tiingo import TiingoClient
 from tiingo.restclient import RestClientError
 
-from mrmkt.entity.ticker import Ticker
-from mrmkt.ext.tiingo import TiingoPriceRepository
 from mrmkt.common.util import to_date
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.entity.ticker import Ticker
+from mrmkt.ext.tiingo import TiingoPriceRepository
+
+FIXTURES = Path(__file__).parent / "tiingo"
 
 
 @dataclass
 class TickerArgs:
     symbol: str
-    startDate: Optional[str]
-    endDate: Optional[str]
+    startDate: str | None
+    endDate: str | None
 
 
 class MockTiingoClient(TiingoClient):
     # noinspection PyMissingConstructor
     def __init__(self):
-        self.data = dict()
+        self.data = {}
         self.tickers = []
 
     def get_ticker_price(self, ticker,
-                         startDate=None, endDate=None,
+                         startDate=None, endDate=None, columns=None,
                          fmt='json', frequency='daily'):
         value = self.data[str(TickerArgs(symbol=ticker, startDate=startDate, endDate=endDate))]
         if isinstance(value, Exception):
@@ -35,10 +37,10 @@ class MockTiingoClient(TiingoClient):
         else:
             return value
 
-    def list_tickers(self, assetTypes=[]):
+    def list_tickers(self, assetTypes=None):
         if isinstance(assetTypes, str):
             assetTypes = [assetTypes]
-        assetTypesSet = set(assetTypes)
+        assetTypesSet = set(assetTypes or [])
         return [t for t in self.tickers if t.get('assetType') in assetTypesSet]
 
 
@@ -48,7 +50,7 @@ class TestTiingoGateway(TestCase):
         self.x = TiingoPriceRepository(self.client)
 
     def test_get_prices(self):
-        self.load_data('AAPL', None, None, 'tiingo/AAPL-daily.json')
+        self.load_data('AAPL', None, None, str(FIXTURES / 'AAPL-daily.json'))
 
         prices = self.x.list_prices('AAPL')
 
@@ -65,7 +67,7 @@ class TestTiingoGateway(TestCase):
         ]))
 
     def test_get_goog(self):
-        self.load_data('GOOG', "2019-10-03", "2019-10-04", 'tiingo/GOOG-daily.json')
+        self.load_data('GOOG', "2019-10-03", "2019-10-04", str(FIXTURES / 'GOOG-daily.json'))
 
         prices = self.x.list_prices('GOOG', start=to_date("2019-10-03"), end=to_date("2019-10-04"))
 
@@ -132,4 +134,4 @@ class TestTiingoGateway(TestCase):
 
 
 def mock_responses(responses, default_response=None):
-    return lambda input: responses[input] if input in responses else default_response
+    return lambda input: responses.get(input, default_response)
