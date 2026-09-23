@@ -65,6 +65,29 @@ def run_portfolio(
         raise ValueError("close, entries, and exits must share an index")
     if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
         raise ValueError("close, entries, and exits must share columns")
+    records = simulate_fills(close, entries, exits, size_pct, fees, stop, freq)
+    return aggregate_trades(close, records, max_positions)
+
+
+def simulate_fills(
+    close: pd.DataFrame,
+    entries: pd.DataFrame,
+    exits: pd.DataFrame,
+    size_pct: float = 2.0,
+    fees: float = 0.001,
+    stop: float = 0.08,
+    freq: str = "1D",
+) -> pd.DataFrame:
+    """Simulate fills for one signal set; returns vectorbt trade records.
+
+    Capital is effectively unconstrained so every signal fills; selection
+    happens later in :func:`aggregate_trades`. Frames must be aligned."""
+    if close.empty or entries.empty or exits.empty:
+        raise ValueError("close, entries, and exits must be non-empty")
+    if not (close.index.equals(entries.index) and close.index.equals(exits.index)):
+        raise ValueError("close, entries, and exits must share an index")
+    if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
+        raise ValueError("close, entries, and exits must share columns")
     pf = vbt.Portfolio.from_signals(
         close,
         entries,
@@ -78,11 +101,10 @@ def run_portfolio(
     )
     # vectorbt stubs type .trades as a method; at runtime it is the
     # ExitTrades accessor (verified), so ignore the attr-defined error.
-    records = pf.trades.records_readable  # type: ignore[attr-defined]
-    return _overlay(close, records, max_positions)
+    return pf.trades.records_readable  # type: ignore[attr-defined]
 
 
-def _overlay(
+def aggregate_trades(
     close: pd.DataFrame,
     records: pd.DataFrame,
     max_positions: int,

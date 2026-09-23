@@ -9,9 +9,14 @@ an explicit portfolio overlay.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
-from mrmkt.backtest.portfolio import PortfolioResult, run_portfolio
+from mrmkt.backtest.portfolio import (
+    PortfolioResult,
+    aggregate_trades,
+    simulate_fills,
+)
 from mrmkt.backtest.signals import (
     BacktestParams,
     entry_signals,
@@ -72,22 +77,48 @@ class StrategyRunner:
     ) -> PortfolioResult:
         """Run a strategy; trades start at ``start`` or once
         ``warmup_bars`` of union history exist."""
-        signals = strategy.generate(close, high, low)
-        first = (
-            pd.Timestamp(start)
-            if start is not None
-            else close.index[self.warmup_bars]
-        )
-        window = close.index >= first
-        return run_portfolio(
-            close.loc[window],
-            signals.entries.loc[window],
-            signals.exits.loc[window],
-            size_pct=self.size_pct,
-            fees=self.fees,
-            stop=self.stop,
-            max_positions=self.max_positions,
-        )
+        return self.run_chunked(strategy, [(close, high, low)], start=start)
+
+    def run_chunked(
+        self,
+        strategy: Strategy,
+        chunks: list,
+        start=None,
+    ) -> PortfolioResult:
+        """Run a strategy over symbol chunks for bounded memory.
+
+        ``chunks`` holds full-history ``(close, high, low)`` frames.
+        Frames are downcast to float32, simulated per chunk, then the
+        trade records are aggregated once over the concatenated closes."""
+        all_records = []
+        all_closes = []
+        for close, high, low in chunks:
+            if close.shape[1] == 0:
+                continue
+            close = close.astype(np.float32, copy=False)
+            high = high.astype(np.float32, copy=False)
+            low = low.astype(np.float32, copy=False)
+            signals = strategy.generate(close, high, low)
+            all_records.append(
+                simulate_fills(
+                    close,
+                    signals.entries,
+                    signals.exits,
+                    size_pct=self.size_pct,
+                    fees=self.fees,
+                    stop=self.stop,
+                )
+            )
+            all_closes.append(close)
+        if not all_closes:
+            raise ValueError("no symbols with price history to backtest")
+        full: pd.DataFrame = pd.concat(all_closes, axis=1)
+        records: pd.DataFrame = pd.concat(all_records, ignore_index=True)
+        first = pd.Timestamp(start) if start is not None else full.index[self.warmup_bars]
+        window = full.index >= first
+        mask: pd.Series = records["Entry Timestamp"] >= first
+        kept: pd.DataFrame = records.loc[mask]
+        return aggregate_trades(full.loc[window], kept, self.max_positions)
 
 
 class BuyRedStrategy(Strategy):

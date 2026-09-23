@@ -607,19 +607,6 @@ def calculate_risk_range(
     )
 
 
-def _warmup_start(closes: dict) -> date:
-    """First tradable date on the union calendar (indicators exist)."""
-    try:
-        trade_dates = sorted({day for series in closes.values() for day in series.index})
-        day0 = trade_dates[300]
-        if isinstance(day0, date):
-            return day0
-        stamp = pd.Timestamp(day0)
-        return date(int(stamp.year), int(stamp.month), int(stamp.day))
-    except (ValueError, TypeError, IndexError) as error:
-        raise ValueError(f"cannot determine backtest warm-up date: {error}") from error
-
-
 @backtest_app.command("run")
 def run_backtest(
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
@@ -634,6 +621,7 @@ def run_backtest(
     slow_period: int = typer.Option(200, "--slow-period", help="Slow SMA period (sma-cross only)"),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
+    chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
 ) -> None:
     """Backtest long-only buy-red-in-uptrend signals with vectorbt."""
     selector_count = sum((bool(symbols), all_symbols, bool(tags)))
@@ -645,6 +633,8 @@ def run_backtest(
         raise typer.BadParameter("size_pct must be between 0 and 100")
     if not 0 < stop < 1:
         raise typer.BadParameter("stop must be between 0 and 1")
+    if chunk_size < 1:
+        raise typer.BadParameter("chunk-size must be at least 1")
 
     today = create_clock().today()
     try:
@@ -670,21 +660,37 @@ def run_backtest(
             typer.echo("No symbols to backtest.")
             return
 
-        closes, highs, lows = {}, {}, {}
-        bars_by_symbol: dict = {}
-        for price in repository.list_prices_for_symbols(selected, date.min, end_date):
-            bars_by_symbol.setdefault(price.symbol, []).append(price)
-        for symbol, bars in bars_by_symbol.items():
-            index = pd.DatetimeIndex([price.date for price in bars])
-            closes[symbol] = pd.Series([price.close for price in bars], index=index)
-            highs[symbol] = pd.Series([price.high for price in bars], index=index)
-            lows[symbol] = pd.Series([price.low for price in bars], index=index)
-        if not closes:
+        chunks = []
+        union_idx: pd.DatetimeIndex = pd.DatetimeIndex([])
+        for offset in range(0, len(selected), chunk_size):
+            closes, highs, lows = {}, {}, {}
+            bars_by_symbol: dict = {}
+            for price in repository.list_prices_for_symbols(
+                selected[offset : offset + chunk_size], date.min, end_date
+            ):
+                bars_by_symbol.setdefault(price.symbol, []).append(price)
+            for symbol, bars in bars_by_symbol.items():
+                if len(bars) < 360:
+                    continue
+                index = pd.DatetimeIndex([price.date for price in bars])
+                closes[symbol] = pd.Series([price.close for price in bars], index=index)
+                highs[symbol] = pd.Series([price.high for price in bars], index=index)
+                lows[symbol] = pd.Series([price.low for price in bars], index=index)
+            if not closes:
+                continue
+            chunk_close = pd.DataFrame(closes).sort_index()
+            chunks.append(
+                (
+                    chunk_close,
+                    pd.DataFrame(highs).sort_index().reindex_like(chunk_close),
+                    pd.DataFrame(lows).sort_index().reindex_like(chunk_close),
+                )
+            )
+            union_idx = pd.DatetimeIndex(union_idx.union(chunk_close.index))
+        if not chunks:
             typer.echo("No symbols with enough history to backtest.")
             return
-        close = pd.DataFrame(closes).sort_index()
-        high = pd.DataFrame(highs).sort_index().reindex_like(close)
-        low = pd.DataFrame(lows).sort_index().reindex_like(close)
+        n_symbols = sum(frame[0].shape[1] for frame in chunks)
 
         params = BacktestParams(width=width, use_vov=use_vov)
         runner = StrategyRunner(size_pct=size_pct, stop=stop)
@@ -697,8 +703,8 @@ def run_backtest(
             strategy = BuyRedStrategy(params=params)
         else:
             raise typer.BadParameter("strategy must be buy-red or sma-cross")
-        start: date = start_date if start_date is not None else _warmup_start(closes)
-        result = runner.run(strategy, close, high, low, start=start)
+        start: date = start_date if start_date is not None else union_idx.date[300]
+        result = runner.run_chunked(strategy, chunks, start=start)
     except Exception as error:
         typer.echo(f"Failed to run backtest: {error}", err=True)
         raise typer.Exit(code=1) from error
@@ -709,7 +715,7 @@ def run_backtest(
     if result.n_trades == 0:
         typer.echo("No trades generated in the test window.")
         return
-    typer.echo(f"Symbols: {len(closes)}  Test window: {start} to {end_date}")
+    typer.echo(f"Symbols: {n_symbols}  Test window: {start} to {end_date}")
     typer.echo(f"Trades: {result.n_trades}  Win rate: {result.win_rate:.1%}")
     typer.echo(f"Avg win: {result.avg_win:+.2%}  Avg loss: {result.avg_loss:+.2%}")
     typer.echo(f"Expectancy: {result.expectancy:+.3%}  Profit factor: {result.profit_factor:.2f}")
