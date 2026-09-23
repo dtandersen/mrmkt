@@ -24,9 +24,11 @@ mrmkt = "mrmkt.cli:app"
 
 [dependency-groups]
 dev = [
+    "plotly==5.24.1",
     "pyhamcrest",
     "pytest-bdd>=8.1.0",
     "requests-mock",
+    "vectorbt>=1.1.0",
 ]
 
 [tool.pytest.ini_options]

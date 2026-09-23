@@ -31,6 +31,8 @@ uv run mrmkt indicators volatility AAPL --period 21 --from 180d
 uv run mrmkt indicators vol-of-vol AAPL --vol-period 21 --vov-period 21 --from 180d
 uv run mrmkt indicators volatility-percentile AAPL --period 21 --lookback 252 --from 180d
 uv run mrmkt indicators vol-of-vol-percentile AAPL --vol-period 21 --vov-period 21 --lookback 252 --from 180d
+uv run mrmkt indicators risk-range AAPL --horizon 15 --vol-period 21 --width 0.5
+uv run mrmkt backtest run --tag sp500 --from 2023-01-01
 ```
 
 Ticker tags are static labels (for example, `sp500`); comma-separated symbols
@@ -46,7 +48,11 @@ range is printed. Volatility is annualized from log returns; volatility of
 volatility is the rolling standard deviation of log changes in realized
 volatility. Separate percentile commands rank each value against the preceding
 `--lookback` observations (default 252), with results on a 0-100 scale. They need
-sufficient history before the requested output range. The commands use the
+sufficient history before the requested output range. Risk ranges are
+volatility-implied buy/sell bands anchored on a fast trailing mean;
+`backtest run` evaluates buy-red-in-uptrend signals with the vectorbt
+engine (long-only, 2% sizing, 8% stop) over symbols, `--all`, or `--tag`.
+The commands use the
 local, git-ignored `alpaca.yaml` and `dbschema.yml` files. BDD tests use in-memory
 repositories and a fake clock; they do not call Alpaca or PostgreSQL.
 

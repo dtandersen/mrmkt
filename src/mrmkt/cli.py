@@ -8,6 +8,7 @@ import typer
 import yaml
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
+import pandas as pd
 from psycopg2.pool import SimpleConnectionPool
 
 from mrmkt.common.clock import Clock, WallClock
@@ -16,6 +17,8 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.backtest.portfolio import run_portfolio
+from mrmkt.backtest.signals import BacktestParams, entry_signals, exit_signals, vov_percentile
 from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
@@ -31,9 +34,11 @@ app = typer.Typer(no_args_is_help=True, help="MrMkt stock-market tools")
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
 prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical prices")
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
+backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(indicators_app, name="indicators")
+app.add_typer(backtest_app, name="backtest")
 
 
 def create_clock() -> Clock:
@@ -599,4 +604,113 @@ def calculate_risk_range(
             anchor_period=anchor_period,
         ),
         volatility_period,
+    )
+
+
+def _warmup_start(closes: dict) -> date:
+    """First tradable date on the union calendar (indicators exist)."""
+    try:
+        trade_dates = sorted({day for series in closes.values() for day in series.index})
+        day0 = trade_dates[300]
+        if isinstance(day0, date):
+            return day0
+        stamp = pd.Timestamp(day0)
+        return date(int(stamp.year), int(stamp.month), int(stamp.day))
+    except (ValueError, TypeError, IndexError) as error:
+        raise ValueError(f"cannot determine backtest warm-up date: {error}") from error
+
+
+@backtest_app.command("run")
+def run_backtest(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
+    all_symbols: bool = typer.Option(False, "--all", help="Include every locally cataloged symbol"),
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
+    from_date: str | None = typer.Option(None, "--from", help="Test window start (defaults to auto warm-up)"),
+    to_date: str | None = typer.Option(None, "--to", help="Test window end (defaults to today)"),
+    width: float = typer.Option(0.5, help="Risk range half-width in vol-scaled units"),
+    use_vov: bool = typer.Option(True, help="Require compressed vol-of-vol for entries"),
+    size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
+    stop: float = typer.Option(0.08, help="Stop-loss fraction"),
+) -> None:
+    """Backtest long-only buy-red-in-uptrend signals with vectorbt."""
+    selector_count = sum((bool(symbols), all_symbols, bool(tags)))
+    if selector_count != 1:
+        raise typer.BadParameter("provide symbols, --all, or --tag")
+    if width <= 0:
+        raise typer.BadParameter("width must be positive")
+    if not 0 < size_pct <= 100:
+        raise typer.BadParameter("size_pct must be between 0 and 100")
+    if not 0 < stop < 1:
+        raise typer.BadParameter("stop must be between 0 and 1")
+
+    today = create_clock().today()
+    try:
+        start_date = parse_cli_date(from_date, today) if from_date is not None else None
+        end_date = parse_cli_date(to_date, today) if to_date is not None else today
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    if start_date is not None and start_date > end_date:
+        raise typer.BadParameter("--from must be on or before --to")
+
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        if tags:
+            selected = sorted(
+                {s for tag in tags for s in repository.get_symbols_by_tag(normalize_tag(tag))}
+            )
+        elif all_symbols:
+            selected = sorted({ticker.ticker for ticker in repository.get_tickers()})
+        else:
+            selected = [normalize_symbol(symbol) for symbol in (symbols or [])]
+        if not selected:
+            typer.echo("No symbols to backtest.")
+            return
+
+        closes, highs, lows = {}, {}, {}
+        for symbol in selected:
+            bars = repository.list_prices(symbol, date.min, end_date)
+            if len(bars) < 360:
+                continue
+            index = pd.DatetimeIndex([price.date for price in bars])
+            closes[symbol] = pd.Series([price.close for price in bars], index=index)
+            highs[symbol] = pd.Series([price.high for price in bars], index=index)
+            lows[symbol] = pd.Series([price.low for price in bars], index=index)
+        if not closes:
+            typer.echo("No symbols with enough history to backtest.")
+            return
+        close = pd.DataFrame(closes).sort_index()
+        high = pd.DataFrame(highs).sort_index().reindex_like(close)
+        low = pd.DataFrame(lows).sort_index().reindex_like(close)
+
+        params = BacktestParams(width=width, use_vov=use_vov)
+        ranking = vov_percentile(close) if use_vov else None
+        entries = entry_signals(close, low, params, ranking)
+        exits = exit_signals(close, high, params)
+        start: date = start_date if start_date is not None else _warmup_start(closes)
+        window = close.index >= pd.Timestamp(start)
+        result = run_portfolio(
+            close.loc[window],
+            entries.loc[window],
+            exits.loc[window],
+            size_pct=size_pct,
+            stop=stop,
+        )
+    except Exception as error:
+        typer.echo(f"Failed to run backtest: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    if result.n_trades == 0:
+        typer.echo("No trades generated in the test window.")
+        return
+    typer.echo(f"Symbols: {len(closes)}  Test window: {start} to {end_date}")
+    typer.echo(f"Trades: {result.n_trades}  Win rate: {result.win_rate:.1%}")
+    typer.echo(f"Avg win: {result.avg_win:+.2%}  Avg loss: {result.avg_loss:+.2%}")
+    typer.echo(f"Expectancy: {result.expectancy:+.3%}  Profit factor: {result.profit_factor:.2f}")
+    typer.echo(f"Avg hold: {result.avg_hold_days:.1f}d  Exposure: {result.exposure:.1%}")
+    typer.echo(
+        f"CAGR: {result.cagr:+.1%}  Sharpe: {result.sharpe:.2f}  Max DD: {result.max_drawdown:.1%}"
     )
