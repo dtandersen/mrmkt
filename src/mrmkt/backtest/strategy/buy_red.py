@@ -11,7 +11,7 @@ from mrmkt.backtest.signals import (
     exit_signals,
     vov_percentile,
 )
-from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+from mrmkt.backtest.strategy.base import MarketContext, ParamSpec, SignalSet, Strategy
 from mrmkt.backtest.strategy.registry import register
 
 BUY_RED_HELP = {
@@ -80,6 +80,7 @@ class BuyRedStrategy(Strategy):
         close: pd.DataFrame,
         high: pd.DataFrame,
         low: pd.DataFrame,
+        context: MarketContext | None = None,
     ) -> SignalSet:
         """Entry/exit booleans over full-history frames (warm-up kept)."""
         ranking = vov_percentile(

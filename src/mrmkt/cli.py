@@ -1,23 +1,40 @@
+import datetime
+import os
 import re
 from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pandas as pd
 import typer
 import yaml
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
-import pandas as pd
 from psycopg2.pool import SimpleConnectionPool
 
+from mrmkt.backtest.strategy import StrategyRunner, build_strategy, parse_params
 from mrmkt.common.clock import Clock, WallClock
 from mrmkt.common.sql import Duplicate, InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
-from mrmkt.backtest.strategy import StrategyRunner, build_strategy, parse_params
+from mrmkt.usecase.alerts import (
+    NTFY_ENV_VAR,
+    AlertEngine,
+    FanoutSink,
+    FileSink,
+    LevelsUseCase,
+    ListSink,
+    NtfySink,
+    StdoutSink,
+    ET,
+    dry_run_alerts,
+    format_alert,
+    render_levels_csv,
+    resolve_ntfy_url,
+)
 from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
@@ -27,17 +44,28 @@ from mrmkt.indicator.volatility import (
     volatility_percentile,
 )
 from mrmkt.usecase.fetch_tickers import FetchTickersResult, FetchTickersUseCase
+from mrmkt.usecase.freshness import FreshnessRequest, FreshnessUseCase, render_csv as render_freshness_csv
 from mrmkt.usecase.import_prices import ImportPricesUseCase
+from mrmkt.usecase.screen import ScreenRequest, ScreenUseCase, render_csv as render_screen_csv
+from mrmkt.usecase.signals_current import (
+    SignalsRequest,
+    SignalsUseCase,
+    render_csv as render_signals_csv,
+)
 
 app = typer.Typer(no_args_is_help=True, help="MrMkt stock-market tools")
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
 prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical prices")
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
+signals_app = typer.Typer(no_args_is_help=True, help="Inspect current strategy signals over stored prices")
+alerts_app = typer.Typer(no_args_is_help=True, help="Risk-range levels and realtime alerts")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(indicators_app, name="indicators")
 app.add_typer(backtest_app, name="backtest")
+app.add_typer(signals_app, name="signals")
+app.add_typer(alerts_app, name="alerts")
 
 
 def create_clock() -> Clock:
@@ -72,6 +100,28 @@ def normalize_symbol(symbol: str) -> str:
     if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", normalized) is None:
         raise typer.BadParameter(f"invalid stock symbol: {symbol}")
     return normalized
+
+
+def split_benchmark_symbol(
+    selected: list[str], benchmark_symbol: str
+) -> tuple[list[str], str | None]:
+    """Split the benchmark out of the tradable symbol list.
+
+    The benchmark is non-tradable context, so it is excluded — unless
+    it is the sole selected symbol, in which case it is kept as both
+    benchmark and tradable (with a note) so `backtest run SPY` keeps
+    working. Returns the tradables plus an optional note to echo."""
+    if not benchmark_symbol or benchmark_symbol not in selected:
+        return selected, None
+    if len(selected) == 1:
+        return selected, (
+            f"Benchmark {benchmark_symbol} is the sole selected symbol; "
+            "it is traded as well as used for gating."
+        )
+    return (
+        [s for s in selected if s != benchmark_symbol],
+        f"Benchmark {benchmark_symbol} excluded from tradable symbols.",
+    )
 
 
 def _run_indicator_series(
@@ -613,8 +663,13 @@ def run_backtest(
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
     from_date: str | None = typer.Option(None, "--from", help="Test window start (defaults to auto warm-up)"),
     to_date: str | None = typer.Option(None, "--to", help="Test window end (defaults to today)"),
-    strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy: buy-red or sma-cross"),
+    strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy name from the registry"),
     params_text: str | None = typer.Option(None, "--params", help="Strategy params as k=v,... (defaults when omitted)"),
+    benchmark: str = typer.Option(
+        "SPY",
+        "--benchmark",
+        help="Market symbol for regime gating (non-tradable context; blank disables lookup)",
+    ),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
     fees: float = typer.Option(0.0, "--fees", help="All-in friction per side as a fraction (0 = none)"),
@@ -662,6 +717,26 @@ def run_backtest(
             typer.echo("No symbols to backtest.")
             return
 
+        benchmark_symbol = normalize_symbol(benchmark) if benchmark and benchmark.strip() else ""
+        selected, benchmark_note = split_benchmark_symbol(selected, benchmark_symbol)
+        if benchmark_note is not None:
+            typer.echo(benchmark_note)
+        benchmark_series: pd.Series | None = None
+        if benchmark_symbol:
+            bench_bars = list(
+                repository.list_prices_for_symbols([benchmark_symbol], date.min, end_date)
+            )
+            if bench_bars:
+                bench_index = pd.DatetimeIndex([price.date for price in bench_bars])
+                benchmark_series = pd.Series(
+                    [price.close for price in bench_bars], index=bench_index
+                ).sort_index()
+            else:
+                typer.echo(
+                    f"Benchmark {benchmark_symbol} has no stored prices; "
+                    "strategies fall back to the universe mean."
+                )
+
         chunks = []
         union_idx: pd.DatetimeIndex = pd.DatetimeIndex([])
         for offset in range(0, len(selected), chunk_size):
@@ -696,7 +771,7 @@ def run_backtest(
 
         runner = StrategyRunner(size_pct=size_pct, stop=stop, fees=fees)
         start: date = start_date if start_date is not None else list(union_idx)[300].date()
-        result = runner.run_chunked(strategy, chunks, start=start)
+        result = runner.run_chunked(strategy, chunks, start=start, benchmark=benchmark_series)
     except Exception as error:
         typer.echo(f"Failed to run backtest: {error}", err=True)
         raise typer.Exit(code=1) from error
@@ -715,3 +790,323 @@ def run_backtest(
     typer.echo(
         f"CAGR: {result.cagr:+.1%}  Sharpe: {result.sharpe:.2f}  Max DD: {result.max_drawdown:.1%}"
     )
+
+
+@app.command("screen")
+def run_screen(
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable; default: all symbols)"),
+    exclude_tags: list[str] | None = typer.Option(None, "--exclude-tag", help="Exclude symbols with this tag (repeatable)"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Screening date (defaults to latest stored bar)"),
+    mode: str = typer.Option("technical-only", "--mode", help="Screening mode (only technical-only: fundamentals unavailable)"),
+    min_price: float = typer.Option(0.0, "--min-price", help="Minimum last close"),
+    min_dollar_vol: float = typer.Option(0.0, "--min-dollar-vol", help="Minimum 63D median dollar volume"),
+    min_bars: int = typer.Option(0, "--min-bars", help="Minimum bars on/before as-of"),
+    max_stale_days: int | None = typer.Option(None, "--max-stale-days", help="Exclude symbols whose last bar is older than this (calendar days; default keeps stale names)"),
+    top: int | None = typer.Option(None, "--top", help="Keep only the top N ranked rows"),
+) -> None:
+    """Rank a tag universe on point-in-time technicals; prints deterministic CSV."""
+    if min_price < 0 or min_dollar_vol < 0 or min_bars < 0:
+        raise typer.BadParameter("--min-price, --min-dollar-vol, and --min-bars must be >= 0")
+    if top is not None and top < 1:
+        raise typer.BadParameter("--top must be at least 1")
+    today = create_clock().today()
+    try:
+        as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        result = ScreenUseCase(repository).execute(
+            ScreenRequest(
+                include_tags=[normalize_tag(tag) for tag in (tags or [])],
+                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
+                as_of=as_of_date,
+                mode=mode,
+                min_price=min_price,
+                min_dollar_vol=min_dollar_vol,
+                min_bars=min_bars,
+                max_stale_days=max_stale_days,
+                top_n=top,
+            )
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to run screen: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(render_screen_csv(result), nl=False)
+
+
+@signals_app.command("current")
+def run_signals_current(
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable; default: all symbols)"),
+    exclude_tags: list[str] | None = typer.Option(None, "--exclude-tag", help="Exclude symbols with this tag (repeatable)"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Signal date (defaults to latest stored bar)"),
+    strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy name from the registry"),
+    params_text: str | None = typer.Option(None, "--params", help="Strategy params as k=v,... (defaults when omitted)"),
+    benchmark: str = typer.Option(
+        "SPY",
+        "--benchmark",
+        help="Market symbol for regime gating (non-tradable context; blank disables lookup)",
+    ),
+    include_benchmark: bool = typer.Option(
+        False,
+        "--include-benchmark",
+        help="Score the benchmark symbol as a tradable candidate too",
+    ),
+    top: int | None = typer.Option(None, "--top", help="Keep only the first N symbol rows"),
+) -> None:
+    """Show per-symbol strategy signals at a stored bar; prints deterministic CSV."""
+    if top is not None and top < 1:
+        raise typer.BadParameter("--top must be at least 1")
+    today = create_clock().today()
+    try:
+        as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    try:
+        params = parse_params(params_text)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        result = SignalsUseCase(repository).execute(
+            SignalsRequest(
+                include_tags=[normalize_tag(tag) for tag in (tags or [])],
+                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
+                as_of=as_of_date,
+                strategy_name=strategy_name,
+                params=params,
+                benchmark_symbol=normalize_symbol(benchmark) if benchmark and benchmark.strip() else None,
+                include_benchmark=include_benchmark,
+                top_n=top,
+            )
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to inspect signals: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(render_signals_csv(result), nl=False)
+
+
+@prices_app.command("freshness")
+def run_prices_freshness(
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable; default: all symbols)"),
+    exclude_tags: list[str] | None = typer.Option(None, "--exclude-tag", help="Exclude symbols with this tag (repeatable)"),
+    lookback_days: int = typer.Option(365, "--lookback-days", help="Bar-quality window in days"),
+    stale_after_days: int = typer.Option(5, "--stale-after", help="Flag symbols with no bar for longer than this"),
+    gap_threshold: float = typer.Option(0.20, "--gap-threshold", help="Overnight-gap heuristic threshold as a fraction"),
+) -> None:
+    """Report price staleness and bar-quality flags; prints deterministic CSV."""
+    if lookback_days < 1:
+        raise typer.BadParameter("--lookback-days must be at least 1")
+    if stale_after_days < 0:
+        raise typer.BadParameter("--stale-after must be >= 0")
+    if gap_threshold <= 0:
+        raise typer.BadParameter("--gap-threshold must be positive")
+    today = create_clock().today()
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        result = FreshnessUseCase(repository).execute(
+            FreshnessRequest(
+                include_tags=[normalize_tag(tag) for tag in (tags or [])],
+                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
+                today=today,
+                lookback_days=lookback_days,
+                stale_after_days=stale_after_days,
+                gap_threshold=gap_threshold,
+            )
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to check freshness: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(render_freshness_csv(result), nl=False)
+
+
+def load_local_config() -> dict:
+    """Read optional local config.yaml; missing/invalid means {} (never raises)."""
+    try:
+        text = Path("config.yaml").read_text()
+    except OSError:
+        return {}
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def build_alert_sink(name: str, file_path: str | None = None, local_config: dict | None = None):
+    """Build a named alert sink; secrets come from env/config, never the repo."""
+    if name == "stdout":
+        return StdoutSink()
+    if name == "file":
+        if not file_path:
+            raise ValueError("--sink-file is required for the file sink")
+        return FileSink(file_path)
+    if name == "ntfy":
+        url = resolve_ntfy_url(os.environ.get(NTFY_ENV_VAR, ""), local_config or {})
+        if not url:
+            raise ValueError(
+                f"set {NTFY_ENV_VAR} or the ntfy topic in local config.yaml"
+            )
+        return NtfySink(url)
+    raise ValueError(f"unknown sink {name!r} (choose stdout, file, ntfy)")
+
+
+@alerts_app.command("levels")
+def run_alerts_levels(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Range date (defaults to latest stored bar)"),
+    horizon: int = typer.Option(15, "--horizon", help="Range horizon in trading days"),
+    vol_period: int = typer.Option(21, "--vol-period", help="Trailing returns for realized volatility"),
+    width: float = typer.Option(0.5, "--width", help="Range half-width in vol-scaled units"),
+    anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
+) -> None:
+    """Print deterministic risk-range buy/sell levels from stored bars."""
+    if not symbols and not tags:
+        raise typer.BadParameter("provide symbols or --tag")
+    today = create_clock().today()
+    try:
+        as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        result = LevelsUseCase(repository).execute(
+            include_tags=[normalize_tag(tag) for tag in (tags or [])],
+            symbols=[normalize_symbol(symbol) for symbol in (symbols or [])],
+            as_of=as_of_date,
+            horizon=horizon,
+            vol_period=vol_period,
+            width=width,
+            anchor_period=anchor_period,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to compute levels: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(render_levels_csv(result), nl=False)
+
+
+@alerts_app.command("watch")
+def run_alerts_watch(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
+    sinks: list[str] | None = typer.Option(None, "--sink", help="Alert sink: stdout, file, ntfy (repeatable)"),
+    sink_file: str | None = typer.Option(None, "--sink-file", help="Append path for the file sink"),
+    feed: str = typer.Option("iex", "--feed", help="Alpaca data feed: iex or sip"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Replay stored daily lows as ticks; no network"),
+    session_policy: str = typer.Option("regular", "--session-policy", help="Sessions that may fire: regular or extended"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Levels date (defaults to latest stored bar)"),
+    verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
+) -> None:
+    """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
+    if not symbols and not tags:
+        raise typer.BadParameter("provide symbols or --tag")
+    if session_policy not in ("regular", "extended"):
+        raise typer.BadParameter("--session-policy must be regular or extended")
+    if feed not in ("iex", "sip"):
+        raise typer.BadParameter("--feed must be iex or sip")
+    sink_names = sinks or ["stdout"]
+    local_config = load_local_config()
+    try:
+        fanout = FanoutSink(
+            [build_alert_sink(name, sink_file, local_config) for name in sink_names]
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    today = create_clock().today()
+    try:
+        as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        selected = sorted(
+            {normalize_symbol(symbol) for symbol in (symbols or [])}
+            | {
+                symbol
+                for tag in (tags or [])
+                for symbol in repository.get_symbols_by_tag(normalize_tag(tag))
+            }
+        )
+        levels = LevelsUseCase(repository).execute(
+            include_tags=[], symbols=selected, as_of=as_of_date
+        )
+        if not levels.rows:
+            typer.echo("No symbols with enough history for levels.")
+            return
+        engine = AlertEngine(on_alert=fanout, session_policy=session_policy)
+        engine.set_levels({row.symbol: row.range_low for row in levels.rows})
+        engine.seed_baseline({row.symbol: row.close for row in levels.rows})
+        if verbose:
+            engine.on_ignored = lambda tick: typer.echo(
+                f"{tick.moment.isoformat()} | {tick.session} | {tick.symbol} | "
+                f"{tick.price:g} vs buy {tick.level:g} IGNORED ({tick.reason})"
+            )
+        if dry_run:
+            # Recording sink only: --dry-run can never deliver to real
+            # sinks. Levels/arm state advance bar by bar (no lookahead).
+            recorder = ListSink()
+            dry_engine = AlertEngine(on_alert=recorder, session_policy=session_policy)
+            bars_by_symbol: dict = {}
+            for price in repository.list_prices_for_symbols(
+                [row.symbol for row in levels.rows], date.min, as_of_date or today
+            ):
+                bars_by_symbol.setdefault(price.symbol, []).append(price)
+            typer.echo(
+                "# dry-run: replaying stored daily lows as regular-session "
+                "ticks; sinks not called"
+            )
+            for alert in dry_run_alerts(dry_engine, bars_by_symbol):
+                typer.echo(f"would alert: {format_alert(alert)}")
+            return
+        config = yaml.safe_load(Path("alpaca.yaml").read_text())
+        from alpaca.data.enums import DataFeed
+        from alpaca.data.live import StockDataStream
+
+        from mrmkt.ext.alpaca_stream import AlpacaStreamSource
+
+        stream = StockDataStream(
+            api_key=config["key"],
+            secret_key=config["secret"],
+            feed=DataFeed(feed),
+        )
+        typer.echo(
+            f"Watching {len(levels.rows)} symbols ({session_policy} sessions fire); "
+            f"levels as of {levels.data_vintage}."
+        )
+        AlpacaStreamSource(
+            stream, engine, lambda: datetime.datetime.now(tz=ET)
+        ).start([row.symbol for row in levels.rows])
+    except (typer.BadParameter, typer.Exit):
+        raise
+    except Exception as error:
+        typer.echo(f"Failed to watch alerts: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()

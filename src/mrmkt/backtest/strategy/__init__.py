@@ -6,8 +6,9 @@ which slices warm-up history and runs the vectorbt fill simulator with
 an explicit portfolio overlay.
 """
 
-from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+from mrmkt.backtest.strategy.base import MarketContext, ParamSpec, SignalSet, Strategy
 from mrmkt.backtest.strategy.buy_red import BuyRedStrategy
+from mrmkt.backtest.strategy.momentum_rotation import MomentumRotationStrategy
 from mrmkt.backtest.strategy.registry import (
     STRATEGIES,
     build_strategy,
@@ -16,15 +17,19 @@ from mrmkt.backtest.strategy.registry import (
 )
 from mrmkt.backtest.strategy.runner import StrategyRunner
 from mrmkt.backtest.strategy.sma_cross import SmaCrossStrategy
+from mrmkt.backtest.strategy.trend_pullback import TrendPullbackStrategy
 
 __all__ = [
     "BuyRedStrategy",
+    "MarketContext",
+    "MomentumRotationStrategy",
     "ParamSpec",
     "STRATEGIES",
     "SignalSet",
     "SmaCrossStrategy",
     "Strategy",
     "StrategyRunner",
+    "TrendPullbackStrategy",
     "build_strategy",
     "parse_params",
     "register",

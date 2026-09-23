@@ -120,7 +120,77 @@ class TestChunkedRunner(unittest.TestCase):
         assert_that(free.expectancy - paid.expectancy, close_to(0.002, 1e-12))
         assert_that(paid.total_return < free.total_return, equal_to(True))
 
-    def test_stop_uses_intrabar_low(self):
+    def test_lone_first_bar_trade_pays_both_fees_in_portfolio(self):
+        # Regression: the entry fee was booked on the entry bar, where the
+        # position is not counted open, so a lone first-bar trade dropped
+        # it from total_return while expectancy subtracted both sides.
+        idx = pd.date_range("2020-01-01", periods=5, freq="B")
+        close = pd.DataFrame({"A": [100.0, 105.0, 110.0, 115.0, 120.0]}, index=idx)
+        records = pd.DataFrame(
+            [
+                {
+                    "Entry Timestamp": idx[0],
+                    "Exit Timestamp": idx[2],
+                    "Status": "Closed",
+                    "Avg Entry Price": 100.0,
+                    "Avg Exit Price": 110.0,
+                    "Column": "A",
+                },
+            ]
+        )
+        fee = 0.001
+
+        result = aggregate_trades(close, records, max_positions=10, fees_per_side=fee)
+
+        day1 = 105.0 / 100.0 - 1 - fee
+        day2 = 110.0 / 105.0 - 1 - fee
+        assert_that(result.n_trades, equal_to(1))
+        assert_that(result.total_return, close_to((1 + day1) * (1 + day2) - 1, 1e-12))
+        assert_that(result.expectancy, close_to(0.10 - 2 * fee, 1e-12))
+
+    def test_overlapping_trade_fees_split_across_open_positions(self):
+        # Each side's fee must dilute across exactly the positions open
+        # that day, including the entering/exiting trade itself.
+        idx = pd.date_range("2020-01-01", periods=5, freq="B")
+        close = pd.DataFrame(
+            {
+                "A": [100.0, 105.0, 110.0, 115.0, 120.0],
+                "B": [200.0] * 5,
+            },
+            index=idx,
+        )
+        records = pd.DataFrame(
+            [
+                {
+                    "Entry Timestamp": idx[0],
+                    "Exit Timestamp": idx[2],
+                    "Status": "Closed",
+                    "Avg Entry Price": 100.0,
+                    "Avg Exit Price": 110.0,
+                    "Column": "A",
+                },
+                {
+                    "Entry Timestamp": idx[1],
+                    "Exit Timestamp": idx[3],
+                    "Status": "Closed",
+                    "Avg Entry Price": 200.0,
+                    "Avg Exit Price": 200.0,
+                    "Column": "B",
+                },
+            ]
+        )
+        fee = 0.001
+
+        result = aggregate_trades(close, records, max_positions=10, fees_per_side=fee)
+
+        day1 = 105.0 / 100.0 - 1 - fee
+        day2 = ((110.0 / 105.0 - 1) + 0.0) / 2 - (2 * fee) / 2
+        day3 = 0.0 - fee
+        assert_that(result.n_trades, equal_to(2))
+        assert_that(
+            result.total_return,
+            close_to((1 + day1) * (1 + day2) * (1 + day3) - 1, 1e-12),
+        )
         closes = noisy_dip()
         idx = pd.date_range("2020-01-01", periods=len(closes), freq="B")
         arr = np.array(closes, float)

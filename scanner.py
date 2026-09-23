@@ -1,25 +1,60 @@
-import mrmkt
-from mrmkt.indicator.sma import sma
+"""Universe screener entry point: tag workflow over the local catalog.
 
-repo = mrmkt.ext.postgresx()
-# print(repo.list_prices("SPY"))
-sp500 = "MMM ABT ABBV ABMD ACN ATVI ADBE AMD AAP AES AMG AFL A APD AKAM ALK ALB ARE ALXN ALGN ALLE AGN ADS LNT ALL GOOGL GOOG MO AMZN AMCR AEE AAL AEP AXP AIG AMT AWK AMP ABC AME AMGN APH ADI ANSS ANTM AON AOS APA AIV AAPL AMAT APTV ADM ARNC ANET AJG AIZ ATO T ADSK ADP AZO AVB AVY BHGE BLL BAC BK BAX BBT BDX BR BBY BIIB BLK HRB BA BKNG BWA BXP BSX BMY AVGO BR B CHRW COG CDNS CPB COF CPRI CAH KMX CCL CAT CBOE CBRE CBS CE CELG CNC CNP CTL CERN CF SCHW CHTR CVX CMG CB CHD CI XEC CINF CTAS CSCO C CFG CTXS CLX CME CMS KO CTSH CL CMCSA CMA CAG CXO COP ED STZ COO CPRT GLW CTVA COST COTY CCI CSX CMI CVS DHI DHR DRI DVA DE DAL XRAY DVN FANG DLR DFS DISCA DISCK DISH DG DLTR D DOV DOW DTE DUK DRE DD DXC ETFC EMN ETN EBAY ECL EIX EW EA EMR ETR EOG EFX EQIX EQR ESS EL EVRG ES RE EXC EXPE EXPD EXR XOM FFIV FB FAST FRT FDX FIS FITB FE FRC FISV FLT FLIR FLS FMC F FTNT FTV FBHS FOXA FOX BEN FCX GPS GRMN IT GD GE GIS GM GPC GILD GL GPN GS GWW HAL HBI HOG HIG HAS HCA HCP HP HSIC HSY HES HPE HLT HFC HOLX HD HON HRL HST HPQ HUM HBAN HII IEX IDXX INFO ITW ILMN IR INTC ICE IBM INCY IP IPG IFF INTU ISRG IVZ IPGP IQV IRM JKHY JEC JBHT JEF SJM JNJ JCI JPM JNPR KSU K KEY KEYS KMB KIM KMI KLAC KSS KHC KR LB LHX LH LRCX LW LEG LDOS LEN LLY LNC LIN LKQ LMT L LOW LYB MTB MAC M MRO MPC MKTX MAR MMC MLM MAS MA MKC MXIM MCD MCK MDT MRK MET MTD MGM MCHP MU MSFT MAA MHK TAP MDLZ MNST MCO MS MOS MSI MSCI MYL NDAQ NOV NKTR NTAP NFLX NWL NEM NWSA NWS NEE NLSN NKE NI NBL JWN NSC NTRS NOC NCLH NRG NUE NVDA ORLY OXY OMC OKE ORCL PCAR PKG PH PAYX PYPL PNR PBCT PEP PKI PRGO PFE PM PSX PNW PXD PNC PPG PPL PFG PG PGR PLD PRU PEG PSA PHM PVH QRVO PWR QCOM DGX RL RJF RTN O REG REGN RF RSG RMD RHI ROK ROL ROP ROST RCL CRM SBAC SLB STX SEE SRE SHW SPG SWKS SLG SNA SO LUV SPGI SWK SBUX STT SYK STI SIVB SYMC SYF SNPS SYY TMUS TROW TTWO TPR TGT TEL FTI TFX TXN TXT TMO TIF TWTR TJX TSS TSCO TDG TRV TRIP TSN UDR ULTA USB UAA UA UNP UAL UNH UPS URI UTX UHS UNM VFC VLO VAR VTR VRSN VRSK VZ VRTX VIAB V VNO VMC WAB WMT WBA DIS WM WAT WEC WCG WFC WELL WDC WU WRK WY WHR WMB WLTW WYNN XEL XRX XLNX XYL YUM ZBH ZION ZTS"
-tickers = sp500.split(" ")
+Replaces the legacy hardcoded S&P list and direct postgres handle with
+the supported layers: tag selection plus ``ScreenUseCase`` over the
+local ticker repository (same seam the ``mrmkt screen`` CLI uses).
 
-for ticker in tickers:
-    price_data = repo.list_prices(ticker)
-    if len(price_data) < 5:
-        continue
+Usage:
+    uv run scanner.py --tag sp500 --exclude-tag etf --top 20
+    uv run scanner.py --tag sp500 --as-of 2026-09-22 --min-price 10
+"""
 
-    volume_sma5 = sma(list(map(lambda p: p.volume, price_data)), 5)
-    prices = list(map(lambda p: p.close, price_data))
-    vm2 = price_data[-2].volume
-    vm1 = price_data[-1].volume
-    vam2 = volume_sma5[-2]
-    vam1 = volume_sma5[-1]
-    pm3 = prices[-3]
-    pm2 = prices[-2]
-    pm1 = prices[-1]
-    if vm1 > (vm2) and pm1 > pm2 > pm3:
-        inc = round(((pm1 / pm2) - 1) * 100, 2)
-        print(f"{ticker}: volume {vm2} => {vm1}, close {pm2} => {pm1} ({inc}%)")
+import argparse
+import sys
+from datetime import date
+
+sys.path.insert(0, "src")
+
+from mrmkt.cli import create_local_ticker_repository, normalize_tag, parse_cli_date
+from mrmkt.common.clock import WallClock
+from mrmkt.usecase.screen import ScreenRequest, ScreenUseCase, render_csv
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tag", action="append", default=[], help="Include tag (repeatable)")
+    parser.add_argument("--exclude-tag", action="append", default=[], help="Exclude tag (repeatable)")
+    parser.add_argument("--as-of", default=None, help="Screening date (default: latest bar)")
+    parser.add_argument("--mode", default="technical-only", help="Screening mode")
+    parser.add_argument("--min-price", type=float, default=0.0)
+    parser.add_argument("--min-dollar-vol", type=float, default=0.0)
+    parser.add_argument("--min-bars", type=int, default=0)
+    parser.add_argument("--max-stale-days", type=int, default=None)
+    parser.add_argument("--top", type=int, default=None)
+    args = parser.parse_args(argv)
+
+    today = WallClock().today()
+    as_of = parse_cli_date(args.as_of, today) if args.as_of else None
+    repository, close = create_local_ticker_repository()
+    try:
+        result = ScreenUseCase(repository).execute(
+            ScreenRequest(
+                include_tags=[normalize_tag(t) for t in args.tag],
+                exclude_tags=[normalize_tag(t) for t in args.exclude_tag],
+                as_of=as_of if isinstance(as_of, date) else None,
+                mode=args.mode,
+                min_price=args.min_price,
+                min_dollar_vol=args.min_dollar_vol,
+                min_bars=args.min_bars,
+                max_stale_days=args.max_stale_days,
+                top_n=args.top,
+            )
+        )
+    finally:
+        close()
+    sys.stdout.write(render_csv(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

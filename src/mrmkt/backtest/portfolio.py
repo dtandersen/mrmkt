@@ -18,6 +18,7 @@ FEES_PER_SIDE = 0.0
 
 @dataclass
 class TradeSummary:
+    symbol: str
     entry_date: object
     exit_date: object | None
     gross_return: float
@@ -150,13 +151,19 @@ def aggregate_trades(
                     continue
                 marks = prices[l0 + 1 : l0 + span + 1] / prices[l0 : l0 + span] - 1
                 day_sum[g0 + 1 : g1 + 1] += marks
-                day_cost[g0] += fees_per_side
+                # Attribute each side's friction to a day the position is
+                # counted open (entry fee to the first marked day, exit fee
+                # to the exit day): booking at g0 would drop the fee when
+                # nothing else is open there, or spread it over incumbents
+                # excluding the entrant.
+                day_cost[g0 + 1] += fees_per_side
                 day_cost[g1] += fees_per_side
                 open_count[g0 + 1 : g1 + 1] += 1
                 opened_today += 1
                 gross = float(row["Avg Exit Price"] / row["Avg Entry Price"] - 1)
                 trades.append(
                     TradeSummary(
+                        symbol=str(sym),
                         entry_date=entry_day,
                         exit_date=exit_day,
                         gross_return=gross,
@@ -169,18 +176,20 @@ def aggregate_trades(
                     continue
                 marks = prices[l0 + 1 :] / prices[l0:-1] - 1
                 day_sum[g0 + 1 :] += marks
-                day_cost[g0] += fees_per_side
+                day_cost[g0 + 1] += fees_per_side
                 open_count[g0 + 1 :] += 1
                 opened_today += 1
         invested = open_count > 0
         count = np.where(invested, open_count, 1)
         rets = np.where(invested, day_sum / count - day_cost / count, 0.0)
-        daily = pd.Series(rets, index=close.index)
+        # np.asarray pins the float-ndarray type through stub overloads.
+        daily_values = np.asarray(rets, dtype=float)
+        daily = pd.Series(daily_values, index=close.index)
         equity = (1 + daily).cumprod()
         n = len(daily)
         total = float(equity.iloc[-1] - 1) if n else 0.0
         cagr = float(equity.iloc[-1] ** (252 / n) - 1) if n else 0.0
-        std = float(daily.std())
+        std = float(daily_values.std(ddof=1))
         sharpe = float(daily.mean() / std * (252**0.5)) if std else 0.0
         max_dd = float((equity / equity.cummax() - 1).min()) if n else 0.0
         nets = np.array([t.gross_return - 2 * fees_per_side for t in trades])

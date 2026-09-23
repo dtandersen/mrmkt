@@ -34,7 +34,16 @@ uv run mrmkt indicators vol-of-vol-percentile AAPL --vol-period 21 --vov-period 
 uv run mrmkt indicators risk-range AAPL --horizon 15 --vol-period 21 --width 0.5
 uv run mrmkt backtest run --tag sp500 --from 2023-01-01
 uv run mrmkt backtest run --tag sp500 --strategy sma-cross --params fast_period=20,slow_period=100
+uv run mrmkt screen --tag sp500 --exclude-tag etf --as-of 2026-09-22 --top 20
+uv run mrmkt signals current --tag sp500 --strategy buy-red --benchmark SPY
+uv run mrmkt prices freshness --tag sp500 --lookback-days 365
 ```
+
+Screening, signal discovery, and freshness checks print deterministic CSV
+(see `docs/screener.md` for commands, stable column schemas, as-of/vintage
+semantics, and the limits of the heuristic quality flags).
+Risk-range alerts print deterministic levels and watch live ticks
+(see `docs/alerts.md` for trigger/session/sink semantics and caveats).
 
 Ticker tags are static labels (for example, `sp500`); comma-separated symbols
 can be labeled together, and each label applies to all matching exchange listings. Price imports use daily adjusted bars;

@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+from mrmkt.backtest.strategy.base import MarketContext, ParamSpec, SignalSet, Strategy
 from mrmkt.backtest.strategy.registry import register
 
 
@@ -33,6 +33,7 @@ class SmaCrossStrategy(Strategy):
         close: pd.DataFrame,
         high: pd.DataFrame,
         low: pd.DataFrame,
+        context: MarketContext | None = None,
     ) -> SignalSet:
         """Enter on cross up, exit on cross down (warm-up kept)."""
         fast = pd.DataFrame(close.rolling(self.fast_period).mean())
