@@ -2,6 +2,13 @@
 
 Stock market stuff.
 
+## Development
+
+```shell
+uv sync
+cd tests && uv run python -m unittest discover -s .
+```
+
 ## Database
 
 dbschema.yml
