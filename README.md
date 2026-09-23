@@ -17,11 +17,14 @@ catalog with:
 ```shell
 uv run mrmkt symbols import --provider alpaca
 uv run mrmkt symbols list
+uv run mrmkt prices import --provider alpaca AAPL MSFT --from 2024-01-01 --to 2024-01-31
+uv run mrmkt prices import --provider alpaca --all --from 2024-01-01 --to 2024-01-31
 ```
 
-The import command uses the local, git-ignored `alpaca.yaml` and `dbschema.yml`
-files. Listing reads the configured local ticker catalog. The BDD tests use
-in-memory repositories and do not call Alpaca or PostgreSQL.
+Price imports use daily adjusted bars; `--all` imports symbols from the local
+catalog. The commands use the local, git-ignored `alpaca.yaml` and `dbschema.yml`
+files. The BDD tests use in-memory repositories and do not call Alpaca or
+PostgreSQL.
 
 ## Database
 

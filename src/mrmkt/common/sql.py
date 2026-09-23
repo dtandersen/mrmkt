@@ -62,6 +62,9 @@ class SqlGenerator:
     def to_insert(self, table: str, params: any) -> str:
         pass
 
+    def to_insert2(self, table: str, params: any) -> tuple[str, tuple]:
+        pass
+
 
 # @author little bobby tables
 class InsecureSqlGenerator(SqlGenerator):

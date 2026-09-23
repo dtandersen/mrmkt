@@ -38,10 +38,10 @@ class PostgresSqlClient(SqlClient):
         try:
             with conn:
                 with conn.cursor() as cur:
-                    sql = self.converter.to_insert(table, values)
+                    sql, params = self.converter.to_insert2(table, values)
                     logging.debug(sql)
                     try:
-                        cur.execute(sql)
+                        cur.execute(sql, params)
                     except psycopg2.errors.UniqueViolation as err:
                         raise Duplicate(err)
         finally:

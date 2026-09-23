@@ -1,7 +1,9 @@
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
 from psycopg2.pool import SimpleConnectionPool
 import typer
@@ -10,13 +12,16 @@ import yaml
 from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
+from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
-from mrmkt.repo.tickers import TickerRepository
 from mrmkt.usecase.fetch_tickers import FetchTickersResult, FetchTickersUseCase
+from mrmkt.usecase.import_prices import ImportPricesUseCase
 
 app = typer.Typer(no_args_is_help=True, help="MrMkt stock-market tools")
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
+prices_app = typer.Typer(no_args_is_help=True, help="Import historical prices")
 app.add_typer(symbols_app, name="symbols")
+app.add_typer(prices_app, name="prices")
 
 
 # These factories are small seams for BDD tests: tests replace them with a fake
@@ -38,7 +43,7 @@ def create_alpaca_client() -> TradingClient:
     )
 
 
-def create_local_ticker_repository() -> tuple[TickerRepository, Callable[[], None]]:
+def create_local_ticker_repository() -> tuple[SqlFinancialRepository, Callable[[], None]]:
     config = yaml.safe_load(Path("dbschema.yml").read_text())
     db_config = config["databases"]["db1"]
     pool = SimpleConnectionPool(
@@ -52,6 +57,14 @@ def create_local_ticker_repository() -> tuple[TickerRepository, Callable[[], Non
     )
     sql_client = PostgresSqlClient(InsecureSqlGenerator(), pool)
     return SqlFinancialRepository(sql_client), pool.closeall
+
+
+def create_alpaca_data_client() -> StockHistoricalDataClient:
+    config = yaml.safe_load(Path("alpaca.yaml").read_text())
+    return StockHistoricalDataClient(
+        api_key=config["key"],
+        secret_key=config["secret"],
+    )
 
 
 @symbols_app.command("import")
@@ -106,3 +119,57 @@ def list_symbols() -> None:
     typer.echo("SYMBOL | EXCHANGE | TYPE")
     for ticker in tickers:
         typer.echo(f"{ticker.ticker} | {ticker.exchange} | {ticker.type}")
+
+
+@prices_app.command("import")
+def import_prices(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
+    provider: str = typer.Option(..., "--provider", help="Price source (currently: alpaca)"),
+    all_symbols: bool = typer.Option(False, "--all", help="Import every locally cataloged symbol"),
+    from_date: str = typer.Option(..., "--from", help="First date to include (YYYY-MM-DD)"),
+    to_date: str = typer.Option(..., "--to", help="Last date to include (YYYY-MM-DD)"),
+) -> None:
+    if provider.lower() != "alpaca":
+        raise typer.BadParameter("only the 'alpaca' provider is currently supported")
+    if all_symbols and symbols:
+        raise typer.BadParameter("provide symbols or use --all, not both")
+    if not all_symbols and not symbols:
+        raise typer.BadParameter("provide one or more symbols or use --all")
+    try:
+        start_date = date.fromisoformat(from_date)
+        end_date = date.fromisoformat(to_date)
+    except ValueError as error:
+        raise typer.BadParameter("dates must use YYYY-MM-DD format") from error
+    if start_date > end_date:
+        raise typer.BadParameter("--from must be on or before --to")
+
+    close_repository: Callable[[], None] | None = None
+    try:
+        local_repository, close_repository = create_local_ticker_repository()
+        selected_symbols = (
+            [ticker.ticker for ticker in local_repository.get_tickers()]
+            if all_symbols
+            else symbols or []
+        )
+        selected_symbols = list(dict.fromkeys(symbol.upper() for symbol in selected_symbols))
+        if not selected_symbols:
+            typer.echo("No symbols to import.")
+            return
+
+        price_source = AlpacaPriceSource(create_alpaca_data_client())
+        imported_count = ImportPricesUseCase(price_source, local_repository).execute(
+            selected_symbols,
+            start_date,
+            end_date,
+        )
+    except Exception as error:
+        typer.echo(f"Failed to import prices from Alpaca: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    typer.echo(
+        f"Imported {imported_count} new daily bars for "
+        f"{len(selected_symbols)} symbol{'s' if len(selected_symbols) != 1 else ''}."
+    )
