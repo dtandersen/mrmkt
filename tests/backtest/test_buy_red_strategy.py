@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from hamcrest import assert_that, equal_to
 
-from mrmkt.backtest.strategy import BuyRedStrategy
+from mrmkt.backtest.strategy import BuyRedStrategy, StrategyRunner
 
 
 def frame_from_closes(closes):
@@ -46,9 +46,10 @@ class TestBuyRedStrategy(unittest.TestCase):
     def test_backtest_completes_a_profitable_round_trip(self):
         close, high, low = frame_from_closes(v_dip())
         strategy = BuyRedStrategy.trend_only()
+        runner = StrategyRunner()
 
-        first = strategy.backtest(close, high, low)
-        second = strategy.backtest(close, high, low)
+        first = runner.run(strategy, close, high, low)
+        second = runner.run(strategy, close, high, low)
 
         assert_that(first.n_trades >= 1, equal_to(True))
         assert_that(first.win_rate, equal_to(1.0))
@@ -59,22 +60,22 @@ class TestBuyRedStrategy(unittest.TestCase):
         close, high, low = frame_from_closes(v_dip())
 
         assert_that(
-            BuyRedStrategy.with_compression().backtest(close, high, low).n_trades,
+            StrategyRunner().run(BuyRedStrategy.with_compression(), close, high, low).n_trades,
             equal_to(0),
         )
 
     def test_explicit_start_slices_the_window(self):
         close, high, low = frame_from_closes(v_dip())
         strategy = BuyRedStrategy.with_compression()
+        runner = StrategyRunner()
 
-        full = strategy.backtest(close, high, low)
-        late = strategy.backtest(close, high, low, start=date(2021, 6, 1))
+        full = runner.run(strategy, close, high, low)
+        late = runner.run(strategy, close, high, low, start=date(2021, 6, 1))
 
         assert_that(late.n_trades <= full.n_trades, equal_to(True))
 
-    def test_describe_mentions_rules_and_sizing(self):
+    def test_describe_mentions_rules(self):
         text = BuyRedStrategy.with_compression().describe()
 
         assert_that("63D" in text, equal_to(True))
         assert_that("VoV" in text, equal_to(True))
-        assert_that("2%" in text, equal_to(True))

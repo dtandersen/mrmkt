@@ -1,4 +1,5 @@
 import datetime
+import re
 from dataclasses import dataclass
 from typing import List
 
@@ -193,6 +194,35 @@ class SqlFinancialRepository(
             "order by date asc",
             self.price_mapper)
 
+        return rows
+
+    def list_prices_for_symbols(self, tickers: List[str], start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        normalized = []
+        for ticker in tickers:
+            symbol = ticker.strip().upper()
+            if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", symbol) is None:
+                raise ValueError(f"invalid stock symbol: {ticker}")
+            normalized.append(symbol)
+        if not normalized:
+            return []
+        start_sql = ""
+        end_sql = ""
+        if start is not None:
+            start_sql = f"and date >= '{start.strftime('%Y-%m-%d')}' "
+        if end is not None:
+            end_sql = f"and date <= '{end.strftime('%Y-%m-%d')}' "
+        rows = []
+        for offset in range(0, len(normalized), 500):
+            chunk = normalized[offset : offset + 500]
+            symbols_sql = ", ".join(f"'{symbol}'" for symbol in chunk)
+            rows.extend(self.sql_client.select(
+                "select * " +
+                "from daily_price " +
+                f"where symbol in ({symbols_sql}) " +
+                start_sql +
+                end_sql +
+                "order by symbol asc, date asc",
+                self.price_mapper))
         return rows
 
     def get_price(self, symbol: str, date: str) -> StockPrice:

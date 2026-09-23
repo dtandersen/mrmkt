@@ -14,7 +14,8 @@ from mrmkt.backtest.strategy import (
     BuyRedStrategy,
     SignalSet,
     SmaCrossStrategy,
-    VectorStrategy,
+    Strategy,
+    StrategyRunner,
 )
 
 __all__ = [
@@ -23,8 +24,9 @@ __all__ = [
     "PortfolioResult",
     "SignalSet",
     "SmaCrossStrategy",
+    "Strategy",
+    "StrategyRunner",
     "TradeSummary",
-    "VectorStrategy",
     "entry_signals",
     "exit_signals",
     "run_portfolio",

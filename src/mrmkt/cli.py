@@ -18,7 +18,7 @@ from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
 from mrmkt.backtest.signals import BacktestParams
-from mrmkt.backtest.strategy import BuyRedStrategy, SmaCrossStrategy
+from mrmkt.backtest.strategy import BuyRedStrategy, SmaCrossStrategy, StrategyRunner
 from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
@@ -671,10 +671,10 @@ def run_backtest(
             return
 
         closes, highs, lows = {}, {}, {}
-        for symbol in selected:
-            bars = repository.list_prices(symbol, date.min, end_date)
-            if len(bars) < 360:
-                continue
+        bars_by_symbol: dict = {}
+        for price in repository.list_prices_for_symbols(selected, date.min, end_date):
+            bars_by_symbol.setdefault(price.symbol, []).append(price)
+        for symbol, bars in bars_by_symbol.items():
             index = pd.DatetimeIndex([price.date for price in bars])
             closes[symbol] = pd.Series([price.close for price in bars], index=index)
             highs[symbol] = pd.Series([price.high for price in bars], index=index)
@@ -687,23 +687,18 @@ def run_backtest(
         low = pd.DataFrame(lows).sort_index().reindex_like(close)
 
         params = BacktestParams(width=width, use_vov=use_vov)
+        runner = StrategyRunner(size_pct=size_pct, stop=stop)
         if strategy_name == "sma-cross":
             strategy = SmaCrossStrategy(
                 fast_period=fast_period,
                 slow_period=slow_period,
-                size_pct=size_pct,
-                stop=stop,
             )
         elif strategy_name == "buy-red":
-            strategy = BuyRedStrategy(
-                params=params,
-                size_pct=size_pct,
-                stop=stop,
-            )
+            strategy = BuyRedStrategy(params=params)
         else:
             raise typer.BadParameter("strategy must be buy-red or sma-cross")
         start: date = start_date if start_date is not None else _warmup_start(closes)
-        result = strategy.backtest(close, high, low, start=start)
+        result = runner.run(strategy, close, high, low, start=start)
     except Exception as error:
         typer.echo(f"Failed to run backtest: {error}", err=True)
         raise typer.Exit(code=1) from error

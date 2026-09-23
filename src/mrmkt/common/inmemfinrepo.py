@@ -117,6 +117,18 @@ class InMemoryFinancialRepository(
 
         return prices
 
+    def list_prices_for_symbols(self, tickers: List[str], start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+        wanted = {ticker.strip().upper() for ticker in tickers}
+        prices = self.prices.filter(lambda p: p.symbol in wanted)
+
+        if start is not None:
+            prices = list(filter(lambda p: p.date >= start, prices))
+
+        if end is not None:
+            prices = list(filter(lambda p: p.date <= end, prices))
+
+        return sorted(prices, key=lambda p: (p.symbol, p.date))
+
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
         dates = [price.date for price in self.prices.filter(lambda p: p.symbol == symbol and p.date >= date)]
         earliest_date = dates[0]

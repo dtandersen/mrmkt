@@ -1,9 +1,9 @@
-"""Vectorbt-backed trading strategies as single classes.
+"""Vectorbt-backed trading strategies and the runner that executes them.
 
-Each strategy bundles its configuration, signal generation, warm-up
-slicing, and execution so variants are instantiable and comparable and
-the CLI stays thin. Engines underneath: pure signal builders plus the
-vectorbt fill simulator with an explicit portfolio overlay.
+Strategies are pure signal definitions: parameters, ``generate()``, and
+a human-readable ``describe()``. All execution lives in StrategyRunner,
+which slices warm-up history and runs the vectorbt fill simulator with
+an explicit portfolio overlay.
 """
 
 from abc import ABC, abstractmethod
@@ -26,11 +26,27 @@ DEFAULT_WARMUP_BARS = 300
 class SignalSet:
     entries: pd.DataFrame
     exits: pd.DataFrame
-    vov: pd.DataFrame | None
 
 
-class VectorStrategy(ABC):
-    """Shared warm-up slicing and execution for signal strategies."""
+class Strategy(ABC):
+    """Signal definition: parameters, booleans per bar, description."""
+
+    @abstractmethod
+    def generate(
+        self,
+        close: pd.DataFrame,
+        high: pd.DataFrame,
+        low: pd.DataFrame,
+    ) -> SignalSet:
+        """Entry/exit booleans over full-history frames (warm-up kept)."""
+
+    @abstractmethod
+    def describe(self) -> str:
+        """Human-readable rule summary for notes and logs."""
+
+
+class StrategyRunner:
+    """Executes any Strategy over full-history frames."""
 
     def __init__(
         self,
@@ -46,29 +62,17 @@ class VectorStrategy(ABC):
         self.max_positions = max_positions
         self.warmup_bars = warmup_bars
 
-    @abstractmethod
-    def generate(
+    def run(
         self,
-        close: pd.DataFrame,
-        high: pd.DataFrame,
-        low: pd.DataFrame,
-    ) -> SignalSet:
-        """Entry/exit booleans over full-history frames (warm-up kept)."""
-
-    @abstractmethod
-    def describe(self) -> str:
-        """Human-readable rule summary for notes and logs."""
-
-    def backtest(
-        self,
+        strategy: Strategy,
         close: pd.DataFrame,
         high: pd.DataFrame,
         low: pd.DataFrame,
         start=None,
     ) -> PortfolioResult:
-        """Run over full-history frames; trades start at ``start`` or once
+        """Run a strategy; trades start at ``start`` or once
         ``warmup_bars`` of union history exist."""
-        signals = self.generate(close, high, low)
+        signals = strategy.generate(close, high, low)
         first = (
             pd.Timestamp(start)
             if start is not None
@@ -86,15 +90,10 @@ class VectorStrategy(ABC):
         )
 
 
-class BuyRedStrategy(VectorStrategy):
+class BuyRedStrategy(Strategy):
     """Long-only buy-red-in-uptrends with optional VoV compression."""
 
-    def __init__(
-        self,
-        params: BacktestParams | None = None,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
+    def __init__(self, params: BacktestParams | None = None):
         self.params = params or BacktestParams()
 
     @classmethod
@@ -124,7 +123,6 @@ class BuyRedStrategy(VectorStrategy):
         return SignalSet(
             entries=entry_signals(close, low, self.params, ranking),
             exits=exit_signals(close, high, self.params),
-            vov=ranking,
         )
 
     def describe(self) -> str:
@@ -140,22 +138,18 @@ class BuyRedStrategy(VectorStrategy):
             f"{self.params.trend_fast}D and {self.params.trend_slow}D SMA, "
             f"> {self.params.dist_lo_min:.0%} above trailing-{self.params.vov_lookback}D low, "
             f"trailing-{self.params.vov_lookback}D drawdown < {self.params.dd_max:.0%}, "
-            f"daily low <= {self.params.horizon_days}D risk-range buy level; {vov_rule}. "
-            f"Exit range top / TREND break / {self.stop:.0%} stop. "
-            f"{self.size_pct:g}% sizing, {self.fees:.1%} fees, cap {self.max_positions}."
+            f"daily low <= {self.params.horizon_days}D risk-range buy level; {vov_rule}."
         )
 
 
-class SmaCrossStrategy(VectorStrategy):
+class SmaCrossStrategy(Strategy):
     """Classic golden-cross long: fast SMA crossing above slow SMA."""
 
     def __init__(
         self,
         fast_period: int = 50,
         slow_period: int = 200,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
         if not 1 <= fast_period < slow_period:
             raise ValueError("require 1 <= fast_period < slow_period")
         self.fast_period = fast_period
@@ -178,14 +172,11 @@ class SmaCrossStrategy(VectorStrategy):
         return SignalSet(
             entries=entries.fillna(False),
             exits=exits.fillna(False),
-            vov=None,
         )
 
     def describe(self) -> str:
         """Human-readable rule summary for notes and logs."""
         return (
             f"Golden cross: enter when {self.fast_period}D SMA crosses above "
-            f"{self.slow_period}D SMA, exit on cross down. "
-            f"Exit also on {self.stop:.0%} stop. "
-            f"{self.size_pct:g}% sizing, {self.fees:.1%} fees, cap {self.max_positions}."
+            f"{self.slow_period}D SMA, exit on cross down."
         )

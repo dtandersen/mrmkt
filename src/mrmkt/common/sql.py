@@ -18,7 +18,7 @@ class SqlClient:
         pass
 
     @abstractmethod
-    def select(self, query: str, mapper: Callable[[dict], object]):
+    def select(self, query: str, mapper: Callable[[dict], object]) -> list:
         pass
 
     @abstractmethod

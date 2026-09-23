@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from hamcrest import assert_that, equal_to
 
-from mrmkt.backtest.strategy import SmaCrossStrategy
+from mrmkt.backtest.strategy import SmaCrossStrategy, StrategyRunner
 
 
 def frame_from_closes(closes):
@@ -36,7 +36,7 @@ class TestSmaCrossStrategy(unittest.TestCase):
         signals = strategy.generate(close, high, low)
         assert_that(int(signals.entries.sum().sum()), equal_to(1))
         assert_that(int(signals.exits.sum().sum()), equal_to(1))
-        result = strategy.backtest(close, high, low, start=close.index[0])
+        result = StrategyRunner().run(strategy, close, high, low, start=close.index[0])
 
         assert_that(result.n_trades, equal_to(1))
         assert_that(result.trades[0].gross_return > 0, equal_to(True))
@@ -46,7 +46,7 @@ class TestSmaCrossStrategy(unittest.TestCase):
         strategy = SmaCrossStrategy(fast_period=20, slow_period=50)
 
         assert_that(int(strategy.generate(close, high, low).entries.sum().sum()), equal_to(0))
-        assert_that(strategy.backtest(close, high, low).n_trades, equal_to(0))
+        assert_that(StrategyRunner().run(strategy, close, high, low).n_trades, equal_to(0))
 
     def test_rejects_bad_periods(self):
         with self.assertRaises(ValueError):
