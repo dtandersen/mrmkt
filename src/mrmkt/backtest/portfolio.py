@@ -50,6 +50,8 @@ def run_portfolio(
     stop: float = 0.08,
     max_positions: int = 50,
     freq: str = "1D",
+    high: pd.DataFrame | None = None,
+    low: pd.DataFrame | None = None,
 ) -> PortfolioResult:
     """Run a long-only signal portfolio over pre-sliced test windows.
 
@@ -65,7 +67,7 @@ def run_portfolio(
         raise ValueError("close, entries, and exits must share an index")
     if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
         raise ValueError("close, entries, and exits must share columns")
-    records = simulate_fills(close, entries, exits, size_pct, fees, stop, freq)
+    records = simulate_fills(close, entries, exits, size_pct, fees, stop, freq, high, low)
     return aggregate_trades(close, records, max_positions, fees)
 
 
@@ -77,6 +79,8 @@ def simulate_fills(
     fees: float = 0.0,
     stop: float = 0.08,
     freq: str = "1D",
+    high: pd.DataFrame | None = None,
+    low: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Simulate fills for one signal set; returns vectorbt trade records.
 
@@ -98,6 +102,8 @@ def simulate_fills(
         sl_stop=stop,
         init_cash=1e12,
         freq=freq,
+        high=high,
+        low=low,
     )
     # vectorbt stubs type .trades as a method; at runtime it is the
     # ExitTrades accessor (verified), so ignore the attr-defined error.
@@ -119,12 +125,18 @@ def aggregate_trades(
         day_cost = np.zeros(n_days)
         trades: list = []
         order = np.argsort(records["Entry Timestamp"].to_numpy(), kind="stable")
+        cur_day = None
+        opened_today = 0
         for loc in order:
             row = records.iloc[loc]
             sym = row["Column"]
             entry_day = row["Entry Timestamp"]
             g0 = day_of.get(entry_day)
-            if g0 is None or open_count[g0] >= max_positions:
+            if g0 is None:
+                continue
+            if entry_day != cur_day:
+                cur_day, opened_today = entry_day, 0
+            if open_count[g0] + opened_today >= max_positions:
                 continue
             prices = close[sym].to_numpy()
             l0 = int(np.searchsorted(close.index.to_numpy(), np.datetime64(entry_day)))
@@ -140,7 +152,8 @@ def aggregate_trades(
                 day_sum[g0 + 1 : g1 + 1] += marks
                 day_cost[g0] += fees_per_side
                 day_cost[g1] += fees_per_side
-                open_count[g0:g1] += 1
+                open_count[g0 + 1 : g1 + 1] += 1
+                opened_today += 1
                 gross = float(row["Avg Exit Price"] / row["Avg Entry Price"] - 1)
                 trades.append(
                     TradeSummary(
@@ -157,7 +170,8 @@ def aggregate_trades(
                 marks = prices[l0 + 1 :] / prices[l0:-1] - 1
                 day_sum[g0 + 1 :] += marks
                 day_cost[g0] += fees_per_side
-                open_count[g0:] += 1
+                open_count[g0 + 1 :] += 1
+                opened_today += 1
         invested = open_count > 0
         count = np.where(invested, open_count, 1)
         rets = np.where(invested, day_sum / count - day_cost / count, 0.0)

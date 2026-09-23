@@ -66,6 +66,8 @@ class StrategyRunner:
                     size_pct=self.size_pct,
                     fees=self.fees,
                     stop=self.stop,
+                    high=high,
+                    low=low,
                 )
             )
             all_closes.append(close)

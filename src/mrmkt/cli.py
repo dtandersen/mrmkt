@@ -617,6 +617,7 @@ def run_backtest(
     params_text: str | None = typer.Option(None, "--params", help="Strategy params as k=v,... (defaults when omitted)"),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
+    fees: float = typer.Option(0.0, "--fees", help="All-in friction per side as a fraction (0 = none)"),
     chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
@@ -627,6 +628,8 @@ def run_backtest(
         raise typer.BadParameter("size_pct must be between 0 and 100")
     if not 0 < stop < 1:
         raise typer.BadParameter("stop must be between 0 and 1")
+    if fees < 0:
+        raise typer.BadParameter("fees must be >= 0")
     if chunk_size < 1:
         raise typer.BadParameter("chunk-size must be at least 1")
 
@@ -691,7 +694,7 @@ def run_backtest(
             return
         n_symbols = sum(frame[0].shape[1] for frame in chunks)
 
-        runner = StrategyRunner(size_pct=size_pct, stop=stop)
+        runner = StrategyRunner(size_pct=size_pct, stop=stop, fees=fees)
         start: date = start_date if start_date is not None else list(union_idx)[300].date()
         result = runner.run_chunked(strategy, chunks, start=start)
     except Exception as error:
