@@ -578,7 +578,8 @@ def calculate_risk_range(
     symbol: str,
     horizon: int = typer.Option(15, min=1, help="Range horizon in trading days (15 = TRADE, 63 = TREND)"),
     volatility_period: int = typer.Option(21, "--vol-period", min=2),
-    width: float = typer.Option(1.5, help="Range half-width in vol-scaled units"),
+    width: float = typer.Option(0.5, help="Range half-width in vol-scaled units"),
+    anchor_period: int = typer.Option(5, "--anchor-period", min=1, help="Trailing mean the range is centered on"),
     from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
@@ -595,6 +596,7 @@ def calculate_risk_range(
             horizon,
             vol_period=volatility_period,
             width=width,
+            anchor_period=anchor_period,
         ),
         volatility_period,
     )

@@ -96,9 +96,9 @@ Feature: Calculate indicators over stored prices
       | AAPL   | 2024-01-02 | 110   |
       | AAPL   | 2024-01-03 | 100   |
       | AAPL   | 2024-01-04 | 110   |
-    When I execute "mrmkt indicators risk-range AAPL --horizon 1 --vol-period 2 --width 1.0 --from 2024-01-03 --to 2024-01-04"
+    When I execute "mrmkt indicators risk-range AAPL --horizon 1 --vol-period 2 --width 1.0 --anchor-period 2 --from 2024-01-03 --to 2024-01-04"
     Then the command succeeds
     And the indicator output has columns "RR_1D_LRR" and "RR_1D_TRR" and these values:
       | date       | close | low     | high    |
-      | 2024-01-03 | 100   | 86.5211 | 113.479 |
-      | 2024-01-04 | 110   | 95.1732 | 124.827 |
+      | 2024-01-03 | 100   | 90.8472 | 119.153 |
+      | 2024-01-04 | 110   | 90.8472 | 119.153 |

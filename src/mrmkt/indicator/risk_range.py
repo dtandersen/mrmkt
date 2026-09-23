@@ -22,15 +22,20 @@ def risk_range_series(
     prices: Sequence[float],
     horizon_days: int,
     vol_period: int = 21,
-    width: float = 1.5,
+    width: float = 0.5,
+    anchor_period: int = 5,
 ) -> list[RiskRange]:
     """Return one volatility-implied range per bar.
 
-    Each range is centered on that bar's close with half-width
-    ``width * daily_vol * sqrt(horizon_days)`` as a fraction of price,
-    where ``daily_vol`` is the sample deviation of log returns over the
-    trailing ``vol_period`` returns. The first range aligns with
-    ``prices[vol_period]``; fewer than ``vol_period + 1`` prices yields [].
+    Each range is centered on the trailing ``anchor_period`` mean with
+    half-width ``width * daily_vol * sqrt(horizon_days)`` as a fraction
+    of the anchor, where ``daily_vol`` is the sample deviation of log
+    returns over the trailing ``vol_period`` returns. Anchoring on a fast
+    mean (rather than the latest close) keeps the range honest after
+    sharp runs: an extended price sits near the top (sell/trim) instead
+    of dragging the whole range with it. The first range aligns with
+    ``prices[max(vol_period, anchor_period - 1)]``; shorter histories
+    yield [].
     """
     if horizon_days < 1:
         raise ValueError("horizon_days must be at least 1")
@@ -38,14 +43,17 @@ def risk_range_series(
         raise ValueError("vol_period must be at least 2")
     if width <= 0:
         raise ValueError("width must be positive")
+    if anchor_period < 1:
+        raise ValueError("anchor_period must be at least 1")
     if any(price <= 0 for price in prices):
         raise ValueError("risk ranges require positive prices")
-    if len(prices) < vol_period + 1:
+    first = max(vol_period, anchor_period - 1)
+    if len(prices) < first + 1:
         return []
 
     horizon_scale = math.sqrt(horizon_days)
     ranges = []
-    for end in range(vol_period, len(prices)):
+    for end in range(first, len(prices)):
         window = prices[end - vol_period : end + 1]
         returns = [
             math.log(window[index + 1] / window[index])
@@ -53,7 +61,7 @@ def risk_range_series(
         ]
         daily_vol = statistics.stdev(returns)
         half_width = width * daily_vol * horizon_scale
-        center = prices[end]
+        center = sum(prices[end - anchor_period + 1 : end + 1]) / anchor_period
         ranges.append(
             RiskRange(low=center * (1 - half_width), high=center * (1 + half_width))
         )
