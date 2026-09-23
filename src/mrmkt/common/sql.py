@@ -18,19 +18,11 @@ class SqlClient:
         pass
 
     @abstractmethod
-    def select(self, query: str, mapper: Callable[[dict], object]) -> list:
+    def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()) -> list:
         pass
 
     @abstractmethod
-    def delete(self, query: str):
-        pass
-
-    @abstractmethod
-    def delete2(self, query: str, params: tuple) -> bool:
-        pass
-
-    @abstractmethod
-    def insert2(self, table: str, params):
+    def delete(self, query: str, params: tuple = ()) -> bool:
         pass
 
 
@@ -39,13 +31,11 @@ class MockSqlClient(SqlClient):
     selects: dict
 
     def __init__(self):
-        self.inserts2 = []
         self.queries = []
-        self.delete2_calls = []
         self.inserts = []
         self.selects = {}
 
-    def select(self, query: str, mapper: Callable[[dict], object]):
+    def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()):
         # logging.debug("{query} => {rows}")
         rows = [mapper(row) for row in self.selects[query]]
         return rows
@@ -53,53 +43,22 @@ class MockSqlClient(SqlClient):
     def insert(self, table: str, values: any):
         self.inserts.append({"table": table, "values": values})
 
-    def delete(self, query: str):
+    def delete(self, query: str, params: tuple = ()) -> bool:
         self.queries.append(query)
-
-    def delete2(self, query: str, params: tuple) -> bool:
-        self.delete2_calls.append({"query": query, "params": params})
-        return False
+        return True
 
     def append_select(self, query: str, rows: list):
         self.selects[query] = [asdict(row) for row in rows]
 
-    def insert2(self, table: str, params):
-        self.inserts2.append({"table": table, "values": params})
-
 
 class SqlGenerator:
-    def to_insert(self, table: str, params: any) -> str:
-        pass
-
-    def to_insert2(self, table: str, params: any) -> tuple[str, tuple]:
+    def to_insert(self, table: str, params: any) -> tuple[str, tuple]:
         pass
 
 
 # @author little bobby tables
 class InsecureSqlGenerator(SqlGenerator):
-    def to_insert(self, table: str, params: any) -> str:
-        if dataclasses.is_dataclass(params):
-            d = asdict(params)
-        else:
-            d = params
-
-        keys = d.keys()
-        columns = ", ".join(keys)
-        values = ", ".join(list(map(lambda k: InsecureSqlGenerator.to_value(d[k]), keys)))
-        query = f"insert into {table} ({columns}) values ({values})"
-
-        return query
-
-    @staticmethod
-    def to_value(value: any):
-        if str.isdigit(str(value)):
-            return str(value)
-        elif isinstance(value, float):
-            return str(value)
-        else:
-            return f"'{value}'"
-
-    def to_insert2(self, table: str, params: any):
+    def to_insert(self, table: str, params: any):
         if dataclasses.is_dataclass(params):
             d = asdict(params)
         else:

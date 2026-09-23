@@ -100,8 +100,8 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertEqual(self.client.queries, [
             "delete from analysis "
-            "where symbol = 'ABC' "
-            "and date = '2019-01-02'"
+            "where symbol = %s "
+            "and date = %s"
         ])
 
     def test_delete_analysis2(self):
@@ -109,15 +109,15 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertEqual(self.client.queries, [
             "delete from analysis "
-            "where symbol = 'XYZ' "
-            "and date = '2018-12-11'"
+            "where symbol = %s "
+            "and date = %s"
         ])
 
     def test_get_price(self):
         self.client.append_select("select * " +
                                   "from daily_price "
-                                  "where symbol = 'GOOG' "
-                                  "and date = '2014-06-13'",
+                                  "where symbol = %s "
+                                  "and date = %s",
                                   [PriceRow(
                                       symbol='GOOG',
                                       date=datetime.date(2014, 6, 13),
@@ -143,8 +143,8 @@ class TestStringMethods(unittest.TestCase):
     def test_get_price2(self):
         self.client.append_select("select * " +
                                   "from daily_price "
-                                  "where symbol = 'AAPL' "
-                                  "and date = '2014-06-16'",
+                                  "where symbol = %s "
+                                  "and date = %s",
                                   [PriceRow(
                                       symbol='AAPL',
                                       date=datetime.date(2014, 6, 16),
@@ -171,7 +171,7 @@ class TestStringMethods(unittest.TestCase):
         self.client.append_select(
             "select * " +
             "from daily_price "
-            "where symbol = 'GOOG' "
+            "where symbol = %s "
             "order by date asc",
             [
                 PriceRow(
@@ -218,7 +218,7 @@ class TestStringMethods(unittest.TestCase):
         self.client.append_select(
             "select * " +
             "from daily_price "
-            "where symbol = 'AAPL' "
+            "where symbol = %s "
             "order by date asc",
             [
                 PriceRow(
@@ -246,8 +246,8 @@ class TestStringMethods(unittest.TestCase):
     def test_get_price_on_or_after2(self):
         self.client.append_select("select * " +
                                   "from daily_price "
-                                  "where symbol = 'AAPL' "
-                                  "and date >= '2014-06-15' "
+                                  "where symbol = %s "
+                                  "and date >= %s "
                                   "order by date asc",
                                   [PriceRow(
                                       symbol='AAPL',
@@ -274,8 +274,8 @@ class TestStringMethods(unittest.TestCase):
     def test_get_price_on_or_before(self):
         self.client.append_select("select * " +
                                   "from daily_price "
-                                  "where symbol = 'AAPL' "
-                                  "and date <= '2014-06-15' "
+                                  "where symbol = %s "
+                                  "and date <= %s "
                                   "order by date asc",
                                   [PriceRow(
                                       symbol='AAPL',
@@ -302,8 +302,8 @@ class TestStringMethods(unittest.TestCase):
     def test_get_price_on_or_after(self):
         self.client.append_select("select * " +
                                   "from daily_price "
-                                  "where symbol = 'AAPL' "
-                                  "and date >= '2014-06-15'",
+                                  "where symbol = %s "
+                                  "and date >= %s",
                                   [PriceRow(
                                       symbol='AAPL',
                                       date=datetime.date(2014, 6, 16),
@@ -345,7 +345,7 @@ class TestStringMethods(unittest.TestCase):
     def test_get_income_statement(self):
         self.client.append_select("select * " +
                                   "from income_stmt "
-                                  "where symbol = 'AAPL'",
+                                  "where symbol = %s",
                                   [
                                       IncomeStatementRow(
                                           symbol='AAPL',
@@ -374,7 +374,7 @@ class TestStringMethods(unittest.TestCase):
     def test_get_income_statement2(self):
         self.client.append_select("select * " +
                                   "from income_stmt "
-                                  "where symbol = 'NVDA'",
+                                  "where symbol = %s",
                                   [
                                       IncomeStatementRow(
                                           symbol='NVDA',
@@ -397,7 +397,7 @@ class TestStringMethods(unittest.TestCase):
     def test_get_balance_sheet(self):
         self.client.append_select("select * " +
                                   "from balance_sheet "
-                                  "where symbol = 'AAPL'",
+                                  "where symbol = %s",
                                   [
                                       BalanceSheetRow(
                                           symbol='AAPL',
@@ -432,7 +432,7 @@ class TestStringMethods(unittest.TestCase):
     def test_get_balance_sheet2(self):
         self.client.append_select("select * " +
                                   "from balance_sheet "
-                                  "where symbol = 'NVDA'",
+                                  "where symbol = %s",
                                   [
                                       BalanceSheetRow(
                                           symbol='NVDA',
@@ -473,8 +473,8 @@ class TestStringMethods(unittest.TestCase):
     def test_get_cash_flow(self):
         self.client.append_select("select * " +
                                   "from cash_flow "
-                                  "where symbol = 'a' "
-                                  "and date = '2019-01-02'",
+                                  "where symbol = %s "
+                                  "and date = %s",
                                   [
                                       CashFlowRow(
                                           symbol='a',
@@ -501,8 +501,8 @@ class TestStringMethods(unittest.TestCase):
         self.client.append_select(
             "select * " +
             "from cash_flow "
-            "where symbol = 'b' "
-            "and date = '2018-12-31'",
+            "where symbol = %s "
+            "and date = %s",
             [CashFlowRow(
                 symbol='b',
                 date=to_date('2018-12-31'),
@@ -572,8 +572,8 @@ class TestStringMethods(unittest.TestCase):
         self.client.append_select(
             "select * " +
             "from enterprise_value "
-            "where symbol = 'a' "
-            "and date = '2019-01-02'",
+            "where symbol = %s "
+            "and date = %s",
             [EnterpriseValueRow(
                 symbol='a',
                 date=to_date('2019-01-02'),
@@ -597,8 +597,8 @@ class TestStringMethods(unittest.TestCase):
         self.client.append_select(
             "select * " +
             "from enterprise_value "
-            "where symbol = 'b' "
-            "and date = '2018-12-31'",
+            "where symbol = %s "
+            "and date = %s",
             [EnterpriseValueRow(
                 symbol='b',
                 date=to_date('2018-12-31'),

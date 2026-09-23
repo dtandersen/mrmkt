@@ -30,8 +30,9 @@ class SqlFinancialRepository(
     def list_balance_sheets(self, symbol: str):
         return self.sql_client.select("select * " +
                                       "from balance_sheet "
-                                      f"where symbol = '{symbol}'",
-                                      self.to_balance_sheet)
+                                      "where symbol = %s",
+                                      self.to_balance_sheet,
+                                      (symbol,))
 
     def to_balance_sheet(self, row):
         return BalanceSheet(
@@ -53,8 +54,9 @@ class SqlFinancialRepository(
     def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
         return self.sql_client.select("select * " +
                                       "from income_stmt "
-                                      f"where symbol = '{symbol}'",
-                                      self.to_income_statement)
+                                      "where symbol = %s",
+                                      self.to_income_statement,
+                                      (symbol,))
 
     def to_income_statement(self, row):
         return IncomeStatement(
@@ -79,9 +81,10 @@ class SqlFinancialRepository(
         row = self.sql_client.select(
             "select * "
             "from cash_flow "
-            f"where symbol = '{symbol}' "
-            f"and date = '{date}'",
-            self.map_to_cash_flow)
+            "where symbol = %s "
+            "and date = %s",
+            self.map_to_cash_flow,
+            (symbol, date))
 
         return row[0]
 
@@ -111,9 +114,10 @@ class SqlFinancialRepository(
         row = self.sql_client.select(
             "select * "
             "from enterprise_value "
-            f"where symbol = '{symbol}' "
-            f"and date = '{date}'",
-            self.map_to_enterprise_value)
+            "where symbol = %s "
+            "and date = %s",
+            self.map_to_enterprise_value,
+            (symbol, date))
 
         return row[0]
 
@@ -159,8 +163,9 @@ class SqlFinancialRepository(
     def delete_analysis(self, symbol: str, date: datetime.date):
         self.sql_client.delete(
             "delete from analysis "
-            f"where symbol = '{symbol}' "
-            f"and date = '{date}'")
+            "where symbol = %s "
+            "and date = %s",
+            (symbol, date))
 
     def add_price(self, price: StockPrice):
         row = PriceRow(
@@ -177,22 +182,24 @@ class SqlFinancialRepository(
     def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
         start_sql = ""
         end_sql = ""
+        params: list = [ticker]
         if start is not None:
-            start_str = start.strftime("%Y-%m-%d")
-            start_sql = f"and date >= '{start_str}' "
+            start_sql = "and date >= %s "
+            params.append(start.strftime("%Y-%m-%d"))
 
         if end is not None:
-            end_str = end.strftime("%Y-%m-%d")
-            end_sql = f"and date <= '{end_str}' "
+            end_sql = "and date <= %s "
+            params.append(end.strftime("%Y-%m-%d"))
 
         rows = self.sql_client.select(
             "select * " +
             "from daily_price " +
-            f"where symbol = '{ticker}' " +
+            "where symbol = %s " +
             start_sql +
             end_sql +
             "order by date asc",
-            self.price_mapper)
+            self.price_mapper,
+            tuple(params))
 
         return rows
 
@@ -207,30 +214,30 @@ class SqlFinancialRepository(
             return []
         start_sql = ""
         end_sql = ""
+        params: list = [tuple(normalized)]
         if start is not None:
-            start_sql = f"and date >= '{start.strftime('%Y-%m-%d')}' "
+            start_sql = "and date >= %s "
+            params.append(start.strftime("%Y-%m-%d"))
         if end is not None:
-            end_sql = f"and date <= '{end.strftime('%Y-%m-%d')}' "
-        rows = []
-        for offset in range(0, len(normalized), 500):
-            chunk = normalized[offset : offset + 500]
-            symbols_sql = ", ".join(f"'{symbol}'" for symbol in chunk)
-            rows.extend(self.sql_client.select(
-                "select * " +
-                "from daily_price " +
-                f"where symbol in ({symbols_sql}) " +
-                start_sql +
-                end_sql +
-                "order by symbol asc, date asc",
-                self.price_mapper))
-        return rows
+            end_sql = "and date <= %s "
+            params.append(end.strftime("%Y-%m-%d"))
+        return self.sql_client.select(
+            "select * " +
+            "from daily_price " +
+            "where symbol in %s " +
+            start_sql +
+            end_sql +
+            "order by symbol asc, date asc",
+            self.price_mapper,
+            tuple(params))
 
     def get_price(self, symbol: str, date: str) -> StockPrice:
         rows = self.sql_client.select("select * " +
                                       "from daily_price " +
-                                      f"where symbol = '{symbol}' " +
-                                      f"and date = '{date}'",
-                                      self.price_mapper)
+                                      "where symbol = %s " +
+                                      "and date = %s",
+                                      self.price_mapper,
+                                      (symbol, date))
 
         return rows[0]
 
@@ -248,9 +255,10 @@ class SqlFinancialRepository(
     def get_price_on_or_after(self, symbol: str, date: str) -> StockPrice:
         rows = self.sql_client.select("select * " +
                                       "from daily_price " +
-                                      f"where symbol = '{symbol}' " +
-                                      f"and date >= '{date}'",
-                                      self.price_mapper)
+                                      "where symbol = %s " +
+                                      "and date >= %s",
+                                      self.price_mapper,
+                                      (symbol, date))
 
         return rows[0]
 
@@ -260,7 +268,7 @@ class SqlFinancialRepository(
             date=datetime.date(2019, 1, 2),
             data="{}"
         )
-        self.sql_client.insert2("financials", f)
+        self.sql_client.insert("financials", f)
 
     def get_symbols(self) -> List[str]:
         rows = self.sql_client.select(
@@ -301,7 +309,7 @@ class SqlFinancialRepository(
         self.sql_client.insert("ticker_tag", TickerTagRow(ticker, exchange, tag))
 
     def remove_tag(self, ticker: str, exchange: str, tag: str) -> bool:
-        return self.sql_client.delete2(
+        return self.sql_client.delete(
             "delete from ticker_tag where ticker = %s and exchange = %s and tag = %s",
             (ticker, exchange, tag),
         )

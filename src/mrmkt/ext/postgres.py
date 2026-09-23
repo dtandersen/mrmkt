@@ -14,13 +14,13 @@ class PostgresSqlClient(SqlClient):
         self.converter = converter
         self.pool = pool
 
-    def select(self, query: str, mapper: Callable[[dict], object]):
+    def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()):
         conn = self.pool.getconn()
         try:
             with conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     sql = query
-                    cur.execute(sql)
+                    cur.execute(sql, params)
                     rows = cur.fetchall()
                     # rows = list(map(lambda x: x[0], cur.description))
                     logging.debug(f"{sql} => {rows}")
@@ -38,7 +38,7 @@ class PostgresSqlClient(SqlClient):
         try:
             with conn:
                 with conn.cursor() as cur:
-                    sql, params = self.converter.to_insert2(table, values)
+                    sql, params = self.converter.to_insert(table, values)
                     logging.debug(sql)
                     try:
                         cur.execute(sql, params)
@@ -47,22 +47,13 @@ class PostgresSqlClient(SqlClient):
         finally:
             self.pool.putconn(conn)
 
-    def delete(self, query: str):
+    def delete(self, query: str, params: tuple = ()) -> bool:
         conn = self.pool.getconn()
         try:
             with conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     sql = query
-                    cur.execute(sql)
-        finally:
-            self.pool.putconn(conn)
-
-    def delete2(self, query: str, params: tuple) -> bool:
-        conn = self.pool.getconn()
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute(query, params)
+                    cur.execute(sql, params)
                     return cur.rowcount > 0
         finally:
             self.pool.putconn(conn)
