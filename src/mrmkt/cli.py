@@ -81,3 +81,28 @@ def import_symbols(
 
     count = imported_count[0] if imported_count else 0
     typer.echo(f"Imported {count} newly imported symbol{'s' if count != 1 else ''}.")
+
+
+@symbols_app.command("list")
+def list_symbols() -> None:
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        tickers = sorted(
+            repository.get_tickers(),
+            key=lambda ticker: (ticker.ticker, ticker.exchange, ticker.type),
+        )
+    except Exception as error:
+        typer.echo(f"Failed to list symbols: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    if not tickers:
+        typer.echo("No symbols found.")
+        return
+
+    typer.echo("SYMBOL | EXCHANGE | TYPE")
+    for ticker in tickers:
+        typer.echo(f"{ticker.ticker} | {ticker.exchange} | {ticker.type}")

@@ -16,10 +16,12 @@ catalog with:
 
 ```shell
 uv run mrmkt symbols import --provider alpaca
+uv run mrmkt symbols list
 ```
 
-This command uses the local, git-ignored `alpaca.yaml` and `dbschema.yml` files.
-The BDD tests use an in-memory repository and do not call Alpaca or PostgreSQL.
+The import command uses the local, git-ignored `alpaca.yaml` and `dbschema.yml`
+files. Listing reads the configured local ticker catalog. The BDD tests use
+in-memory repositories and do not call Alpaca or PostgreSQL.
 
 ## Database
 
