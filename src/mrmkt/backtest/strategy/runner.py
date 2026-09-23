@@ -15,7 +15,7 @@ class StrategyRunner:
     def __init__(
         self,
         size_pct: float = 2.0,
-        fees: float = 0.001,
+        fees: float = 0.0,
         stop: float = 0.08,
         max_positions: int = 50,
         warmup_bars: int = DEFAULT_WARMUP_BARS,
@@ -77,4 +77,4 @@ class StrategyRunner:
         window = full.index >= first
         mask: pd.Series = records["Entry Timestamp"] >= first
         kept: pd.DataFrame = records.loc[mask]
-        return aggregate_trades(full.loc[window], kept, self.max_positions)
+        return aggregate_trades(full.loc[window], kept, self.max_positions, self.fees)

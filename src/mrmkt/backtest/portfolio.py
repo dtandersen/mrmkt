@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import vectorbt as vbt
 
-FEES_PER_SIDE = 0.001
+FEES_PER_SIDE = 0.0
 
 
 @dataclass
@@ -46,7 +46,7 @@ def run_portfolio(
     entries: pd.DataFrame,
     exits: pd.DataFrame,
     size_pct: float = 2.0,
-    fees: float = 0.001,
+    fees: float = 0.0,
     stop: float = 0.08,
     max_positions: int = 50,
     freq: str = "1D",
@@ -66,7 +66,7 @@ def run_portfolio(
     if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
         raise ValueError("close, entries, and exits must share columns")
     records = simulate_fills(close, entries, exits, size_pct, fees, stop, freq)
-    return aggregate_trades(close, records, max_positions)
+    return aggregate_trades(close, records, max_positions, fees)
 
 
 def simulate_fills(
@@ -74,7 +74,7 @@ def simulate_fills(
     entries: pd.DataFrame,
     exits: pd.DataFrame,
     size_pct: float = 2.0,
-    fees: float = 0.001,
+    fees: float = 0.0,
     stop: float = 0.08,
     freq: str = "1D",
 ) -> pd.DataFrame:
@@ -108,6 +108,7 @@ def aggregate_trades(
     close: pd.DataFrame,
     records: pd.DataFrame,
     max_positions: int,
+    fees_per_side: float = FEES_PER_SIDE,
 ) -> PortfolioResult:
     """Chronological cap-sweep plus equal-weight daily series and stats."""
     try:
@@ -137,8 +138,8 @@ def aggregate_trades(
                     continue
                 marks = prices[l0 + 1 : l0 + span + 1] / prices[l0 : l0 + span] - 1
                 day_sum[g0 + 1 : g1 + 1] += marks
-                day_cost[g0] += FEES_PER_SIDE
-                day_cost[g1] += FEES_PER_SIDE
+                day_cost[g0] += fees_per_side
+                day_cost[g1] += fees_per_side
                 open_count[g0:g1] += 1
                 gross = float(row["Avg Exit Price"] / row["Avg Entry Price"] - 1)
                 trades.append(
@@ -155,12 +156,12 @@ def aggregate_trades(
                     continue
                 marks = prices[l0 + 1 :] / prices[l0:-1] - 1
                 day_sum[g0 + 1 :] += marks
-                day_cost[g0] += FEES_PER_SIDE
+                day_cost[g0] += fees_per_side
                 open_count[g0:] += 1
         invested = open_count > 0
         count = np.where(invested, open_count, 1)
-        rets = day_sum / count - day_cost / count
-        daily = pd.Series(rets[invested], index=close.index[invested])
+        rets = np.where(invested, day_sum / count - day_cost / count, 0.0)
+        daily = pd.Series(rets, index=close.index)
         equity = (1 + daily).cumprod()
         n = len(daily)
         total = float(equity.iloc[-1] - 1) if n else 0.0
@@ -168,7 +169,7 @@ def aggregate_trades(
         std = float(daily.std())
         sharpe = float(daily.mean() / std * (252**0.5)) if std else 0.0
         max_dd = float((equity / equity.cummax() - 1).min()) if n else 0.0
-        nets = np.array([t.gross_return - 2 * FEES_PER_SIDE for t in trades])
+        nets = np.array([t.gross_return - 2 * fees_per_side for t in trades])
         wins = nets[nets > 0]
         losses = nets[nets <= 0]
         n_trades = len(trades)

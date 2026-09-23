@@ -5,7 +5,7 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
-from hamcrest import assert_that, equal_to
+from hamcrest import assert_that, close_to, equal_to
 
 from mrmkt.backtest.strategy import BuyRedStrategy, StrategyRunner
 
@@ -74,7 +74,31 @@ class TestBuyRedStrategy(unittest.TestCase):
 
         assert_that(late.n_trades <= full.n_trades, equal_to(True))
 
-    def test_describe_mentions_rules(self):
+    def test_custom_vov_params_change_entries(self):
+        close, high, low = frame_from_closes(v_dip())
+        default = BuyRedStrategy.with_compression().generate(close, high, low).entries
+        custom = BuyRedStrategy.with_compression(
+            vol_period=5, vov_lookback=50
+        ).generate(close, high, low).entries
+
+        assert_that(int(custom.sum().sum()) == int(default.sum().sum()), equal_to(False))
+
+    def test_custom_trail_lookback_changes_vetoes(self):
+        close, high, low = frame_from_closes(v_dip())
+        default = BuyRedStrategy.trend_only().generate(close, high, low).entries
+        custom = BuyRedStrategy.trend_only(trail_lookback=63).generate(close, high, low).entries
+
+        assert_that(int(custom.sum().sum()) == int(default.sum().sum()), equal_to(False))
+
+    def test_cagr_annualizes_over_calendar_window(self):
+        close, high, low = frame_from_closes(v_dip())
+        strategy = BuyRedStrategy.trend_only()
+        runner = StrategyRunner()
+
+        result = runner.run(strategy, close, high, low)
+        expected = (1 + result.total_return) ** (252 / 100) - 1
+
+        assert_that(result.cagr, close_to(expected, 1e-9))
         text = BuyRedStrategy.with_compression().describe()
 
         assert_that("63D" in text, equal_to(True))

@@ -26,6 +26,7 @@ BUY_RED_HELP = {
     "vov_max": "Max vol-of-vol percentile for entries",
     "use_vov": "Require compressed vol-of-vol for entries",
     "vov_lookback": "Trailing values ranked for the percentile",
+    "trail_lookback": "Trailing window for low and drawdown vetoes",
 }
 
 
@@ -81,7 +82,9 @@ class BuyRedStrategy(Strategy):
         low: pd.DataFrame,
     ) -> SignalSet:
         """Entry/exit booleans over full-history frames (warm-up kept)."""
-        ranking = vov_percentile(close) if self.params.use_vov else None
+        ranking = vov_percentile(
+            close, vol_period=self.params.vol_period, lookback=self.params.vov_lookback
+        ) if self.params.use_vov else None
         return SignalSet(
             entries=entry_signals(close, low, self.params, ranking),
             exits=exit_signals(close, high, self.params),
@@ -98,7 +101,7 @@ class BuyRedStrategy(Strategy):
         return (
             "Buy red in uptrends: close > "
             f"{self.params.trend_fast}D and {self.params.trend_slow}D SMA, "
-            f"> {self.params.dist_lo_min:.0%} above trailing-{self.params.vov_lookback}D low, "
-            f"trailing-{self.params.vov_lookback}D drawdown < {self.params.dd_max:.0%}, "
+            f"> {self.params.dist_lo_min:.0%} above trailing-{self.params.trail_lookback}D low, "
+            f"trailing-{self.params.trail_lookback}D drawdown < {self.params.dd_max:.0%}, "
             f"daily low <= {self.params.horizon_days}D risk-range buy level; {vov_rule}."
         )

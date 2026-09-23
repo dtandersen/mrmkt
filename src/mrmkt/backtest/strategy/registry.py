@@ -1,6 +1,10 @@
 """Strategy registry with k=v parsing and typed construction."""
 
+from typing import TypeVar
+
 from mrmkt.backtest.strategy.base import Strategy
+
+T = TypeVar("T", bound=Strategy)
 
 STRATEGIES: dict[str, type[Strategy]] = {}
 
@@ -15,7 +19,7 @@ def register(name: str):
     if not key:
         raise ValueError("strategy name must not be blank")
 
-    def decorator(cls: type[Strategy]) -> type[Strategy]:
+    def decorator(cls: type[T]) -> type[T]:
         if key in STRATEGIES:
             raise ValueError(f"strategy {key!r} is already registered")
         STRATEGIES[key] = cls

@@ -19,6 +19,7 @@ class BacktestParams:
     vov_max: float = 30.0
     use_vov: bool = True
     vov_lookback: int = 252
+    trail_lookback: int = 252
 
 
 def vov_percentile(close: pd.DataFrame, vol_period: int = 21, lookback: int = 252) -> pd.DataFrame:
@@ -53,12 +54,12 @@ def _levels(
     half_width = params.width * dvol * np.sqrt(params.horizon_days)
     buy: pd.DataFrame = anchor * (1 - half_width)
     sell: pd.DataFrame = anchor * (1 + half_width)
-    trailing_low: pd.DataFrame = pd.DataFrame(close.rolling(params.vov_lookback).min())
+    trailing_low: pd.DataFrame = pd.DataFrame(close.rolling(params.trail_lookback).min())
     dist_lo: pd.DataFrame = (close - trailing_low) / trailing_low
     trailing_peak: pd.DataFrame = pd.DataFrame(
-        close.rolling(params.vov_lookback, min_periods=1).max()
+        close.rolling(params.trail_lookback, min_periods=1).max()
     )
-    drawdown: pd.DataFrame = (close / trailing_peak - 1).rolling(params.vov_lookback, min_periods=1).min()
+    drawdown: pd.DataFrame = (close / trailing_peak - 1).rolling(params.trail_lookback, min_periods=1).min()
     return sma_fast, sma_slow, buy, sell, dist_lo, drawdown, dvol
 
 
