@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
@@ -10,6 +10,7 @@ from psycopg2.pool import SimpleConnectionPool
 import typer
 import yaml
 
+from mrmkt.common.clock import Clock, WallClock
 from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
@@ -23,6 +24,26 @@ symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol ca
 prices_app = typer.Typer(no_args_is_help=True, help="Import historical prices")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
+
+
+def create_clock() -> Clock:
+    return WallClock()
+
+
+def parse_cli_date(value: str, today: date) -> date:
+    normalized = value.strip().lower()
+    if normalized in {"now", "today"}:
+        return today
+
+    relative = re.fullmatch(r"(\d+)\s*(?:d|days?)(?:\s+ago)?", normalized)
+    if relative:
+        try:
+            days = int(relative.group(1))
+        except ValueError as error:
+            raise ValueError("invalid relative date") from error
+        return today - timedelta(days=days)
+
+    return date.fromisoformat(normalized)
 
 
 # These factories are small seams for BDD tests: tests replace them with a fake
@@ -127,8 +148,8 @@ def import_prices(
     symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
     provider: str = typer.Option(..., "--provider", help="Price source (currently: alpaca)"),
     all_symbols: bool = typer.Option(False, "--all", help="Import every locally cataloged symbol"),
-    from_date: str = typer.Option(..., "--from", help="First date to include (YYYY-MM-DD)"),
-    to_date: str = typer.Option(..., "--to", help="Last date to include (YYYY-MM-DD)"),
+    from_date: str = typer.Option(..., "--from", help="Start date (YYYY-MM-DD or duration such as 180d)"),
+    to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today)"),
 ) -> None:
     if provider.lower() != "alpaca":
         raise typer.BadParameter("only the 'alpaca' provider is currently supported")
@@ -136,11 +157,12 @@ def import_prices(
         raise typer.BadParameter("provide symbols or use --all, not both")
     if not all_symbols and not symbols:
         raise typer.BadParameter("provide one or more symbols or use --all")
+    today = create_clock().today()
     try:
-        start_date = date.fromisoformat(from_date)
-        end_date = date.fromisoformat(to_date)
+        start_date = parse_cli_date(from_date, today)
+        end_date = parse_cli_date(to_date, today) if to_date is not None else today
     except ValueError as error:
-        raise typer.BadParameter("dates must use YYYY-MM-DD format") from error
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
     if start_date > end_date:
         raise typer.BadParameter("--from must be on or before --to")
 
@@ -171,7 +193,7 @@ def import_prices(
             close_repository()
 
     typer.echo(
-        f"Imported {imported_count} new daily bars for "
+        f"Imported {imported_count} new daily bar{'s' if imported_count != 1 else ''} for "
         f"{len(selected_symbols)} symbol{'s' if len(selected_symbols) != 1 else ''}."
     )
 
@@ -179,14 +201,19 @@ def import_prices(
 @prices_app.command("list")
 def list_prices(
     symbols: list[str] = typer.Argument(..., help="One or more symbols to list"),
-    from_date: str | None = typer.Option(None, "--from", help="First date to include (YYYY-MM-DD)"),
-    to_date: str | None = typer.Option(None, "--to", help="Last date to include (YYYY-MM-DD)"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date (ISO date or duration such as 7d)"),
+    to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today when --from is used)"),
 ) -> None:
+    today = create_clock().today()
     try:
-        start_date = date.fromisoformat(from_date) if from_date is not None else None
-        end_date = date.fromisoformat(to_date) if to_date is not None else None
+        start_date = parse_cli_date(from_date, today) if from_date is not None else None
+        end_date = (
+            parse_cli_date(to_date, today)
+            if to_date is not None
+            else today if from_date is not None else None
+        )
     except ValueError as error:
-        raise typer.BadParameter("dates must use YYYY-MM-DD format") from error
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 7d") from error
     if start_date is not None and end_date is not None and start_date > end_date:
         raise typer.BadParameter("--from must be on or before --to")
 

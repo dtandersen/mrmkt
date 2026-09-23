@@ -8,6 +8,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
@@ -34,12 +35,16 @@ class FakeAlpacaDataClient:
 
 @pytest.fixture
 def price_import_context(monkeypatch):
+    clock = ClockStub()
+    clock.set_time(date(2026, 6, 28))
     context = SimpleNamespace(
         alpaca=FakeAlpacaDataClient(),
         local=InMemoryFinancialRepository(),
+        clock=clock,
         result=None,
     )
     monkeypatch.setattr(cli, "create_alpaca_data_client", lambda: context.alpaca)
+    monkeypatch.setattr(cli, "create_clock", lambda: context.clock)
     monkeypatch.setattr(
         cli,
         "create_local_ticker_repository",
@@ -99,6 +104,11 @@ def local_catalog_contains_symbols(price_import_context, datatable):
 def seed_local_price_catalog(price_import_context, datatable):
     for row in _table_rows(datatable):
         price_import_context.local.add_price(_stock_price(row))
+
+
+@given(parsers.parse('the fake clock says today is "{today}"'))
+def fake_clock_says_today(price_import_context, today):
+    price_import_context.clock.set_time(date.fromisoformat(today))
 
 
 @given("the Alpaca price request fails")
@@ -180,9 +190,9 @@ def local_price_is_unique(price_import_context, symbol, day):
     assert len(matching) == 1
 
 
-@then(parsers.re(r"the import reports (?P<count>\d+) new daily bars"))
+@then(parsers.re(r"the import reports (?P<count>\d+) new daily bars?"))
 def import_reports_bar_count(price_import_context, count):
-    assert f"Imported {count} new daily bars" in price_import_context.result.output
+    assert f"Imported {count} new daily bar" in price_import_context.result.output
 
 
 @then("no Alpaca request is sent")

@@ -8,6 +8,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 
@@ -17,10 +18,14 @@ scenarios(str(FEATURE))
 
 @pytest.fixture
 def price_list_context(monkeypatch):
+    clock = ClockStub()
+    clock.set_time(date(2024, 1, 31))
     context = SimpleNamespace(
         local=InMemoryFinancialRepository(),
+        clock=clock,
         result=None,
     )
+    monkeypatch.setattr(cli, "create_clock", lambda: context.clock)
     monkeypatch.setattr(
         cli,
         "create_local_ticker_repository",
@@ -50,6 +55,11 @@ def _make_price(row):
 def seed_price_list_catalog(price_list_context, datatable):
     for row in _table_rows(datatable):
         price_list_context.local.add_price(_make_price(row))
+
+
+@given(parsers.parse('the fake clock says today is "{today}"'))
+def fake_clock_says_today(price_list_context, today):
+    price_list_context.clock.set_time(date.fromisoformat(today))
 
 
 @when(parsers.parse('I execute "{command}"'))
