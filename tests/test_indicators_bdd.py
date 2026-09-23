@@ -81,3 +81,14 @@ def indicator_output_contains_values(indicator_context, column, datatable):
     lines = indicator_context.result.output.splitlines()
     assert lines[0] == f"DATE | CLOSE | {column}"
     assert lines[1:] == expected
+
+
+@then(parsers.parse('the indicator output has columns "{low}" and "{high}" and these values:'))
+def indicator_output_contains_pair_values(indicator_context, low, high, datatable):
+    expected = [
+        f"{row['date']} | {float(row['close']):g} | {float(row['low']):g} | {float(row['high']):g}"
+        for row in _table_rows(datatable)
+    ]
+    lines = indicator_context.result.output.splitlines()
+    assert lines[0] == f"DATE | CLOSE | {low} | {high}"
+    assert lines[1:] == expected

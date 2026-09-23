@@ -16,6 +16,7 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.indicator.risk_range import RiskRange, risk_range_series
 from mrmkt.indicator.sma import sma
 from mrmkt.indicator.volatility import (
     volatility,
@@ -118,6 +119,58 @@ def _run_indicator_series(
     typer.echo(f"DATE | CLOSE | {indicator_name}")
     for price, value in rows:
         typer.echo(f"{price.date.isoformat()} | {price.close:g} | {value:g}")
+
+
+def _run_indicator_pair_series(
+    symbol: str,
+    from_date: str | None,
+    to_date: str | None,
+    low_name: str,
+    high_name: str,
+    calculate: Callable[[list[float]], list[RiskRange]],
+    first_result_index: int,
+) -> None:
+    normalized_symbol = symbol.upper()
+    if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", normalized_symbol) is None:
+        raise typer.BadParameter(f"invalid stock symbol: {symbol}")
+
+    today = create_clock().today()
+    try:
+        start_date = parse_cli_date(from_date, today) if from_date is not None else None
+        end_date = parse_cli_date(to_date, today) if to_date is not None else today
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    if start_date is not None and start_date > end_date:
+        raise typer.BadParameter("--from must be on or before --to")
+
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        prices = sorted(
+            repository.list_prices(normalized_symbol, date.min, end_date),
+            key=lambda price: price.date,
+        )
+        values = calculate([price.close for price in prices])
+    except Exception as error:
+        typer.echo(f"Failed to calculate {low_name}/{high_name}: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    aligned_prices = prices[first_result_index : first_result_index + len(values)]
+    rows = [
+        (price, value)
+        for price, value in zip(aligned_prices, values, strict=True)
+        if start_date is None or price.date >= start_date
+    ]
+    if not rows:
+        typer.echo("No indicator values available.")
+        return
+
+    typer.echo(f"DATE | CLOSE | {low_name} | {high_name}")
+    for price, value in rows:
+        typer.echo(f"{price.date.isoformat()} | {price.close:g} | {value.low:g} | {value.high:g}")
 
 
 # These factories are small seams for BDD tests: tests replace them with a fake
@@ -319,7 +372,7 @@ def import_prices(
             selected_symbols = [ticker.ticker for ticker in local_repository.get_tickers()]
         else:
             selected_symbols = symbols or []
-        selected_symbols = list(dict.fromkeys(symbol.upper() for symbol in selected_symbols))
+        selected_symbols = list(dict.fromkeys(normalize_symbol(symbol) for symbol in selected_symbols))
         if not selected_symbols:
             typer.echo("No symbols to import.")
             return
@@ -517,4 +570,31 @@ def calculate_volatility_of_volatility_percentile(
             lookback,
         ),
         volatility_period + vol_of_vol_period + lookback,
+    )
+
+
+@indicators_app.command("risk-range")
+def calculate_risk_range(
+    symbol: str,
+    horizon: int = typer.Option(15, min=1, help="Range horizon in trading days (15 = TRADE, 63 = TREND)"),
+    volatility_period: int = typer.Option(21, "--vol-period", min=2),
+    width: float = typer.Option(1.5, help="Range half-width in vol-scaled units"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if width <= 0:
+        raise typer.BadParameter("width must be positive")
+    _run_indicator_pair_series(
+        symbol,
+        from_date,
+        to_date,
+        f"RR_{horizon}D_LRR",
+        f"RR_{horizon}D_TRR",
+        lambda prices: risk_range_series(
+            prices,
+            horizon,
+            vol_period=volatility_period,
+            width=width,
+        ),
+        volatility_period,
     )

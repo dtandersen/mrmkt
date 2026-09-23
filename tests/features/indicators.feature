@@ -88,3 +88,17 @@ Feature: Calculate indicators over stored prices
       | date       | close | value |
       | 2024-01-24 | 102   | 102   |
       | 2024-01-31 | 104   | 104   |
+
+  Scenario: Calculate a volatility-implied risk range with buy and sell levels
+    Given the local price catalog contains these daily bars:
+      | symbol | date       | close |
+      | AAPL   | 2024-01-01 | 100   |
+      | AAPL   | 2024-01-02 | 110   |
+      | AAPL   | 2024-01-03 | 100   |
+      | AAPL   | 2024-01-04 | 110   |
+    When I execute "mrmkt indicators risk-range AAPL --horizon 1 --vol-period 2 --width 1.0 --from 2024-01-03 --to 2024-01-04"
+    Then the command succeeds
+    And the indicator output has columns "RR_1D_LRR" and "RR_1D_TRR" and these values:
+      | date       | close | low     | high    |
+      | 2024-01-03 | 100   | 86.5211 | 113.479 |
+      | 2024-01-04 | 110   | 95.1732 | 124.827 |

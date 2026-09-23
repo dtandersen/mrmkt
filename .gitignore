@@ -5,3 +5,4 @@ __pycache__
 /dbschema.yml
 /config.yaml
 /alpaca.yaml
+/notes
