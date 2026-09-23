@@ -1,3 +1,9 @@
+# Mr. Market
+
+Stock market stuff.
+
+## Database
+
 dbschema.yml
 ```yaml
 databases:
