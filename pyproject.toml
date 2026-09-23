@@ -1,0 +1,33 @@
+[project]
+name = "mrmkt"
+version = "0.1.0"
+description = "Mr. Market - stock market stuff"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "backtrader",
+    "dbschema",
+    "mechanize",
+    "numpy",
+    "pandas",
+    "pandas-datareader",
+    "psycopg2-binary",
+    "pyyaml",
+    "requests",
+    "tdameritrade",
+    "tiingo",
+    "websocket-client",
+]
+
+[dependency-groups]
+dev = [
+    "pyhamcrest",
+    "requests-mock",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

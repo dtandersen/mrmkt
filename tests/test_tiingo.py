@@ -35,13 +35,11 @@ class MockTiingoClient(TiingoClient):
         else:
             return value
 
-    def list_tickers(self, assetType):
-        result = []
-        for ticker in self.tickers:
-            if ticker['assetType'] == assetType:
-                result.append(ticker)
-
-        return result
+    def list_tickers(self, assetTypes=[]):
+        if isinstance(assetTypes, str):
+            assetTypes = [assetTypes]
+        assetTypesSet = set(assetTypes)
+        return [t for t in self.tickers if t.get('assetType') in assetTypesSet]
 
 
 class TestTiingoGateway(TestCase):
