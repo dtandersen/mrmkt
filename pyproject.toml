@@ -5,6 +5,7 @@ description = "Mr. Market - stock market stuff"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "alpaca-py>=0.44.0",
     "backtrader",
     "dbschema",
     "numpy",
@@ -14,12 +15,17 @@ dependencies = [
     "pyyaml",
     "requests",
     "tiingo",
+    "typer>=0.27.2",
     "websocket-client",
 ]
+
+[project.scripts]
+mrmkt = "mrmkt.cli:app"
 
 [dependency-groups]
 dev = [
     "pyhamcrest",
+    "pytest-bdd>=8.1.0",
     "requests-mock",
 ]
 

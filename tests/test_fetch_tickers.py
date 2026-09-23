@@ -31,7 +31,7 @@ class TestFetchTickers(TestCase):
         assert_that(self.local_tickers(), equal_to([
             Ticker(ticker='SPY', exchange='ABC', type='ETF')
         ]))
-        assert_that(self.ticker_count(), equal_to(1))
+        assert_that(self.ticker_count(), equal_to(0))
 
     def add_remote_ticker(self, ticker: Ticker):
         self.env.remote.tickers.add_ticker(ticker)

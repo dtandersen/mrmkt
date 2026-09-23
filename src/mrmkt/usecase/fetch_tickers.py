@@ -1,6 +1,5 @@
-from abc import abstractmethod, ABC
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional
 
 from mrmkt.common.sql import Duplicate
 from mrmkt.repo.tickers import ReadOnlyTickerRepository, TickerRepository
@@ -8,25 +7,27 @@ from mrmkt.repo.tickers import ReadOnlyTickerRepository, TickerRepository
 
 @dataclass
 class FetchTickersResult:
-    on_tickers_updated: any
+    on_tickers_updated: Callable[[int], None]
 
 
 class FetchTickersUseCase:
-    result: Optional[FetchTickersResult]
+    result: FetchTickersResult | None
 
     def __init__(self, remote: ReadOnlyTickerRepository, local: TickerRepository):
         self.local = local
         self.remote = remote
         self.result = None
 
-    def execute(self):
+    def execute(self) -> int:
         tickers = self.remote.get_tickers()
-        count = 0
+        imported_count = 0
         for ticker in tickers:
             try:
                 self.local.add_ticker(ticker)
             except Duplicate:
-                pass
-            count = count + 1
+                continue
+            imported_count += 1
 
-        self.result.on_tickers_updated(count)
+        if self.result is not None:
+            self.result.on_tickers_updated(imported_count)
+        return imported_count
