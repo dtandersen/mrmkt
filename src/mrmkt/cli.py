@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+import re
 from urllib.parse import urlsplit
 
 from alpaca.data.historical import StockHistoricalDataClient
@@ -173,3 +174,52 @@ def import_prices(
         f"Imported {imported_count} new daily bars for "
         f"{len(selected_symbols)} symbol{'s' if len(selected_symbols) != 1 else ''}."
     )
+
+
+@prices_app.command("list")
+def list_prices(
+    symbols: list[str] = typer.Argument(..., help="One or more symbols to list"),
+    from_date: str | None = typer.Option(None, "--from", help="First date to include (YYYY-MM-DD)"),
+    to_date: str | None = typer.Option(None, "--to", help="Last date to include (YYYY-MM-DD)"),
+) -> None:
+    try:
+        start_date = date.fromisoformat(from_date) if from_date is not None else None
+        end_date = date.fromisoformat(to_date) if to_date is not None else None
+    except ValueError as error:
+        raise typer.BadParameter("dates must use YYYY-MM-DD format") from error
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise typer.BadParameter("--from must be on or before --to")
+
+    normalized_symbols = list(dict.fromkeys(symbol.upper() for symbol in symbols))
+    for symbol in normalized_symbols:
+        if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", symbol) is None:
+            raise typer.BadParameter(f"invalid stock symbol: {symbol}")
+
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        price_start = start_date or date.min
+        price_end = end_date or date.max
+        prices = [
+            price
+            for symbol in normalized_symbols
+            for price in repository.list_prices(symbol, price_start, price_end)
+        ]
+    except Exception as error:
+        typer.echo(f"Failed to list prices: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    prices.sort(key=lambda price: (price.symbol, price.date))
+    if not prices:
+        typer.echo("No prices found.")
+        return
+
+    typer.echo("SYMBOL | DATE | OPEN | HIGH | LOW | CLOSE | VOLUME")
+    for price in prices:
+        typer.echo(
+            f"{price.symbol} | {price.date.isoformat()} | {price.open:g} | "
+            f"{price.high:g} | {price.low:g} | {price.close:g} | {price.volume:g}"
+        )
