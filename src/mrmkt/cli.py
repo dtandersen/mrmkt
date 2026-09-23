@@ -16,14 +16,23 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.indicator.sma import sma
+from mrmkt.indicator.volatility import (
+    volatility,
+    volatility_of_volatility,
+    volatility_of_volatility_percentile,
+    volatility_percentile,
+)
 from mrmkt.usecase.fetch_tickers import FetchTickersResult, FetchTickersUseCase
 from mrmkt.usecase.import_prices import ImportPricesUseCase
 
 app = typer.Typer(no_args_is_help=True, help="MrMkt stock-market tools")
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
-prices_app = typer.Typer(no_args_is_help=True, help="Import historical prices")
+prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical prices")
+indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
+app.add_typer(indicators_app, name="indicators")
 
 
 def create_clock() -> Clock:
@@ -44,6 +53,57 @@ def parse_cli_date(value: str, today: date) -> date:
         return today - timedelta(days=days)
 
     return date.fromisoformat(normalized)
+
+
+def _run_indicator_series(
+    symbol: str,
+    from_date: str | None,
+    to_date: str | None,
+    indicator_name: str,
+    calculate: Callable[[list[float]], list[float]],
+    first_result_index: int,
+) -> None:
+    normalized_symbol = symbol.upper()
+    if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", normalized_symbol) is None:
+        raise typer.BadParameter(f"invalid stock symbol: {symbol}")
+
+    today = create_clock().today()
+    try:
+        start_date = parse_cli_date(from_date, today) if from_date is not None else None
+        end_date = parse_cli_date(to_date, today) if to_date is not None else today
+    except ValueError as error:
+        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
+    if start_date is not None and start_date > end_date:
+        raise typer.BadParameter("--from must be on or before --to")
+
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        prices = sorted(
+            repository.list_prices(normalized_symbol, date.min, end_date),
+            key=lambda price: price.date,
+        )
+        values = calculate([price.close for price in prices])
+    except Exception as error:
+        typer.echo(f"Failed to calculate {indicator_name}: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+
+    aligned_prices = prices[first_result_index : first_result_index + len(values)]
+    rows = [
+        (price, value)
+        for price, value in zip(aligned_prices, values, strict=True)
+        if start_date is None or price.date >= start_date
+    ]
+    if not rows:
+        typer.echo("No indicator values available.")
+        return
+
+    typer.echo(f"DATE | CLOSE | {indicator_name}")
+    for price, value in rows:
+        typer.echo(f"{price.date.isoformat()} | {price.close:g} | {value:g}")
 
 
 # These factories are small seams for BDD tests: tests replace them with a fake
@@ -250,3 +310,111 @@ def list_prices(
             f"{price.symbol} | {price.date.isoformat()} | {price.open:g} | "
             f"{price.high:g} | {price.low:g} | {price.close:g} | {price.volume:g}"
         )
+
+
+@indicators_app.command("sma")
+def calculate_sma(
+    symbol: str,
+    period: int = typer.Option(..., min=1, help="Number of daily bars"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if period < 1:
+        raise typer.BadParameter("period must be positive")
+    _run_indicator_series(
+        symbol,
+        from_date,
+        to_date,
+        f"SMA_{period}D",
+        lambda prices: sma(prices, period),
+        period - 1,
+    )
+
+
+@indicators_app.command("volatility")
+def calculate_volatility(
+    symbol: str,
+    period: int = typer.Option(..., min=2, help="Number of daily returns"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if period < 2:
+        raise typer.BadParameter("period must be at least 2")
+    _run_indicator_series(
+        symbol,
+        from_date,
+        to_date,
+        f"VOL_{period}D",
+        lambda prices: volatility(prices, period),
+        period,
+    )
+
+
+@indicators_app.command("vol-of-vol")
+def calculate_volatility_of_volatility(
+    symbol: str,
+    volatility_period: int = typer.Option(..., "--vol-period", min=2),
+    vol_of_vol_period: int = typer.Option(..., "--vov-period", min=2),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if volatility_period < 2 or vol_of_vol_period < 2:
+        raise typer.BadParameter("both volatility periods must be at least 2")
+    _run_indicator_series(
+        symbol,
+        from_date,
+        to_date,
+        f"VOV_{volatility_period}D_{vol_of_vol_period}D",
+        lambda prices: volatility_of_volatility(
+            prices,
+            volatility_period,
+            vol_of_vol_period,
+        ),
+        volatility_period + vol_of_vol_period,
+    )
+
+
+@indicators_app.command("volatility-percentile")
+def calculate_volatility_percentile(
+    symbol: str,
+    period: int = typer.Option(..., min=2, help="Rolling return window"),
+    lookback: int = typer.Option(252, min=1, help="Prior volatility values used for ranking"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if period < 2 or lookback < 1:
+        raise typer.BadParameter("period must be at least 2 and lookback must be positive")
+    _run_indicator_series(
+        symbol,
+        from_date,
+        to_date,
+        f"VOL_{period}D_PCTL_{lookback}D",
+        lambda prices: volatility_percentile(prices, period, lookback),
+        period + lookback,
+    )
+
+
+@indicators_app.command("vol-of-vol-percentile")
+def calculate_volatility_of_volatility_percentile(
+    symbol: str,
+    volatility_period: int = typer.Option(..., "--vol-period", min=2),
+    vol_of_vol_period: int = typer.Option(..., "--vov-period", min=2),
+    lookback: int = typer.Option(252, min=1, help="Prior vol-of-vol values used for ranking"),
+    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
+    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
+) -> None:
+    if volatility_period < 2 or vol_of_vol_period < 2 or lookback < 1:
+        raise typer.BadParameter("volatility periods must be at least 2 and lookback must be positive")
+    _run_indicator_series(
+        symbol,
+        from_date,
+        to_date,
+        f"VOV_{volatility_period}D_{vol_of_vol_period}D_PCTL_{lookback}D",
+        lambda prices: volatility_of_volatility_percentile(
+            prices,
+            volatility_period,
+            vol_of_vol_period,
+            lookback,
+        ),
+        volatility_period + vol_of_vol_period + lookback,
+    )

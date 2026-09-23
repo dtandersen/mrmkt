@@ -1,5 +1,6 @@
 import unittest
-from hamcrest import *
+
+from hamcrest import assert_that, equal_to
 
 from mrmkt.indicator.sma import SimpleMovingAverageIndicator, sma
 
@@ -26,3 +27,10 @@ class TestMovingAverage(unittest.TestCase):
     def test_export(self):
         smax = sma([1, 2, 3], 4)
         assert_that(smax, equal_to([]))
+
+    def test_period_one_returns_original_series(self):
+        assert_that(sma([1, 2, 3], 1), equal_to([1.0, 2.0, 3.0]))
+
+    def test_zero_period_is_rejected(self):
+        with self.assertRaises(ValueError):
+            sma([1, 2, 3], 0)
