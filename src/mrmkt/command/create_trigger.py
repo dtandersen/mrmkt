@@ -1,16 +1,60 @@
-"""Stored trigger create command."""
+"""Stored trigger create command.
 
+Framework-neutral: no Typer, ``mrmkt.ext``, or ``mrmkt.cli`` imports here.
+Validation failures raise ``ValueError``; the Typer CLI boundary maps them
+to ``typer.BadParameter``.
+"""
+
+import re
 from datetime import date
 
-import typer
-
-from mrmkt.command._shared import _resolve_signal, normalize_symbol
 from mrmkt.command.triggers_common import _default_trigger_name
-from mrmkt.entity.trigger import Trigger
+from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
+
+_RISK_RANGE_SIGNAL = "risk-range"
+
+_SYMBOL_PATTERN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")
+
+
+def resolve_trigger_signal(signal: str) -> str:
+    """Normalize the trigger signal source; raise ValueError if unsupported."""
+    normalized = (signal or "").strip().lower()
+    if normalized != _RISK_RANGE_SIGNAL:
+        raise ValueError(f"unknown signal {signal!r} (only 'risk-range' is supported)")
+    return normalized
+
+
+def normalize_trigger_symbol(symbol: str) -> str:
+    """Normalize a stock symbol; raise ValueError if malformed."""
+    normalized = symbol.strip().upper()
+    if _SYMBOL_PATTERN.fullmatch(normalized) is None:
+        raise ValueError(f"invalid stock symbol: {symbol}")
+    return normalized
+
+
+def normalize_trigger_operator(operator: str) -> str:
+    """Normalize a trigger operator; raise ValueError if unsupported."""
+    normalized = operator.strip().lower()
+    if normalized not in OPERATORS:
+        raise ValueError(f"{normalized!r} is an invalid operator")
+    return normalized
+
+
+def normalize_trigger_frequency(frequency: str) -> str:
+    """Normalize a trigger frequency; raise ValueError if unsupported."""
+    normalized = frequency.strip().lower()
+    if normalized not in FREQUENCIES:
+        raise ValueError(f"{normalized!r} is an invalid frequency")
+    return normalized
 
 
 class CreateTrigger:
-    """Store a realtime trigger; raises ValueError on bad input."""
+    """Store a realtime trigger; raises ValueError on bad input.
+
+    Independent field errors (operator, frequency, signal, symbol, expiry)
+    are accumulated and reported together in a single ValueError; the
+    repository is only called when every field is valid.
+    """
 
     def __init__(self, repository, name_generator=_default_trigger_name):
         self.repository = repository
@@ -27,27 +71,42 @@ class CreateTrigger:
         expires: str | None = None,
         message: str = "",
     ) -> Trigger:
-        try:
-            _resolve_signal(signal)
-            normalized_symbol = normalize_symbol(symbol)
-        except typer.BadParameter as error:
-            raise ValueError(str(error)) from error
-        trigger_name = name.strip() if name and name.strip() else self.name_generator()
+        errors: list[tuple[str, str]] = []
+        clean: dict[str, str] = {}
+
+        def _collect(field, func, value):
+            try:
+                clean[field] = func(value)
+            except ValueError as error:
+                errors.append((field, str(error)))
+
+        _collect("operator", normalize_trigger_operator, operator)
+        _collect("frequency", normalize_trigger_frequency, frequency)
+        _collect("signal", resolve_trigger_signal, signal)
+        _collect("symbol", normalize_trigger_symbol, symbol)
+
         expires_at = None
         if expires is not None:
             try:
                 expires_at = date.fromisoformat(expires)
-            except ValueError as error:
-                raise ValueError("--expires must be YYYY-MM-DD") from error
+            except ValueError:
+                errors.append(("expires", "--expires must be YYYY-MM-DD"))
+
+        if errors:
+            raise ValueError(
+                "; ".join(f"{field}: {message}" for field, message in errors)
+            )
+
+        trigger_name = name.strip() if name and name.strip() else self.name_generator()
         return self.repository.add_trigger(
             Trigger(
                 id=None,
                 name=trigger_name,
-                symbol=normalized_symbol,
-                signal=signal.strip().lower(),
-                operator=operator.strip().lower(),
+                symbol=clean["symbol"],
+                signal=clean["signal"],
+                operator=clean["operator"],
                 value=value,
-                frequency=frequency.strip().lower(),
+                frequency=clean["frequency"],
                 expires_at=expires_at,
                 message=message,
                 enabled=True,

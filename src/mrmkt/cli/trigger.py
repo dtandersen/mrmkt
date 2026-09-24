@@ -4,66 +4,85 @@ from collections.abc import Callable
 
 import typer
 
-from mrmkt.command import _shared
-from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.delete_trigger import DeleteTrigger
 from mrmkt.command.list_trigger import ListTriggers
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.triggers_common import _render_triggers_csv
+from mrmkt.composition import create_trigger_command, resolve_trigger_dependencies
 
-trigger_app = typer.Typer(no_args_is_help=True, help="Manage stored realtime alert triggers")
+trigger_app = typer.Typer(
+    no_args_is_help=True, help="Manage stored realtime alert triggers"
+)
 
 
 @trigger_app.command("create")
 def trigger_create(
-    name: str | None = typer.Argument(None, help="Trigger name (default: trigger-xxxxx)"),
+    ctx: typer.Context,
+    name: str | None = typer.Argument(
+        None, help="Trigger name (default: trigger-xxxxx)"
+    ),
     symbol: str = typer.Option(..., "--symbol", help="Symbol to watch"),
-    signal: str = typer.Option("risk-range", "--signal", help="Signal source (only 'risk-range')"),
+    signal: str = typer.Option(
+        "risk-range", "--signal", help="Signal source (only 'risk-range')"
+    ),
     operator: str = typer.Option(
-        "crossing-down", "--operator", help="Trigger operator (crossing-down, crossing-up, greater-than, less-than)"
+        "crossing-down",
+        "--operator",
+        help="Trigger operator (crossing-down, crossing-up, greater-than, less-than)",
     ),
     value: float | None = typer.Option(
-        None, "--value", help="Fixed trigger level (default: computed risk-range buy level)"
+        None,
+        "--value",
+        help="Fixed trigger level (default: computed risk-range buy level)",
     ),
     frequency: str = typer.Option(
-        "once_per_rearm", "--frequency", help="Firing cadence (once_per_rearm, once, every_time)"
+        "once_per_rearm",
+        "--frequency",
+        help="Firing cadence (once_per_rearm, once, every_time)",
     ),
-    expires: str | None = typer.Option(None, "--expires", help="Expiry date YYYY-MM-DD (default: never)"),
-    message: str = typer.Option("", "--message", help="Message template ({symbol} {price} {level} {moment} {session})"),
+    expires: str | None = typer.Option(
+        None, "--expires", help="Expiry date YYYY-MM-DD (default: never)"
+    ),
+    message: str = typer.Option(
+        "",
+        "--message",
+        help="Message template ({symbol} {price} {level} {moment} {session})",
+    ),
 ) -> None:
     """Store a realtime trigger; prints the created row."""
-    close_repository: Callable[[], None] | None = None
     try:
-        repository, close_repository = _shared.create_local_ticker_repository()
-        stored = CreateTrigger(repository).execute(
-            name,
-            symbol,
-            signal=signal,
-            operator=operator,
-            value=value,
-            frequency=frequency,
-            expires=expires,
-            message=message,
-        )
+        with create_trigger_command(resolve_trigger_dependencies(ctx)) as cmd:
+            stored = cmd.execute(
+                name,
+                symbol,
+                signal=signal,
+                operator=operator,
+                value=value,
+                frequency=frequency,
+                expires=expires,
+                message=message,
+            )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to add trigger: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(_render_triggers_csv([stored]), nl=False)
 
 
 @trigger_app.command("list")
 def triggers_list(
-    enabled_only: bool = typer.Option(False, "--enabled-only", help="List only enabled triggers"),
+    ctx: typer.Context,
+    enabled_only: bool = typer.Option(
+        False, "--enabled-only", help="List only enabled triggers"
+    ),
 ) -> None:
     """List stored triggers as deterministic CSV."""
     close_repository: Callable[[], None] | None = None
     try:
-        repository, close_repository = _shared.create_local_ticker_repository()
+        repository, close_repository = resolve_trigger_dependencies(
+            ctx
+        ).repository_factory()
         triggers = ListTriggers(repository).execute(enabled_only=enabled_only)
     except Exception as error:
         typer.echo(f"Failed to list triggers: {error}", err=True)
@@ -76,12 +95,15 @@ def triggers_list(
 
 @trigger_app.command("show")
 def trigger_show(
+    ctx: typer.Context,
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Show a single stored trigger as CSV."""
     close_repository: Callable[[], None] | None = None
     try:
-        repository, close_repository = _shared.create_local_ticker_repository()
+        repository, close_repository = resolve_trigger_dependencies(
+            ctx
+        ).repository_factory()
         trigger = ShowTrigger(repository).execute(name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
@@ -96,12 +118,15 @@ def trigger_show(
 
 @trigger_app.command("delete")
 def triggers_delete(
+    ctx: typer.Context,
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Delete a stored trigger (also removed from any trigger sets)."""
     close_repository: Callable[[], None] | None = None
     try:
-        repository, close_repository = _shared.create_local_ticker_repository()
+        repository, close_repository = resolve_trigger_dependencies(
+            ctx
+        ).repository_factory()
         trigger = DeleteTrigger(repository).execute(name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error

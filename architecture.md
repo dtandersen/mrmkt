@@ -15,6 +15,27 @@ Layers (outer to inner): cli -> command -> repo / entity, with ext + common as o
 - Command - Command using the command pattern
 - CLI Command - Typer command that invokes a command
 
+# Boundaries
+
+## Commands
+
+Forbidden imports:
+
+- `mrmkt.ext`
+- `mrmkt.cli`
+- `typer`
+
+Commands may depend on repository interfaces from `mrmkt.repo`, passed as collaborators.
+
+## CLI Commands
+
+Forbidden imports:
+
+- `mrmkt.repo`
+- `mrmkt.ext`
+
+CLI Commands invoke Commands; dependency construction belongs in the composition root.
+
 # Project Layout
 
 |- src
