@@ -467,6 +467,56 @@ class TestLevelsUseCase(unittest.TestCase):
 
         assert_that([r.symbol for r in result.rows], equal_to(["AAA"]))
 
+    def test_empty_selection_returns_nothing(self):
+        repo = InMemoryFinancialRepository()
+        repo.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))
+        repo.add_price(
+            StockPrice(
+                symbol="AAA",
+                date=date(2024, 1, 1),
+                open=100.0,
+                high=100.5,
+                low=99.5,
+                close=100.0,
+                volume=1000.0,
+            )
+        )
+
+        result = LevelsUseCase(repo).execute(include_tags=[], symbols=[])
+
+        assert_that(result.rows, equal_to([]))
+
+    def test_tag_selection_stays_within_tags(self):
+        repo = InMemoryFinancialRepository()
+        day = date(2024, 1, 1)
+        from datetime import timedelta
+
+        for symbol, price in (("AAA", 100.0), ("BBB", 100.0), ("CCC", 200.0)):
+            repo.add_ticker(Ticker(ticker=symbol, exchange="NASDAQ", type="us_equity"))
+            cursor = day
+            for _ in range(40):
+                while cursor.weekday() >= 5:
+                    cursor += timedelta(days=1)
+                repo.add_price(
+                    StockPrice(
+                        symbol=symbol,
+                        date=cursor,
+                        open=price,
+                        high=price * 1.005,
+                        low=price * 0.995,
+                        close=price,
+                        volume=1000.0,
+                    )
+                )
+                price *= 1.002
+                cursor += timedelta(days=1)
+            if symbol in ("AAA", "BBB"):
+                repo.add_tag(symbol, "NASDAQ", "idx")
+
+        result = LevelsUseCase(repo).execute(include_tags=["idx"], symbols=[])
+
+        assert_that(sorted(r.symbol for r in result.rows), equal_to(["AAA", "BBB"]))
+
     def test_watch_subscription_covers_exactly_selected_symbols(self):
         from mrmkt.ext.alpaca_stream import AlpacaStreamSource
 
