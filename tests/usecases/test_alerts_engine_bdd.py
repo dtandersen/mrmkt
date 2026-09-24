@@ -297,54 +297,43 @@ def file_holds_trigger(engine_context, symbol):
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the regular session to ntfy'))
 def print_to_ntfy(engine_context, symbol, price):
-    from unittest import mock
+    import requests_mock
 
     from mrmkt.usecase.alerts import NtfySink
 
-    engine_context.ntfy_calls = {}
-
-    class Resp:
-        def raise_for_status(self):
-            pass
-
-    def fake_post(url, data=None, headers=None, timeout=None):
-        engine_context.ntfy_calls.update(url=url, data=data, headers=headers)
-        return Resp()
-
     engine_context.engine.on_alert = NtfySink("https://ntfy.example/topic")
-    with mock.patch("mrmkt.usecase.alerts.requests.post", side_effect=fake_post):
+    with requests_mock.Mocker() as mocker:
+        mocker.post("https://ntfy.example/topic", text="ok")
         print_tick(engine_context, symbol, price, "regular")
+        engine_context.ntfy_history = list(mocker.request_history)
 
 
 @then(parsers.parse('ntfy receives a POST with title "{title}" and priority "{priority}"'))
 def ntfy_post(engine_context, title, priority):
-    calls = engine_context.ntfy_calls
-    assert calls["url"] == "https://ntfy.example/topic"
-    assert calls["headers"]["Title"] == title
-    assert calls["headers"]["Priority"] == priority
-    assert "TRIGGER" in calls["data"].decode("utf-8")
+    (request,) = engine_context.ntfy_history
+    assert request.method == "POST"
+    assert request.url == "https://ntfy.example/topic"
+    assert request.headers["Title"] == title
+    assert request.headers["Priority"] == priority
+    assert "TRIGGER" in request.text
 
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the regular session to a failing ntfy'))
 def print_to_failing_ntfy(engine_context, symbol, price):
     import io
     from contextlib import redirect_stderr
-    from unittest import mock
 
-    import requests
+    import requests_mock
 
     from mrmkt.usecase.alerts import NtfySink
 
     engine_context.engine.on_alert = NtfySink("https://ntfy.example/secret-topic-xyz")
     stderr = io.StringIO()
-
-    def boom(*args, **kwargs):
-        raise requests.RequestException("POST https://ntfy.example/secret-topic-xyz failed")
-
     with (
-        mock.patch("mrmkt.usecase.alerts.requests.post", side_effect=boom),
+        requests_mock.Mocker() as mocker,
         redirect_stderr(stderr),
     ):
+        mocker.post("https://ntfy.example/secret-topic-xyz", status_code=500, text="boom")
         print_tick(engine_context, symbol, price, "regular")
     engine_context.stderr = stderr.getvalue()
 

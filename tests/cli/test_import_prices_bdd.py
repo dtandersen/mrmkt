@@ -8,12 +8,13 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.command import _shared as shared
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "import_prices.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "cli" / "import_prices.feature"
 scenarios(str(FEATURE))
 
 
@@ -43,10 +44,10 @@ def price_import_context(monkeypatch):
         clock=clock,
         result=None,
     )
-    monkeypatch.setattr(cli, "create_alpaca_data_client", lambda: context.alpaca)
-    monkeypatch.setattr(cli, "create_clock", lambda: context.clock)
+    monkeypatch.setattr(shared, "create_alpaca_data_client", lambda: context.alpaca)
+    monkeypatch.setattr(shared, "create_clock", lambda: context.clock)
     monkeypatch.setattr(
-        cli,
+        shared,
         "create_local_ticker_repository",
         lambda: (context.local, lambda: None),
     )

@@ -10,11 +10,12 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "screener.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "cli" / "screener.feature"
 scenarios(str(FEATURE))
 
 START = date(2022, 1, 3)
@@ -27,7 +28,7 @@ def screener_context(monkeypatch):
         result=None,
     )
     monkeypatch.setattr(
-        cli,
+        shared,
         "create_local_ticker_repository",
         lambda: (context.local, lambda: None),
     )

@@ -6,10 +6,11 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "list_symbols.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "cli" / "list_symbols.feature"
 scenarios(str(FEATURE))
 
 
@@ -28,7 +29,7 @@ def symbol_list_context(monkeypatch):
     def create_repository():
         return context.repository, lambda: None
 
-    monkeypatch.setattr(cli, "create_local_ticker_repository", create_repository)
+    monkeypatch.setattr(shared, "create_local_ticker_repository", create_repository)
     return context
 
 
@@ -53,7 +54,7 @@ def local_catalog_is_empty(symbol_list_context):
 @given("the local ticker catalog cannot be read")
 def local_catalog_cannot_be_read(symbol_list_context, monkeypatch):
     monkeypatch.setattr(
-        cli,
+        shared,
         "create_local_ticker_repository",
         lambda: (UnavailableTickerRepository(), lambda: None),
     )

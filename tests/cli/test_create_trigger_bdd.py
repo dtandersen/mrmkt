@@ -9,10 +9,11 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli as cli
+from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "create_trigger.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "cli" / "create_trigger.feature"
 scenarios(str(FEATURE))
 
 
@@ -23,7 +24,7 @@ def trigger_context(monkeypatch):
         result=None,
     )
     monkeypatch.setattr(
-        cli,
+        shared,
         "create_local_ticker_repository",
         lambda: (context.local, lambda: None),
     )

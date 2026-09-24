@@ -11,22 +11,54 @@ Onion architecture
 # Project Layout
 
 |- src
-|  |- command - commands
-|  |- entity - entities
+|  |- command - commands (called by cli/future rest api)
+|  |  |- add_trigger.py
+|  |  |- remove_trigger.py
+|  |- entity - entities (returned by repositories and gateways)
 |  |- repo - db repository interfaces
 |  |  |- ext - db repository implementation
 |  |- indicator - built-in indicators
 |  |- cli.py - mrmkt cli (typer)
 |- tests
-   |- features - bdd features
-      |- cli - mrmkt cli features
-      |- command - command features
+   |- features - BDD features
+      |- cli - mrmkt cli BDD features (thin tests)
+      |  |- add_symbol.feature
+      |  |- remove_symbol.feature
+      |  |- etc      
+      |- command - command BDD features (extensive tests)
+         |- add_symbol.feature
+         |- remove_symbol.feature
+         |- etc      
+
+# Commands
+
+Commands are the basic building block of the application and represent a single use case.
+
+## Verbs
+
+- add
+- remove
+- list
+- show
 
 # Testing
 
-Project uses python-bdd + pytest. BDD features are preferred.
+Use python-bdd + pytest. 
 
-Tests target entrypoints, i.e. commands and mrmkt cli.
+BDD features are preferred to pytests.
 
-mrmkt cli tests are thin and verify arguments and passed correctly to the underlying command.
+BDD features must be readable and make it clear what is being tested.
 
+Tests target *entrypoints*, i.e. commands and mrmkt cli. Repositories and API gateways are also tested if they connect to external services.
+
+Each command and cli command is tested.
+
+Avoid brittle internal structure tests to allow it to evolve. 
+
+Do not use mocks with the exception of requests_mock. Use fakes and stubs that mimic the behavior of the interface.
+
+See [TDD, Where Did It All Go Wrong (Ian Cooper)](https://www.youtube.com/watch?v=EZ05e7EMOLM).
+
+`mrmkt` cli tests are thin and verify arguments are passed correctly to the underlying command.
+
+Use PyHamcrest for assertions.
