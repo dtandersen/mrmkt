@@ -158,14 +158,14 @@ LEVELS_COLUMNS = ["symbol", "as_of", "close", "range_low", "range_high", "n_bars
 def render_levels_csv(result: LevelsResult) -> str:
     """Deterministic CSV: `# key=value` header, then per-symbol levels."""
     lines = [
-        "# generator=mrmkt alerts levels",
+        "# generator=mrmkt ranges",
         f"# as_of={result.as_of.isoformat() if result.as_of else ''}",
         f"# data_vintage={result.data_vintage.isoformat() if result.data_vintage else ''}",
         f"# range=H{result.horizon}/V{result.vol_period}/W{result.width:g}/anchor{result.anchor_period}",
         f"# universe_tags={','.join(result.include_tags) or '(none)'}",
         f"# universe_symbols={','.join(result.symbols) or '(none)'}",
         f"# universe_membership_vintage={MEMBERSHIP_VINTAGE_NOTE}",
-        "# note=levels are timing information only, not advice; no fill at a level is guaranteed",
+        "# note=ranges are timing information only, not advice; no fill at a level is guaranteed",
     ]
     lines.append(",".join(LEVELS_COLUMNS))
     for row in result.rows:
@@ -191,6 +191,7 @@ class Alert:
     session: str
     price: float
     level: float
+    text: str | None = None
 
 
 @dataclass
@@ -203,6 +204,45 @@ class IgnoredTick:
     price: float
     level: float
     reason: str
+
+
+@dataclass
+class TriggerRule:
+    """Per-symbol evaluation rule for one stored trigger.
+
+    Operators mirror the common alert vocabulary: ``crossing-down`` /
+    ``crossing-up`` fire on an observed transition across the level,
+    ``greater-than`` / ``less-than`` fire while the price holds beyond
+    the level. Frequencies: ``once_per_rearm`` fires on entry into the
+    firing side and needs the opposite side to re-arm; ``once`` fires a
+    single time and never re-arms; ``every_time`` fires on every
+    in-policy tick while the condition holds. ``expires_at`` disables
+    firing after that date. ``message`` is a ``str.format`` template
+    with ``{symbol}`` ``{price}`` ``{level}`` ``{moment}`` ``{session}``
+    placeholders (empty means the default trigger line).
+    """
+
+    operator: str = "crossing-down"
+    frequency: str = "once_per_rearm"
+    expires_at: date | None = None
+    message: str = ""
+
+
+DEFAULT_RULE = TriggerRule()
+
+
+def render_message(template: str, *, symbol: str, price: float, level: float, moment: datetime, session: str) -> str:
+    """Render a trigger message template; falls back to the default line."""
+    try:
+        return template.format(
+            symbol=symbol,
+            price=price,
+            level=level,
+            moment=moment.isoformat(),
+            session=session,
+        )
+    except (KeyError, ValueError, AttributeError, IndexError):
+        return format_alert(Alert(symbol, moment, session, price, level))
 
 
 @dataclass
@@ -224,6 +264,9 @@ class AlertEngine:
     on_ignored: Callable[[IgnoredTick], None] | None = None
     armed: dict[str, bool | None] = field(default_factory=dict)
     levels: dict[str, float] = field(default_factory=dict)
+    rules: dict[str, TriggerRule] = field(default_factory=dict)
+    spent: set[str] = field(default_factory=set)
+    frozen: set[str] = field(default_factory=set)
     session_policy: str = "regular"
     histories: dict[str, list[float]] = field(default_factory=dict)
     last_bar_dates: dict[str, date] = field(default_factory=dict)
@@ -246,19 +289,35 @@ class AlertEngine:
         """(Re)set trigger levels; never resets arm state."""
         self.levels.update(levels)
 
+    def set_rule(self, symbol: str, rule: TriggerRule) -> None:
+        """Attach an evaluation rule; validates operator/frequency."""
+        if rule.operator not in ("crossing-down", "crossing-up", "greater-than", "less-than"):
+            raise ValueError(f"unknown operator {rule.operator!r}")
+        if rule.frequency not in ("once_per_rearm", "once", "every_time"):
+            raise ValueError(f"unknown frequency {rule.frequency!r}")
+        self.rules[symbol] = rule
+
+    def _seed_one(self, symbol: str, close: float | None) -> None:
+        """Arm from a close vs the current level per the symbol's rule."""
+        level = self.levels.get(symbol)
+        if level is None or close is None:
+            return
+        rule = self.rules.get(symbol, DEFAULT_RULE)
+        if rule.operator in ("crossing-down", "less-than"):
+            self.armed[symbol] = bool(close > level)
+        else:
+            self.armed[symbol] = bool(close <= level)
+
     def seed_baseline(self, prior_closes: dict[str, float | None]) -> None:
         """Seed arm state from stored closes (e.g. LevelsRow.close).
 
-        Prior close above the level arms the symbol, so a first
-        regular-session print at/below the level fires as an opening-gap
-        cross. Prior close at/below (or unknown) leaves it disarmed (or
-        unknown) until a later above-then-below re-cross.
+        Prior close on the ready side arms the symbol, so a first
+        regular-session print across the level fires as an opening-gap
+        cross. A prior close already past the level (or unknown) leaves
+        it disarmed (or unknown) until a later re-cross.
         """
         for symbol, prior in prior_closes.items():
-            level = self.levels.get(symbol)
-            if level is None or prior is None:
-                continue
-            self.armed[symbol] = bool(prior > level)
+            self._seed_one(symbol, prior)
 
     def set_history(
         self, symbol: str, closes: list[float], last_bar_date: date | None = None
@@ -281,6 +340,8 @@ class AlertEngine:
         history = self.histories.get(symbol)
         if history is None:
             return None
+        if symbol in self.frozen:
+            return None
         if bar_date is not None:
             last = self.last_bar_dates.get(symbol)
             if last is not None and bar_date <= last:
@@ -296,7 +357,7 @@ class AlertEngine:
         if not ranges:
             return None
         self.levels[symbol] = ranges[-1].low
-        self.armed[symbol] = bool(close > ranges[-1].low)
+        self._seed_one(symbol, close)
         return ranges[-1].low
 
     def trigger_sessions(self) -> tuple:
@@ -305,42 +366,79 @@ class AlertEngine:
             return ("regular", "pre", "post")
         return ("regular",)
 
+    def _fire(
+        self, symbol: str, price: float, moment: datetime, session: str, level: float, rule: TriggerRule
+    ) -> Alert:
+        """Emit an alert; ``once`` rules never re-arm afterwards."""
+        if rule.frequency == "once":
+            self.spent.add(symbol)
+        self.armed[symbol] = False
+        text = render_message(rule.message, symbol=symbol, price=price, level=level, moment=moment, session=session) if rule.message else None
+        alert = Alert(symbol, moment, session, price, level, text=text)
+        self.on_alert(alert)
+        return alert
+
+    def _ignore(self, symbol: str, price: float, moment: datetime, session: str, level: float, reason: str) -> None:
+        """Record a non-firing tick explicitly (never silently dropped)."""
+        tick = IgnoredTick(
+            symbol=symbol,
+            moment=moment,
+            session=session,
+            price=price,
+            level=level,
+            reason=reason,
+        )
+        self.ignored.append(tick)
+        if self.on_ignored is not None:
+            self.on_ignored(tick)
+
     def on_tick(self, symbol: str, price: float, moment: datetime) -> Alert | None:
         """Process one price tick; returns the Alert if one fires."""
         level = self.levels.get(symbol)
         if level is None:
             return None
+        rule = self.rules.get(symbol, DEFAULT_RULE)
         session = session_at(moment)
-        state = self.armed.get(symbol)
-        if price > level:
-            self.armed[symbol] = True
+        if rule.expires_at is not None and moment.date() > rule.expires_at:
+            self._ignore(symbol, price, moment, session, level, "trigger expired")
             return None
-        if state and session in self.trigger_sessions():
-            self.armed[symbol] = False
-            alert = Alert(
-                symbol=symbol, moment=moment, session=session, price=price, level=level
+        in_session = session in self.trigger_sessions()
+        state = self.armed.get(symbol)
+        if rule.operator in ("crossing-down", "less-than"):
+            ready_side = price > level
+        else:
+            ready_side = price <= level
+        if ready_side:
+            if symbol not in self.spent:
+                self.armed[symbol] = True
+            return None
+        if (
+            rule.frequency == "every_time"
+            and rule.operator in ("greater-than", "less-than")
+        ):
+            if in_session:
+                return self._fire(symbol, price, moment, session, level, rule)
+            self._ignore(
+                symbol, price, moment, session, level,
+                f"{session} tick ignored under {self.session_policy}-only policy",
             )
-            self.on_alert(alert)
-            return alert
+            return None
+        if state and in_session:
+            return self._fire(symbol, price, moment, session, level, rule)
         if state is None:
             self.armed[symbol] = False
-        elif session not in self.trigger_sessions():
-            tick = IgnoredTick(
-                symbol=symbol,
-                moment=moment,
-                session=session,
-                price=price,
-                level=level,
-                reason=f"{session} tick ignored under {self.session_policy}-only policy",
+        elif not in_session:
+            self._ignore(
+                symbol, price, moment, session, level,
+                f"{session} tick ignored under {self.session_policy}-only policy",
             )
-            self.ignored.append(tick)
-            if self.on_ignored is not None:
-                self.on_ignored(tick)
         return None
 
 
 def format_alert(alert: Alert) -> str:
     """One deterministic trigger line (timestamps vary live, of course)."""
+    if alert.text:
+        return alert.text
     return (
         f"{alert.moment.isoformat()} | {alert.session} | {alert.symbol} | "
         f"{alert.price:g} <= buy {alert.level:g} TRIGGER"
@@ -459,21 +557,29 @@ class FanoutSink:
             sink(alert)
 
 
-def dry_run_alerts(engine: AlertEngine, bars_by_symbol: dict, seed_bars: int = MIN_BARS) -> list[Alert]:
+def dry_run_alerts(
+    engine: AlertEngine,
+    bars_by_symbol: dict,
+    seed_bars: int = MIN_BARS,
+    preset_levels: dict[str, float] | None = None,
+) -> list[Alert]:
     """Replay stored daily lows as regular-session ticks, chronologically.
 
     Each symbol's level is initialized from its seed window
     (``risk_range_series(history[:seed_bars])[-1].low``) with arm state
-    seeded from the seed close. Each replay day compares the day's low
-    against the level available from the prior close, then rolls the
-    day's close afterward for the next session — never the reverse, so
-    no same-bar information leaks into today's trigger. Delivery is the
-    engine's ``on_alert`` only; the CLI wires a recording sink and
-    prints 'would alert' lines, so ``--dry-run`` can never touch real
-    sinks.
+    seeded from the seed close, unless ``preset_levels`` supplies an
+    explicit level (used for stored triggers with fixed values; such
+    symbols are frozen against daily recomputation). Each replay day
+    compares the day's low against the level available from the prior
+    close, then rolls the day's close afterward for the next session —
+    never the reverse, so no same-bar information leaks into today's
+    trigger. Delivery is the engine's ``on_alert`` only; the CLI wires
+    a recording sink and prints 'would alert' lines, so ``--dry-run``
+    can never touch real sinks.
     """
     fired: list[Alert] = []
     horizon, vol_period, width, anchor = engine.range_params
+    preset_levels = preset_levels or {}
     for symbol in sorted(bars_by_symbol):
         bars = sorted(bars_by_symbol[symbol], key=lambda b: b.date)
         if len(bars) <= seed_bars:
@@ -488,7 +594,11 @@ def dry_run_alerts(engine: AlertEngine, bars_by_symbol: dict, seed_bars: int = M
             [b.close for b in bars[:seed_bars]],
             bars[seed_bars - 1].date,
         )
-        engine.set_levels({symbol: seed_ranges[-1].low})
+        if symbol in preset_levels:
+            engine.set_levels({symbol: preset_levels[symbol]})
+            engine.frozen.add(symbol)
+        else:
+            engine.set_levels({symbol: seed_ranges[-1].low})
         engine.seed_baseline({symbol: bars[seed_bars - 1].close})
         for bar in bars[seed_bars:]:
             moment = datetime(

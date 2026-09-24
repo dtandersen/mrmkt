@@ -1,43 +1,52 @@
-Feature: Alerts command paths
+Feature: Ranges and watch command paths
   As a MrMkt operator
-  I want alerts levels and watch over stored bars
+  I want ranges and watch over stored bars
   So that risk-range triggers are repeatable from the CLI
 
-  Scenario: Levels prints a deterministic CSV for a tagged universe
+  Scenario: Ranges prints a deterministic CSV for a tagged universe
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt alerts levels --tag universe"
+    When I execute "mrmkt ranges --tag universe"
     Then the command succeeds
-    And the output mentions "# generator=mrmkt alerts levels"
+    And the output mentions "# generator=mrmkt ranges"
     And the output mentions "symbol,as_of,close,range_low,range_high,n_bars"
     And the output mentions "AAA"
 
-  Scenario: Levels honors as-of for range vintage
+  Scenario: Ranges honors as-of for range vintage
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt alerts levels --tag universe --as-of 2022-02-25"
+    When I execute "mrmkt ranges --tag universe --as-of 2022-02-25"
     Then the command succeeds
     And the output mentions "as_of=2022-02-25"
     And the output mentions "AAA"
 
-  Scenario: Levels requires symbols or a tag
+  Scenario: Ranges requires symbols or a tag
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt alerts levels"
+    When I execute "mrmkt ranges"
     Then the command fails
     And the output mentions "provide symbols or --tag"
+
+  Scenario: Ranges rejects an unknown signal
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    And each alerts symbol has a 60-bar steady climb tagged universe
+    When I execute "mrmkt ranges AAA --signal bogus"
+    Then the command fails
+    And the output mentions "unknown signal"
 
   Scenario: Watch dry-run replays stored lows and reports touches
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar climb with a dip tagged universe
-    When I execute "mrmkt alerts watch AAA --dry-run"
+    When I execute "mrmkt watch AAA --dry-run --signal risk-range"
     Then the command succeeds
     And the output mentions "# dry-run: replaying stored daily lows"
     And the output mentions "would alert:"
@@ -48,7 +57,7 @@ Feature: Alerts command paths
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt alerts watch AAA --dry-run --session-policy bogus"
+    When I execute "mrmkt watch AAA --dry-run --session-policy bogus"
     Then the command fails
     And the output mentions "--session-policy must be regular or extended"
 
@@ -57,6 +66,65 @@ Feature: Alerts command paths
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt alerts watch AAA --dry-run --sink carrier-pigeon"
+    When I execute "mrmkt watch AAA --dry-run --sink carrier-pigeon"
     Then the command fails
     And the output mentions "unknown sink"
+
+  Scenario: Watch rejects an unknown signal
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    And each alerts symbol has a 60-bar steady climb tagged universe
+    When I execute "mrmkt watch AAA --dry-run --signal bogus"
+    Then the command fails
+    And the output mentions "unknown signal"
+
+  Scenario: Triggers add, list, and remove round trip
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    When I execute "mrmkt triggers add AAA --operator crossing-down --frequency once"
+    Then the command succeeds
+    And the output mentions "id,symbol,signal,operator,value,frequency,expires_at,message,enabled"
+    And the output mentions "crossing-down"
+    When I execute "mrmkt triggers list"
+    Then the command succeeds
+    And the output mentions "AAA"
+    When I execute "mrmkt triggers disable 1"
+    Then the command succeeds
+    And the output mentions "disabled"
+    When I execute "mrmkt triggers enable 1"
+    Then the command succeeds
+    And the output mentions "enabled"
+    When I execute "mrmkt triggers remove 1"
+    Then the command succeeds
+    And the output mentions "removed trigger 1"
+
+  Scenario: Triggers add rejects an unknown operator
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    When I execute "mrmkt triggers add AAA --operator sideways"
+    Then the command fails
+    And the output mentions "unknown operator"
+
+  Scenario: Watch replays stored triggers without touching sinks
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    And each alerts symbol has a 60-bar climb with a dip tagged universe
+    When I execute "mrmkt triggers add AAA --operator crossing-down"
+    Then the command succeeds
+    When I execute "mrmkt watch --all-triggers --dry-run"
+    Then the command succeeds
+    And the output mentions "sinks not called"
+    And the output mentions "would alert: "
+    And the output mentions "AAA"
+
+  Scenario: Watch rejects an unknown trigger id
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+    When I execute "mrmkt watch --trigger-id 999 --dry-run"
+    Then the command fails
+    And the output mentions "no enabled trigger"

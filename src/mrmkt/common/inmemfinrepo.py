@@ -11,10 +11,12 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
+from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.triggers import TriggerRepository
 
 
 @dataclass
@@ -23,6 +25,7 @@ class InMemoryFinancialRepository(
     PriceRepository,
     TickerRepository,
     TickerTagRepository,
+    TriggerRepository,
 ):
     incomes: Table
     balances: Table
@@ -32,6 +35,8 @@ class InMemoryFinancialRepository(
     prices: Table
     tickers: Table
     tag_assignments: set[tuple[str, str, str]]
+    triggers: Table
+    next_trigger_id: int
 
     def __init__(self):
         self.incomes = Table(symbol_date_key)
@@ -42,6 +47,8 @@ class InMemoryFinancialRepository(
         self.enterprises = Table(symbol_date_key)
         self.tickers = Table(ticker_exchange_key)
         self.tag_assignments = set()
+        self.triggers = Table(trigger_id_key)
+        self.next_trigger_id = 1
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
         return self.incomes.get(self.key(symbol, date))
@@ -183,8 +190,82 @@ class InMemoryFinancialRepository(
     def add_ticker_only(self, ticker):
         self.add_ticker(Ticker(ticker=ticker, exchange='', type=''))
 
+    def list_triggers(self, enabled_only: bool = False) -> list[Trigger]:
+        triggers = sorted(self.triggers.all(), key=lambda t: t.id or 0)
+        if enabled_only:
+            return [t for t in triggers if t.enabled]
+        return triggers
+
+    def add_trigger(self, trigger: Trigger) -> Trigger:
+        self._validate_trigger(trigger)
+        for existing in self.triggers.all():
+            if (
+                existing.symbol == trigger.symbol
+                and existing.signal == trigger.signal
+                and existing.operator == trigger.operator
+            ):
+                raise ValueError(
+                    f"trigger already exists for {trigger.symbol} {trigger.signal} {trigger.operator}"
+                )
+        stored = Trigger(
+            id=self.next_trigger_id,
+            symbol=trigger.symbol,
+            signal=trigger.signal,
+            operator=trigger.operator,
+            value=trigger.value,
+            frequency=trigger.frequency,
+            expires_at=trigger.expires_at,
+            message=trigger.message,
+            enabled=trigger.enabled,
+        )
+        self.next_trigger_id += 1
+        self.triggers.add(stored)
+        return stored
+
+    def remove_trigger(self, trigger_id: int) -> bool:
+        try:
+            self.triggers.get(str(trigger_id))
+        except KeyError:
+            return False
+        self.triggers.pop(str(trigger_id))
+        return True
+
+    def set_trigger_enabled(self, trigger_id: int, enabled: bool) -> bool:
+        try:
+            current = self.triggers.get(str(trigger_id))
+        except KeyError:
+            return False
+        self.triggers.pop(str(trigger_id))
+        self.triggers.add(
+            Trigger(
+                id=current.id,
+                symbol=current.symbol,
+                signal=current.signal,
+                operator=current.operator,
+                value=current.value,
+                frequency=current.frequency,
+                expires_at=current.expires_at,
+                message=current.message,
+                enabled=enabled,
+            )
+        )
+        return True
+
+    @staticmethod
+    def _validate_trigger(trigger: Trigger) -> None:
+        if trigger.operator not in OPERATORS:
+            raise ValueError(f"unknown operator {trigger.operator!r} (choose from {list(OPERATORS)})")
+        if trigger.frequency not in FREQUENCIES:
+            raise ValueError(f"unknown frequency {trigger.frequency!r} (choose from {list(FREQUENCIES)})")
+        if trigger.signal not in ("risk-range",):
+            raise ValueError(f"unknown signal {trigger.signal!r} (only 'risk-range' is supported)")
+
     def all_prices(self):
         return self.prices.all()
+
+
+def trigger_id_key(obj) -> str:
+    return str(obj.id)
 
 
 def symbol_date_key(obj) -> str:

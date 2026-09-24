@@ -1,4 +1,4 @@
-"""BDD coverage for alerts levels and dry-run watch paths."""
+"""BDD coverage for ranges and dry-run watch paths."""
 
 from datetime import date, timedelta
 from pathlib import Path

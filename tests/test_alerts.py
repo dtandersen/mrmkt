@@ -544,7 +544,7 @@ class TestLevelsUseCase(unittest.TestCase):
         original_factory = cli.create_local_ticker_repository
         cli.create_local_ticker_repository = lambda: (repo, lambda: None)
         try:
-            result = CliRunner().invoke(cli.app, ["alerts", "watch", "AAA", "BBB", "--dry-run"])
+            result = CliRunner().invoke(cli.app, ["watch", "AAA", "BBB", "--dry-run"])
         finally:
             cli.create_local_ticker_repository = original_factory
 

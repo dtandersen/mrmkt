@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import List
 
-from mrmkt.common.sql import SqlClient, JsonField
+from mrmkt.common.sql import Duplicate, SqlClient, JsonField
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
@@ -12,10 +12,12 @@ from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
+from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.triggers import TriggerRepository
 
 
 class SqlFinancialRepository(
@@ -23,6 +25,7 @@ class SqlFinancialRepository(
     PriceRepository,
     TickerRepository,
     TickerTagRepository,
+    TriggerRepository,
 ):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
@@ -343,6 +346,92 @@ class SqlFinancialRepository(
     def get_symbols_by_tag(self, tag: str) -> list[str]:
         return sorted({ticker.ticker for ticker in self.list_tickers_by_tag(tag)})
 
+    def list_triggers(self, enabled_only: bool = False) -> List[Trigger]:
+        query = "select * from trigger order by id asc"
+        if enabled_only:
+            query = "select * from trigger where enabled = %s order by id asc"
+            return self.sql_client.select(query, self.trigger_mapper, (True,))
+        return self.sql_client.select(query, self.trigger_mapper)
+
+    def trigger_mapper(self, row) -> Trigger:
+        return Trigger(
+            id=row["id"],
+            symbol=row["symbol"],
+            signal=row["signal"],
+            operator=row["operator"],
+            value=row["value"],
+            frequency=row["frequency"],
+            expires_at=row["expires_at"],
+            message=row["message"],
+            enabled=row["enabled"],
+        )
+
+    def add_trigger(self, trigger: Trigger) -> Trigger:
+        self._validate_trigger(trigger)
+        row = TriggerRow(
+            symbol=trigger.symbol,
+            signal=trigger.signal,
+            operator=trigger.operator,
+            value=trigger.value,
+            frequency=trigger.frequency,
+            expires_at=trigger.expires_at,
+            message=trigger.message,
+            enabled=trigger.enabled,
+        )
+        try:
+            self.sql_client.insert("trigger", row)
+        except Duplicate as error:
+            raise ValueError(
+                f"trigger already exists for {trigger.symbol} {trigger.signal} {trigger.operator}"
+            ) from error
+        rows = self.sql_client.select(
+            "select * from trigger where symbol = %s and signal = %s and operator = %s",
+            self.trigger_mapper,
+            (trigger.symbol, trigger.signal, trigger.operator),
+        )
+        return rows[0]
+
+    def remove_trigger(self, trigger_id: int) -> bool:
+        return self.sql_client.delete(
+            "delete from trigger where id = %s",
+            (trigger_id,),
+        )
+
+    def set_trigger_enabled(self, trigger_id: int, enabled: bool) -> bool:
+        rows = self.sql_client.select(
+            "select * from trigger where id = %s",
+            self.trigger_mapper,
+            (trigger_id,),
+        )
+        if not rows:
+            return False
+        current = rows[0]
+        self.sql_client.delete(
+            "delete from trigger where id = %s",
+            (trigger_id,),
+        )
+        updated = TriggerRow(
+            symbol=current.symbol,
+            signal=current.signal,
+            operator=current.operator,
+            value=current.value,
+            frequency=current.frequency,
+            expires_at=current.expires_at,
+            message=current.message,
+            enabled=enabled,
+        )
+        self.sql_client.insert("trigger", updated)
+        return True
+
+    @staticmethod
+    def _validate_trigger(trigger: Trigger) -> None:
+        if trigger.operator not in OPERATORS:
+            raise ValueError(f"unknown operator {trigger.operator!r} (choose from {list(OPERATORS)})")
+        if trigger.frequency not in FREQUENCIES:
+            raise ValueError(f"unknown frequency {trigger.frequency!r} (choose from {list(FREQUENCIES)})")
+        if trigger.signal not in ("risk-range",):
+            raise ValueError(f"unknown signal {trigger.signal!r} (only 'risk-range' is supported)")
+
     def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
         raise NotImplementedError
 
@@ -446,3 +535,15 @@ class TickerTagRow:
     ticker: str
     exchange: str
     tag: str
+
+
+@dataclass
+class TriggerRow:
+    symbol: str
+    signal: str
+    operator: str
+    value: float | None
+    frequency: str
+    expires_at: datetime.date | None
+    message: str
+    enabled: bool

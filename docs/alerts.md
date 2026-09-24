@@ -7,17 +7,35 @@ stored daily bar close is history, a live tick is now.
 ## Commands
 
 ```shell
-uv run mrmkt alerts levels AAA --as-of 2026-09-22
-uv run mrmkt alerts levels --tag sp500
-uv run mrmkt alerts watch AAA --dry-run
-uv run mrmkt alerts watch --tag sp500 --sink stdout --sink file --sink-file alerts.log
-uv run mrmkt alerts watch --tag sp500 --sink ntfy --session-policy extended --feed sip
+uv run mrmkt ranges AAA --as-of 2026-09-22
+uv run mrmkt ranges --tag sp500
+uv run mrmkt watch AAA --dry-run
+uv run mrmkt watch --tag sp500 --sink stdout --sink file --sink-file alerts.log
+uv run mrmkt watch --tag sp500 --sink ntfy --session-policy extended --feed sip
+uv run mrmkt triggers add CPAY --operator crossing-down --frequency once
+uv run mrmkt triggers list
+uv run mrmkt watch --all-triggers --sink ntfy
 ```
 
-`alerts levels` prints deterministic CSV (`symbol,as_of,close,range_low,`
+`ranges` prints deterministic CSV (`symbol,as_of,close,range_low,`
 `range_high,n_bars` with a `# key=value` header) from stored bars using
 the shared `risk_range_series` definition (H=15/V=21/W=0.5/anchor=5,
-minimum 30 bars). `alerts watch` needs symbols or `--tag`.
+minimum 30 bars). `watch` needs symbols or `--tag`. Both accept
+`--signal` (currently only `risk-range`).
+
+## Stored triggers (`mrmkt triggers`, DB-backed)
+
+Triggers persist in the `trigger` table (run `dbschema -c dbschema.yml` to
+apply `migrations/migration9`), so a symbol is associated with its alert
+configuration and `watch` can monitor a stored set: `triggers add/list`,
+`triggers enable/disable/remove`, then `watch --trigger-id 1
+--trigger-id 2` or `watch --all-triggers` (enabled, unexpired only).
+
+Each row: `symbol | signal | operator | value | frequency | expires_at |
+message | enabled`. `value` empty means the computed risk-range buy level
+(frozen per trigger only when explicitly set); `message` is a template
+with `{symbol}` `{price}` `{level}` `{moment}` `{session}` placeholders
+(empty means the default trigger line).
 
 ## Trigger semantics
 
@@ -29,6 +47,14 @@ minimum 30 bars). `alerts watch` needs symbols or `--tag`.
   while a prior close already below needs a later re-cross.
 - Re-arm: an above-level tick re-arms in any session; repeats below do
   not re-fire.
+- Operators: `crossing-down` (default) and `crossing-up` fire on observed
+  transitions; `greater-than` / `less-than` fire while the price holds
+  beyond the level. Frequencies: `once_per_rearm` (default), `once`
+  (fires a single time, then auto-disables the stored trigger and never
+  re-arms), `every_time` (every in-policy tick while a holding condition
+  holds; only meaningful with `greater-than` / `less-than`).
+- `expires_at` disables firing after that date (expired ticks are recorded
+  as ignored with reason `trigger expired`).
 - Arm state is in-memory; restarts reset dedupe.
 - `--dry-run` replays stored daily lows as regular-session ticks with
   levels/arm state advanced bar by bar (today's low is compared against

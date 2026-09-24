@@ -20,6 +20,7 @@ from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
 from mrmkt.usecase.alerts import (
     NTFY_ENV_VAR,
     AlertEngine,
@@ -29,6 +30,7 @@ from mrmkt.usecase.alerts import (
     ListSink,
     NtfySink,
     StdoutSink,
+    TriggerRule,
     ET,
     dry_run_alerts,
     format_alert,
@@ -59,13 +61,13 @@ prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical 
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 signals_app = typer.Typer(no_args_is_help=True, help="Inspect current strategy signals over stored prices")
-alerts_app = typer.Typer(no_args_is_help=True, help="Risk-range levels and realtime alerts")
+triggers_app = typer.Typer(no_args_is_help=True, help="Manage stored realtime alert triggers")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(indicators_app, name="indicators")
 app.add_typer(backtest_app, name="backtest")
 app.add_typer(signals_app, name="signals")
-app.add_typer(alerts_app, name="alerts")
+app.add_typer(triggers_app, name="triggers")
 
 
 def create_clock() -> Clock:
@@ -969,17 +971,181 @@ def build_alert_sink(name: str, file_path: str | None = None, local_config: dict
     raise ValueError(f"unknown sink {name!r} (choose stdout, file, ntfy)")
 
 
-@alerts_app.command("levels")
-def run_alerts_levels(
-    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
-    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
-    as_of: str | None = typer.Option(None, "--as-of", help="Range date (defaults to latest stored bar)"),
-    horizon: int = typer.Option(15, "--horizon", help="Range horizon in trading days"),
-    vol_period: int = typer.Option(21, "--vol-period", help="Trailing returns for realized volatility"),
-    width: float = typer.Option(0.5, "--width", help="Range half-width in vol-scaled units"),
-    anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
+def _resolve_signal(signal: str) -> str:
+    normalized = (signal or "").strip().lower()
+    if normalized != "risk-range":
+        raise typer.BadParameter(
+            f"unknown signal {signal!r} (only 'risk-range' is supported)"
+        )
+    return normalized
+
+
+TRIGGER_COLUMNS = [
+    "id",
+    "symbol",
+    "signal",
+    "operator",
+    "value",
+    "frequency",
+    "expires_at",
+    "message",
+    "enabled",
+]
+
+
+def _render_triggers_csv(triggers: list[Trigger]) -> str:
+    """Deterministic CSV of stored triggers."""
+    lines = ["# generator=mrmkt triggers list", ",".join(TRIGGER_COLUMNS)]
+    for trigger in sorted(triggers, key=lambda t: t.id or 0):
+        lines.append(
+            ",".join(
+                [
+                    str(trigger.id),
+                    trigger.symbol,
+                    trigger.signal,
+                    trigger.operator,
+                    repr(trigger.value) if trigger.value is not None else "",
+                    trigger.frequency,
+                    trigger.expires_at.isoformat() if trigger.expires_at else "",
+                    trigger.message.replace(",", ";"),
+                    "true" if trigger.enabled else "false",
+                ]
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
+@triggers_app.command("add")
+def triggers_add(
+    symbol: str = typer.Argument(..., help="Symbol to watch"),
+    signal: str = typer.Option("risk-range", "--signal", help="Signal source (only 'risk-range')"),
+    operator: str = typer.Option(
+        "crossing-down", "--operator", help=f"Trigger operator (one of {', '.join(OPERATORS)})"
+    ),
+    value: float | None = typer.Option(
+        None, "--value", help="Fixed trigger level (default: computed risk-range buy level)"
+    ),
+    frequency: str = typer.Option(
+        "once_per_rearm", "--frequency", help=f"Firing cadence (one of {', '.join(FREQUENCIES)})"
+    ),
+    expires: str | None = typer.Option(None, "--expires", help="Expiry date YYYY-MM-DD (default: never)"),
+    message: str = typer.Option("", "--message", help="Message template ({symbol} {price} {level} {moment} {session})"),
 ) -> None:
-    """Print deterministic risk-range buy/sell levels from stored bars."""
+    """Store a realtime trigger; prints the created row."""
+    _resolve_signal(signal)
+    normalized_symbol = normalize_symbol(symbol)
+    expires_at = None
+    if expires is not None:
+        try:
+            expires_at = date.fromisoformat(expires)
+        except ValueError as error:
+            raise typer.BadParameter("--expires must be YYYY-MM-DD") from error
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        stored = repository.add_trigger(
+            Trigger(
+                id=None,
+                symbol=normalized_symbol,
+                signal=signal.strip().lower(),
+                operator=operator.strip().lower(),
+                value=value,
+                frequency=frequency.strip().lower(),
+                expires_at=expires_at,
+                message=message,
+                enabled=True,
+            )
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to add trigger: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(_render_triggers_csv([stored]), nl=False)
+
+
+@triggers_app.command("list")
+def triggers_list(
+    enabled_only: bool = typer.Option(False, "--enabled-only", help="List only enabled triggers"),
+) -> None:
+    """List stored triggers as deterministic CSV."""
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        triggers = repository.list_triggers(enabled_only=enabled_only)
+    except Exception as error:
+        typer.echo(f"Failed to list triggers: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    typer.echo(_render_triggers_csv(triggers), nl=False)
+
+
+@triggers_app.command("remove")
+def triggers_remove(
+    trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
+) -> None:
+    """Delete a stored trigger."""
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        removed = repository.remove_trigger(trigger_id)
+    except Exception as error:
+        typer.echo(f"Failed to remove trigger: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    if not removed:
+        raise typer.BadParameter(f"no trigger with id {trigger_id}")
+    typer.echo(f"removed trigger {trigger_id}")
+
+
+@triggers_app.command("enable")
+def triggers_enable(
+    trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
+) -> None:
+    """Enable a stored trigger."""
+    _set_trigger_enabled(trigger_id, True)
+
+
+@triggers_app.command("disable")
+def triggers_disable(
+    trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
+) -> None:
+    """Disable a stored trigger (it stays in the store)."""
+    _set_trigger_enabled(trigger_id, False)
+
+
+def _set_trigger_enabled(trigger_id: int, enabled: bool) -> None:
+    close_repository: Callable[[], None] | None = None
+    try:
+        repository, close_repository = create_local_ticker_repository()
+        updated = repository.set_trigger_enabled(trigger_id, enabled)
+    except Exception as error:
+        typer.echo(f"Failed to update trigger: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    finally:
+        if close_repository is not None:
+            close_repository()
+    if not updated:
+        raise typer.BadParameter(f"no trigger with id {trigger_id}")
+    typer.echo(f"trigger {trigger_id} {'enabled' if enabled else 'disabled'}")
+
+
+def _run_ranges(
+    symbols: list[str] | None,
+    tags: list[str] | None,
+    as_of: str | None,
+    horizon: int,
+    vol_period: int,
+    width: float,
+    anchor_period: int,
+) -> None:
     if not symbols and not tags:
         raise typer.BadParameter("provide symbols or --tag")
     today = create_clock().today()
@@ -1010,8 +1176,23 @@ def run_alerts_levels(
     typer.echo(render_levels_csv(result), nl=False)
 
 
-@alerts_app.command("watch")
-def run_alerts_watch(
+@app.command("ranges")
+def run_ranges(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
+    signal: str = typer.Option("risk-range", "--signal", help="Signal source for ranges (only 'risk-range')"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Range date (defaults to latest stored bar)"),
+    horizon: int = typer.Option(15, "--horizon", help="Range horizon in trading days"),
+    vol_period: int = typer.Option(21, "--vol-period", help="Trailing returns for realized volatility"),
+    width: float = typer.Option(0.5, "--width", help="Range half-width in vol-scaled units"),
+    anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
+) -> None:
+    """Print deterministic risk-range bands from stored bars."""
+    _resolve_signal(signal)
+    _run_ranges(symbols, tags, as_of, horizon, vol_period, width, anchor_period)
+
+
+def _run_watch(
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
     sinks: list[str] | None = typer.Option(None, "--sink", help="Alert sink: stdout, file, ntfy (repeatable)"),
@@ -1021,10 +1202,15 @@ def run_alerts_watch(
     session_policy: str = typer.Option("regular", "--session-policy", help="Sessions that may fire: regular or extended"),
     as_of: str | None = typer.Option(None, "--as-of", help="Levels date (defaults to latest stored bar)"),
     verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
+    trigger_ids: list[int] | None = None,
+    all_triggers: bool = False,
 ) -> None:
     """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
-    if not symbols and not tags:
-        raise typer.BadParameter("provide symbols or --tag")
+    use_store = bool(trigger_ids) or all_triggers
+    if use_store and (symbols or tags):
+        raise typer.BadParameter("use either symbols/--tag or stored triggers, not both")
+    if not use_store and not symbols and not tags:
+        raise typer.BadParameter("provide symbols, --tag, --trigger-id, or --all-triggers")
     if session_policy not in ("regular", "extended"):
         raise typer.BadParameter("--session-policy must be regular or extended")
     if feed not in ("iex", "sip"):
@@ -1045,22 +1231,81 @@ def run_alerts_watch(
     close_repository: Callable[[], None] | None = None
     try:
         repository, close_repository = create_local_ticker_repository()
-        selected = sorted(
-            {normalize_symbol(symbol) for symbol in (symbols or [])}
-            | {
-                symbol
-                for tag in (tags or [])
-                for symbol in repository.get_symbols_by_tag(normalize_tag(tag))
-            }
-        )
+        stored_triggers: list[Trigger] = []
+        if use_store:
+            wanted_ids = set(trigger_ids or [])
+            for trigger in repository.list_triggers(enabled_only=True):
+                if trigger.id is None:
+                    continue
+                if all_triggers or trigger.id in wanted_ids:
+                    stored_triggers.append(trigger)
+            if all_triggers and not stored_triggers:
+                typer.echo("No enabled triggers in the store.")
+                return
+            if trigger_ids and len(stored_triggers) != len(wanted_ids):
+                found = {t.id for t in stored_triggers}
+                missing = sorted(wanted_ids - found)
+                raise typer.BadParameter(f"no enabled trigger with id {missing}")
+            seen: dict[str, Trigger] = {}
+            for trigger in sorted(stored_triggers, key=lambda t: t.id or 0):
+                if trigger.symbol in seen:
+                    raise typer.BadParameter(
+                        f"multiple triggers for {trigger.symbol}; refine --trigger-id selection"
+                    )
+                seen[trigger.symbol] = trigger
+            selected = sorted(seen)
+        else:
+            selected = sorted(
+                {normalize_symbol(symbol) for symbol in (symbols or [])}
+                | {
+                    symbol
+                    for tag in (tags or [])
+                    for symbol in repository.get_symbols_by_tag(normalize_tag(tag))
+                }
+            )
         levels = LevelsUseCase(repository).execute(
             include_tags=[], symbols=selected, as_of=as_of_date
         )
         if not levels.rows:
             typer.echo("No symbols with enough history for levels.")
             return
-        engine = AlertEngine(on_alert=fanout, session_policy=session_policy)
-        engine.set_levels({row.symbol: row.range_low for row in levels.rows})
+        trigger_by_symbol = {t.symbol: t for t in stored_triggers}
+        disabled_ids: list[int] = []
+
+        def on_fire(alert) -> None:
+            fanout(alert)
+            trigger = trigger_by_symbol.get(alert.symbol)
+            if (
+                trigger is not None
+                and trigger.frequency == "once"
+                and trigger.id is not None
+                and not dry_run
+            ):
+                repository.set_trigger_enabled(trigger.id, False)
+                disabled_ids.append(trigger.id)
+
+        engine = AlertEngine(on_alert=on_fire, session_policy=session_policy)
+        preset_levels: dict[str, float] = {}
+        for row in levels.rows:
+            trigger = trigger_by_symbol.get(row.symbol)
+            if trigger is not None:
+                engine.set_rule(
+                    row.symbol,
+                    TriggerRule(
+                        operator=trigger.operator,
+                        frequency=trigger.frequency,
+                        expires_at=trigger.expires_at,
+                        message=trigger.message,
+                    ),
+                )
+                if trigger.value is not None:
+                    preset_levels[row.symbol] = trigger.value
+                    engine.set_levels({row.symbol: trigger.value})
+                    engine.frozen.add(row.symbol)
+                else:
+                    engine.set_levels({row.symbol: row.range_low})
+            else:
+                engine.set_levels({row.symbol: row.range_low})
         engine.seed_baseline({row.symbol: row.close for row in levels.rows})
         if verbose:
             engine.on_ignored = lambda tick: typer.echo(
@@ -1070,8 +1315,22 @@ def run_alerts_watch(
         if dry_run:
             # Recording sink only: --dry-run can never deliver to real
             # sinks. Levels/arm state advance bar by bar (no lookahead).
+            # Stored-trigger rules carry over; `once` triggers are not
+            # disabled in dry runs (no store writes).
             recorder = ListSink()
             dry_engine = AlertEngine(on_alert=recorder, session_policy=session_policy)
+            for row in levels.rows:
+                trigger = trigger_by_symbol.get(row.symbol)
+                if trigger is not None:
+                    dry_engine.set_rule(
+                        row.symbol,
+                        TriggerRule(
+                            operator=trigger.operator,
+                            frequency=trigger.frequency,
+                            expires_at=trigger.expires_at,
+                            message=trigger.message,
+                        ),
+                    )
             bars_by_symbol: dict = {}
             for price in repository.list_prices_for_symbols(
                 [row.symbol for row in levels.rows], date.min, as_of_date or today
@@ -1081,7 +1340,7 @@ def run_alerts_watch(
                 "# dry-run: replaying stored daily lows as regular-session "
                 "ticks; sinks not called"
             )
-            for alert in dry_run_alerts(dry_engine, bars_by_symbol):
+            for alert in dry_run_alerts(dry_engine, bars_by_symbol, preset_levels=preset_levels):
                 typer.echo(f"would alert: {format_alert(alert)}")
             return
         config = yaml.safe_load(Path("alpaca.yaml").read_text())
@@ -1110,3 +1369,26 @@ def run_alerts_watch(
     finally:
         if close_repository is not None:
             close_repository()
+
+
+@app.command("watch")
+def run_watch(
+    symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
+    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
+    trigger_ids: list[int] | None = typer.Option(None, "--trigger-id", help="Stored trigger id to watch (repeatable)"),
+    all_triggers: bool = typer.Option(False, "--all-triggers", help="Watch every enabled stored trigger"),
+    signal: str = typer.Option("risk-range", "--signal", help="Signal source to watch (only 'risk-range')"),
+    sinks: list[str] | None = typer.Option(None, "--sink", help="Alert sink: stdout, file, ntfy (repeatable)"),
+    sink_file: str | None = typer.Option(None, "--sink-file", help="Append path for the file sink"),
+    feed: str = typer.Option("iex", "--feed", help="Alpaca data feed: iex or sip"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Replay stored daily lows as ticks; no network"),
+    session_policy: str = typer.Option("regular", "--session-policy", help="Sessions that may fire: regular or extended"),
+    as_of: str | None = typer.Option(None, "--as-of", help="Levels date (defaults to latest stored bar)"),
+    verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
+) -> None:
+    """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
+    _resolve_signal(signal)
+    _run_watch(
+        symbols, tags, sinks, sink_file, feed, dry_run, session_policy, as_of, verbose,
+        trigger_ids=trigger_ids, all_triggers=all_triggers,
+    )

@@ -42,7 +42,7 @@ uv run mrmkt prices freshness --tag sp500 --lookback-days 365
 Screening, signal discovery, and freshness checks print deterministic CSV
 (see `docs/screener.md` for commands, stable column schemas, as-of/vintage
 semantics, and the limits of the heuristic quality flags).
-Risk-range alerts print deterministic levels and watch live ticks
+Print risk-range bands with `mrmkt ranges` and watch live ticks with `mrmkt watch`
 (see `docs/alerts.md` for trigger/session/sink semantics and caveats).
 
 Ticker tags are static labels (for example, `sp500`); comma-separated symbols
