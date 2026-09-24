@@ -16,7 +16,7 @@ from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.trigger_sets import TriggerSetRepository
+from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 
@@ -285,7 +285,7 @@ class InMemoryFinancialRepository(
     def add_to_set(self, set_name: str, trigger_name: str) -> None:
         members = self.trigger_sets.get(set_name)
         if members is None:
-            raise ValueError(f"no trigger set with name {set_name!r}")
+            raise TriggerSetNotFound(set_name)
         if not any(t.name == trigger_name for t in self.triggers.all()):
             raise ValueError(f"no trigger with name {trigger_name!r}")
         members.add(trigger_name)
@@ -300,7 +300,7 @@ class InMemoryFinancialRepository(
     def list_set_members(self, set_name: str) -> list[str]:
         members = self.trigger_sets.get(set_name)
         if members is None:
-            raise ValueError(f"no trigger set with name {set_name!r}")
+            raise TriggerSetNotFound(set_name)
         return sorted(members)
 
     def all_prices(self):

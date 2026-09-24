@@ -17,7 +17,7 @@ from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.trigger_sets import TriggerSetRepository
+from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 
@@ -447,7 +447,7 @@ class SqlFinancialRepository(
             (set_name,),
         )
         if not sets:
-            raise ValueError(f"no trigger set with name {set_name!r}")
+            raise TriggerSetNotFound(set_name)
         triggers = self.sql_client.select(
             "select name from trigger where name = %s",
             lambda row: row["name"],
@@ -475,7 +475,7 @@ class SqlFinancialRepository(
             (set_name,),
         )
         if not sets:
-            raise ValueError(f"no trigger set with name {set_name!r}")
+            raise TriggerSetNotFound(set_name)
         return self.sql_client.select(
             "select trigger_name from trigger_set_member "
             "where set_name = %s order by trigger_name asc",
