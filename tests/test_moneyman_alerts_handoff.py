@@ -1,10 +1,10 @@
 """Moneyman-owned verification for the alerts handoff (user-requested pytest).
 
 Covers the exact behaviors I verified manually against the live tree:
-1. ``LevelsUseCase`` selection semantics — explicit symbols never expand to
+1. ``LevelsUseCase`` (the ``mrmkt ranges`` backend) selection semantics — explicit symbols never expand to
    the whole catalog (regression guard for the bug manager caught), and
    empty selection returns nothing.
-2. ``dry_run_alerts`` causality — replays stored lows against prior-close
+2. ``dry_run_alerts`` (the ``mrmkt watch --dry-run`` backend) causality — replays stored lows against prior-close
    levels, fires only at/below the level, and touches no sink (delivery is
    the engine's ``on_alert`` callback only).
 
@@ -40,19 +40,22 @@ def add_flat_series(
     price: float,
     low_factor: float = 0.995,
     tag: str | None = None,
+    drift: float = 0.0,
 ) -> None:
     repo.add_ticker(Ticker(ticker=symbol, exchange="NASDAQ", type="us_equity"))
     if tag is not None:
         repo.add_tag(symbol, "NASDAQ", tag)
+    level_price = price
     for day in business_days(START, n):
+        level_price *= 1 + drift
         repo.add_price(
             StockPrice(
                 symbol=symbol,
                 date=day,
-                open=price,
-                high=price * 1.005,
-                low=price * low_factor,
-                close=price,
+                open=level_price,
+                high=level_price * 1.005,
+                low=level_price * low_factor,
+                close=level_price,
                 volume=1_000_000.0,
             )
         )
@@ -86,7 +89,8 @@ def test_levels_tag_selection_stays_within_tags():
 
 def test_dry_run_fires_only_at_or_below_level_with_no_sink():
     repo = InMemoryFinancialRepository()
-    add_flat_series(repo, "DIP", 40, 100.0)
+    # Gentle drift keeps the seed close above its range low so the rule arms.
+    add_flat_series(repo, "DIP", 40, 100.0, drift=0.005)
     # A dramatic one-day dip below any plausible range low, then recovery.
     dip_day = business_days(START, 41)[-1]
     repo.add_price(
