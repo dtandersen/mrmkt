@@ -17,6 +17,7 @@ from typing import Any
 import typer
 
 from mrmkt.command import _shared
+from mrmkt.command.add_triggerset import AddTriggerToSet
 from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.triggers_common import _default_trigger_name
 from mrmkt.command.triggersets_common import _default_set_name
@@ -46,6 +47,19 @@ def resolve_trigger_dependencies(ctx: typer.Context | None) -> TriggerCliDepende
     if isinstance(obj, TriggerCliDependencies):
         return obj
     return default_trigger_dependencies()
+
+
+@contextmanager
+def add_trigger_to_set_command(
+    deps: TriggerCliDependencies | None = None,
+):
+    """Yield a ready ``AddTriggerToSet``; close the repository afterwards."""
+    resolved = deps if deps is not None else default_trigger_dependencies()
+    repository, close_repository = resolved.repository_factory()
+    try:
+        yield AddTriggerToSet(repository)
+    finally:
+        close_repository()
 
 
 @contextmanager

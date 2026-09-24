@@ -14,6 +14,7 @@ Feature: Triggerset add CLI
       """
 
   Scenario: Triggerset add rejects an unknown set
+    Given trigger "dip-watch" exists
     When I execute "mrmkt triggerset add no-such-set dip-watch"
     Then the command fails
     And the console displays:
@@ -27,9 +28,5 @@ Feature: Triggerset add CLI
     Then the command fails
     And the console displays:
       """
-      Usage: root triggerset add [OPTIONS] {set_name} {trigger_name}
-      Try 'root triggerset add --help' for help.
-      ╭─ Error ──────────────────────────────────────────────────────────────────────╮
-      │ Invalid value: no trigger with name 'no-such-trigger'                        │
-      ╰──────────────────────────────────────────────────────────────────────────────╯
+      Trigger 'no-such-trigger' not found
       """

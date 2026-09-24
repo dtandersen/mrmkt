@@ -4,10 +4,13 @@ from collections.abc import Callable
 
 import typer
 
-from mrmkt.command.add_triggerset import AddTriggerToSet, UnknownTriggerSetError
+from mrmkt.command.add_triggerset import AddTriggerToSetError
 from mrmkt.command.create_triggerset import CreateTriggerSet
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
-from mrmkt.composition import resolve_trigger_dependencies
+from mrmkt.composition import (
+    add_trigger_to_set_command,
+    resolve_trigger_dependencies,
+)
 
 triggerset_app = typer.Typer(no_args_is_help=True, help="Manage trigger sets")
 
@@ -46,23 +49,20 @@ def triggerset_add(
     trigger_name: str = typer.Argument(..., help="Trigger name to add"),
 ) -> None:
     """Add a trigger to a trigger set."""
-    close_repository: Callable[[], None] | None = None
     try:
-        repository, close_repository = resolve_trigger_dependencies(
-            ctx
-        ).repository_factory()
-        AddTriggerToSet(repository).execute(set_name, trigger_name)
-    except UnknownTriggerSetError as error:
-        typer.echo(f"Triggerset {error.name!r} not found", err=True)
+        with add_trigger_to_set_command(
+            resolve_trigger_dependencies(ctx)
+        ) as add_command:
+            add_command.execute(set_name, trigger_name)
+    except AddTriggerToSetError as error:
+        for field_error in error.errors:
+            typer.echo(field_error.message, err=True)
         raise typer.Exit(code=1) from error
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to add trigger to set: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(f"added trigger {trigger_name} to trigger set {set_name}")
 
 

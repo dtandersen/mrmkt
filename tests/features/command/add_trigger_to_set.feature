@@ -11,14 +11,21 @@ Feature: Add trigger to set command
     And set "my-set" contains "dip-watch"
 
   Scenario: Set add rejects an unknown set
-    When I add trigger "dip-watch" to set "no-such-set"
+    When the trigger "dip-watch" is added to triggerset "no-such-set"
     Then the command fails with errors:
-      | field | message                             |
-      | set   | no trigger set with name 'no-such-set' |
+      | field      | message                            |
+      | triggerset | Triggerset 'no-such-set' not found |
 
   Scenario: Set add rejects an unknown trigger
     Given trigger set "my-set" exists
-    When I add trigger "no-such-trigger" to set "my-set"
+    When the trigger "no-such-trigger" is added to triggerset "my-set"
     Then the command fails with errors:
-      | field   | message                                |
-      | trigger | no trigger with name 'no-such-trigger' |
+      | field   | message                             |
+      | trigger | Trigger 'no-such-trigger' not found |
+
+  Scenario: Catch all errors
+    When the trigger "trigger-missing" is added to triggerset "trigerset-missing"
+    Then the command fails with errors:
+      | field      | message                             |
+      | trigger    | Trigger 'trigger-missing' not found |
+      | triggerset | Triggerset 'trigerset-missing' not found |

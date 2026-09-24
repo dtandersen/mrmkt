@@ -17,6 +17,9 @@ given(parsers.parse('trigger set "{name}" exists'))(trigger_set_exists)
 when(parsers.parse('I add trigger "{trigger}" to set "{set_name}"'))(
     command_add_to_set
 )
+when(parsers.parse('the trigger "{trigger}" is added to triggerset "{set_name}"'))(
+    command_add_to_set
+)
 then("the command succeeds")(command_succeeds)
 then("the command fails with errors:")(command_fails_with_errors)
 then(parsers.parse('set "{set_name}" contains "{trigger}"'))(set_contains_trigger)
