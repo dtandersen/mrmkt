@@ -21,7 +21,6 @@ from mrmkt.command import (
     prices_app,
     signals_app,
     symbols_app,
-    trigger_app,
 )
 from mrmkt.command import (  # noqa: F401 -- side-effect registration of commands
     backtest_run,
@@ -39,12 +38,9 @@ from mrmkt.command import (  # noqa: F401 -- side-effect registration of command
     symbols_label,
     symbols_list,
     symbols_unlabel,
-    trigger_create,
-    trigger_disable,
-    trigger_enable,
-    trigger_list,
-    trigger_remove,
 )
+from mrmkt.cli.trigger import trigger_app
+from mrmkt.cli.triggerset import triggerset_app
 
 __all__ = [
     "app",
@@ -66,6 +62,7 @@ app.add_typer(indicators_app, name="indicators")
 app.add_typer(backtest_app, name="backtest")
 app.add_typer(signals_app, name="signals")
 app.add_typer(trigger_app, name="trigger")
+app.add_typer(triggerset_app, name="triggerset")
 
 
 @app.command("screen")

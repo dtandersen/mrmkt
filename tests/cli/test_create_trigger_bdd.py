@@ -1,4 +1,4 @@
-"""BDD coverage for trigger create/list/enable/disable/remove paths."""
+"""BDD coverage for trigger create/list/show/delete paths."""
 
 from pathlib import Path
 from shlex import split

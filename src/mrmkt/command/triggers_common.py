@@ -1,14 +1,8 @@
-"""Stored trigger commands (create/list/remove/enable/disable)."""
+"""Stored trigger commands (create/list/show/remove)."""
 
-from collections.abc import Callable
-
-import typer
-
-from mrmkt.command import _shared
 from mrmkt.entity.trigger import Trigger
 
 TRIGGER_COLUMNS = [
-    "id",
     "name",
     "symbol",
     "signal",
@@ -24,11 +18,10 @@ TRIGGER_COLUMNS = [
 def _render_triggers_csv(triggers: list[Trigger]) -> str:
     """Deterministic CSV of stored triggers."""
     lines = ["# generator=mrmkt trigger list", ",".join(TRIGGER_COLUMNS)]
-    for trigger in sorted(triggers, key=lambda t: t.id or 0):
+    for trigger in sorted(triggers, key=lambda t: t.name):
         lines.append(
             ",".join(
                 [
-                    str(trigger.id),
                     trigger.name,
                     trigger.symbol,
                     trigger.signal,
@@ -47,20 +40,20 @@ def _render_triggers_csv(triggers: list[Trigger]) -> str:
 def _default_trigger_name() -> str:
     import secrets
 
-    return f"trigger-{secrets.randbelow(900000) + 100000}"
+    return f"trigger-{_to_base36(secrets.randbelow(36 ** 5)).rjust(5, _BASE36_ALPHABET[0])}"
 
 
-def _set_trigger_enabled(trigger_id: int, enabled: bool) -> None:
-    close_repository: Callable[[], None] | None = None
-    try:
-        repository, close_repository = _shared.create_local_ticker_repository()
-        updated = repository.set_trigger_enabled(trigger_id, enabled)
-    except Exception as error:
-        typer.echo(f"Failed to update trigger: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
-    if not updated:
-        raise typer.BadParameter(f"no trigger with id {trigger_id}")
-    typer.echo(f"trigger {trigger_id} {'enabled' if enabled else 'disabled'}")
+_BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def _to_base36(value: int) -> str:
+    """Encode a non-negative int as base36 (0-9a-z, case-insensitive safe)."""
+    if value < 0:
+        raise ValueError("base36 encodes non-negative integers")
+    if value == 0:
+        return _BASE36_ALPHABET[0]
+    digits = []
+    while value:
+        value, remainder = divmod(value, 36)
+        digits.append(_BASE36_ALPHABET[remainder])
+    return "".join(reversed(digits))

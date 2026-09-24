@@ -17,6 +17,7 @@ from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.trigger_sets import TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 
@@ -26,6 +27,7 @@ class SqlFinancialRepository(
     TickerRepository,
     TickerTagRepository,
     TriggerRepository,
+    TriggerSetRepository,
 ):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
@@ -428,14 +430,67 @@ class SqlFinancialRepository(
         self.sql_client.insert("trigger", updated)
         return True
 
+    def create_set(self, name: str) -> str:
+        if not name or not name.strip():
+            raise ValueError("trigger set name must not be blank")
+        cleaned = name.strip()
+        try:
+            self.sql_client.insert("trigger_set", TriggerSetRow(cleaned))
+        except Duplicate as error:
+            raise ValueError(f"trigger set {cleaned!r} already exists") from error
+        return cleaned
+
+    def add_to_set(self, set_name: str, trigger_name: str) -> None:
+        sets = self.sql_client.select(
+            "select name from trigger_set where name = %s",
+            lambda row: row["name"],
+            (set_name,),
+        )
+        if not sets:
+            raise ValueError(f"no trigger set with name {set_name!r}")
+        triggers = self.sql_client.select(
+            "select name from trigger where name = %s",
+            lambda row: row["name"],
+            (trigger_name,),
+        )
+        if not triggers:
+            raise ValueError(f"no trigger with name {trigger_name!r}")
+        try:
+            self.sql_client.insert(
+                "trigger_set_member", TriggerSetMemberRow(set_name, trigger_name)
+            )
+        except Duplicate:
+            pass
+
+    def remove_from_set(self, set_name: str, trigger_name: str) -> bool:
+        return self.sql_client.delete(
+            "delete from trigger_set_member where set_name = %s and trigger_name = %s",
+            (set_name, trigger_name),
+        )
+
+    def list_set_members(self, set_name: str) -> list[str]:
+        sets = self.sql_client.select(
+            "select name from trigger_set where name = %s",
+            lambda row: row["name"],
+            (set_name,),
+        )
+        if not sets:
+            raise ValueError(f"no trigger set with name {set_name!r}")
+        return self.sql_client.select(
+            "select trigger_name from trigger_set_member "
+            "where set_name = %s order by trigger_name asc",
+            lambda row: row["trigger_name"],
+            (set_name,),
+        )
+
     @staticmethod
     def _validate_trigger(trigger: Trigger) -> None:
         if trigger.operator not in OPERATORS:
-            raise ValueError(f"unknown operator {trigger.operator!r} (choose from {list(OPERATORS)})")
+            raise ValueError(f"{trigger.operator!r} is an invalid operator")
         if trigger.frequency not in FREQUENCIES:
-            raise ValueError(f"unknown frequency {trigger.frequency!r} (choose from {list(FREQUENCIES)})")
+            raise ValueError(f"{trigger.frequency!r} is an invalid frequency")
         if trigger.signal not in ("risk-range",):
-            raise ValueError(f"unknown signal {trigger.signal!r} (only 'risk-range' is supported)")
+            raise ValueError(f"{trigger.signal!r} is an invalid signal")
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
         raise NotImplementedError
@@ -553,3 +608,14 @@ class TriggerRow:
     expires_at: datetime.date | None
     message: str
     enabled: bool
+
+
+@dataclass
+class TriggerSetRow:
+    name: str
+
+
+@dataclass
+class TriggerSetMemberRow:
+    set_name: str
+    trigger_name: str

@@ -7,4 +7,3 @@ prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical 
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 signals_app = typer.Typer(no_args_is_help=True, help="Inspect current strategy signals over stored prices")
-trigger_app = typer.Typer(no_args_is_help=True, help="Manage stored realtime alert triggers")

@@ -27,8 +27,7 @@ minimum 30 bars). `watch` needs symbols or `--tag`. Both accept
 
 Triggers persist in the `trigger` table (run `dbschema -c dbschema.yml` to
 apply pending migrations), so a symbol is associated with its alert
-configuration and `watch` can monitor a stored set: `trigger create/list`,
-`trigger enable/disable/remove`, then `watch --trigger-id 1
+configuration and `watch` can monitor a stored set: `trigger create/list/show/delete`, then `watch --trigger-id 1
 --trigger-id 2` or `watch --all-triggers` (enabled, unexpired only).
 
 Each row: `symbol | signal | operator | value | frequency | expires_at |

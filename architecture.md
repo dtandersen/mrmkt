@@ -10,12 +10,22 @@ Layers (outer to inner): cli -> command -> repo / entity, with ext + common as o
 - pytest-bdd + pytest
 - vectorbt - backtesting engine
 
+# Terminology
+
+- Command - Command using the command pattern
+- CLI Command - Typer command that invokes a command
+
 # Project Layout
 
 |- src
 |  |- command - commands (called by cli/future rest api)
-|  |  |- trigger_add.py
-|  |  |- trigger_remove.py
+|  |  |- verb_noun.py
+|  |  |- create_trigger.py
+|  |  |- show_trigger.py
+|  |  |- etc
+|  |- cli
+|  |  |- trigger.py
+|  |  |- triggerset.py
 |  |  |- etc
 |  |- entity - entities (returned by repositories and gateways)
 |  |- repo - repository interfaces
@@ -32,7 +42,7 @@ Layers (outer to inner): cli -> command -> repo / entity, with ext + common as o
       |  |- symbol_list.feature
       |  |- etc
       |- command - command BDD features (extensive tests)
-      |  |- trigger_create.feature
+      |  |- create_trigger.feature
       |  |- symbol_list.feature
          |- etc
 
@@ -40,12 +50,26 @@ Layers (outer to inner): cli -> command -> repo / entity, with ext + common as o
 
 Commands are the basic building block of the application and represent a single use case.
 
+Commands are named VerbNoun, e.g. AddTrigger.
+
+Commands accept collaborators, such as repositories, via constructor arguments.
+
+Commands perform validation and return their status, result, and a list of errors.
+
+# CLI Commands
+
+CLI commands are thin wrappers around commands.
+
+CLI commands do not use repositories.
+
+CLI commands do not perform validation.
+
 ## Verbs
 
-- add
+- create / delete - resources
 - import
 - list
-- remove
+- add / remove - lists
 - show
 - run
 
@@ -63,7 +87,7 @@ Each command and cli command is tested.
 
 Avoid brittle internal structure tests to allow it to evolve.
 
-Do not use mocks with the exception of requests_mock. Use fakes and stubs that mimic the behavior of the interface.
+Do not use mocks or monkeypatch with the exception of requests_mock. Use fakes and stubs to mimic the behavior of the interface.
 
 See [TDD, Where Did It All Go Wrong (Ian Cooper)](https://www.youtube.com/watch?v=EZ05e7EMOLM).
 

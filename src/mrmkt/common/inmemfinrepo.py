@@ -16,6 +16,7 @@ from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.trigger_sets import TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 
@@ -26,6 +27,7 @@ class InMemoryFinancialRepository(
     TickerRepository,
     TickerTagRepository,
     TriggerRepository,
+    TriggerSetRepository,
 ):
     incomes: Table
     balances: Table
@@ -37,6 +39,7 @@ class InMemoryFinancialRepository(
     tag_assignments: set[tuple[str, str, str]]
     triggers: Table
     next_trigger_id: int
+    trigger_sets: dict[str, set[str]]
 
     def __init__(self):
         self.incomes = Table(symbol_date_key)
@@ -49,6 +52,7 @@ class InMemoryFinancialRepository(
         self.tag_assignments = set()
         self.triggers = Table(trigger_id_key)
         self.next_trigger_id = 1
+        self.trigger_sets = {}
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
         return self.incomes.get(self.key(symbol, date))
@@ -230,10 +234,12 @@ class InMemoryFinancialRepository(
 
     def remove_trigger(self, trigger_id: int) -> bool:
         try:
-            self.triggers.get(str(trigger_id))
+            removed = self.triggers.get(str(trigger_id))
         except KeyError:
             return False
         self.triggers.pop(str(trigger_id))
+        for members in self.trigger_sets.values():
+            members.discard(removed.name)
         return True
 
     def set_trigger_enabled(self, trigger_id: int, enabled: bool) -> bool:
@@ -261,11 +267,41 @@ class InMemoryFinancialRepository(
     @staticmethod
     def _validate_trigger(trigger: Trigger) -> None:
         if trigger.operator not in OPERATORS:
-            raise ValueError(f"unknown operator {trigger.operator!r} (choose from {list(OPERATORS)})")
+            raise ValueError(f"{trigger.operator!r} is an invalid operator")
         if trigger.frequency not in FREQUENCIES:
-            raise ValueError(f"unknown frequency {trigger.frequency!r} (choose from {list(FREQUENCIES)})")
+            raise ValueError(f"{trigger.frequency!r} is an invalid frequency")
         if trigger.signal not in ("risk-range",):
-            raise ValueError(f"unknown signal {trigger.signal!r} (only 'risk-range' is supported)")
+            raise ValueError(f"{trigger.signal!r} is an invalid signal")
+
+    def create_set(self, name: str) -> str:
+        if not name or not name.strip():
+            raise ValueError("trigger set name must not be blank")
+        cleaned = name.strip()
+        if cleaned in self.trigger_sets:
+            raise ValueError(f"trigger set {cleaned!r} already exists")
+        self.trigger_sets[cleaned] = set()
+        return cleaned
+
+    def add_to_set(self, set_name: str, trigger_name: str) -> None:
+        members = self.trigger_sets.get(set_name)
+        if members is None:
+            raise ValueError(f"no trigger set with name {set_name!r}")
+        if not any(t.name == trigger_name for t in self.triggers.all()):
+            raise ValueError(f"no trigger with name {trigger_name!r}")
+        members.add(trigger_name)
+
+    def remove_from_set(self, set_name: str, trigger_name: str) -> bool:
+        members = self.trigger_sets.get(set_name)
+        if members is None or trigger_name not in members:
+            return False
+        members.discard(trigger_name)
+        return True
+
+    def list_set_members(self, set_name: str) -> list[str]:
+        members = self.trigger_sets.get(set_name)
+        if members is None:
+            raise ValueError(f"no trigger set with name {set_name!r}")
+        return sorted(members)
 
     def all_prices(self):
         return self.prices.all()

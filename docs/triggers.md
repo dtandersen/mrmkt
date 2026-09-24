@@ -2,7 +2,7 @@
 
 ### Create a trigger
 
-Create a trigger. If no trigger name is specified it defaults to `trigger-######`.
+Create a trigger. If no trigger name is specified it defaults to `trigger-xxxxx` (5 chars, 0-9a-z).
 
 `mrmkt trigger create [<trigger>]`
 
@@ -30,7 +30,7 @@ Show a trigger
 
 Delete a trigger. It is also removed from any trigger sets.
 
-`mrmkt trigger remove <trigger>`
+`mrmkt trigger delete <trigger>`
 
 ## Trigger Sets
 
