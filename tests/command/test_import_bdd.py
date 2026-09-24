@@ -11,8 +11,8 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.tickers import ReadOnlyTickerRepository
-from mrmkt.usecase.fetch_tickers import FetchTickersUseCase
-from mrmkt.usecase.import_prices import ImportPricesUseCase
+from mrmkt.command.symbols_import import FetchTickersUseCase
+from mrmkt.command.prices_import import ImportPricesUseCase
 
 FEATURE = Path(__file__).parent.parent / "features" / "command" / "import.feature"
 scenarios(str(FEATURE))

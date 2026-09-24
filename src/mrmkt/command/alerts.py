@@ -12,14 +12,12 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 import requests
 
+from mrmkt.command._shared import MEMBERSHIP_VINTAGE_NOTE, resolve_universe
+from mrmkt.common.clock import ET
 from mrmkt.indicator.risk_range import risk_range_series
-from mrmkt.usecase.universe import MEMBERSHIP_VINTAGE_NOTE, resolve_universe
-
-ET = ZoneInfo("America/New_York")
 
 DEFAULT_HORIZON = 15
 DEFAULT_VOL_PERIOD = 21

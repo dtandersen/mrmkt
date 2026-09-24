@@ -1,5 +1,8 @@
 import datetime
 from abc import ABC, abstractmethod
+from zoneinfo import ZoneInfo
+
+ET = ZoneInfo("America/New_York")
 
 
 class Clock(ABC):

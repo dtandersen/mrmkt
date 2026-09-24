@@ -6,7 +6,7 @@ import typer
 
 from mrmkt.command import _shared
 from mrmkt.command._shared import normalize_symbol, normalize_tag
-from mrmkt.usecase.alerts import LevelsUseCase, render_levels_csv
+from mrmkt.command.alerts import LevelsUseCase, render_levels_csv
 
 
 def run(

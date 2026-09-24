@@ -1,6 +1,6 @@
 """Alpaca websocket source for risk-range alerts (trades + daily bars)."""
 
-from mrmkt.usecase.alerts import ET
+from mrmkt.common.clock import ET
 
 
 class AlpacaStreamSource:

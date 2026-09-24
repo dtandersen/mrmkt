@@ -2,7 +2,7 @@ from unittest import TestCase
 from hamcrest import *
 
 from mrmkt.entity.ticker import Ticker
-from mrmkt.usecase.fetch_tickers import FetchTickersUseCase, FetchTickersResult
+from mrmkt.command.symbols_import import FetchTickersUseCase, FetchTickersResult
 from tests.testenv import TestEnvironment
 
 

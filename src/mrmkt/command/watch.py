@@ -11,9 +11,7 @@ import yaml
 
 from mrmkt.command import _shared
 from mrmkt.command._shared import normalize_symbol, normalize_tag
-from mrmkt.entity.trigger import Trigger
-from mrmkt.usecase.alerts import (
-    ET,
+from mrmkt.command.alerts import (
     NTFY_ENV_VAR,
     AlertEngine,
     FanoutSink,
@@ -27,6 +25,8 @@ from mrmkt.usecase.alerts import (
     format_alert,
     resolve_ntfy_url,
 )
+from mrmkt.common.clock import ET
+from mrmkt.entity.trigger import Trigger
 
 
 def build_alert_sink(

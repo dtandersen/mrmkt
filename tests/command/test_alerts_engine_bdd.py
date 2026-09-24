@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from mrmkt.usecase.alerts import AlertEngine, ListSink, TriggerRule, dry_run_alerts
+from mrmkt.command.alerts import AlertEngine, ListSink, TriggerRule, dry_run_alerts
 
 FEATURE = Path(__file__).parent.parent / "features" / "command" / "alerts_engine.feature"
 scenarios(str(FEATURE))
@@ -98,7 +98,7 @@ def fired_text(engine_context):
 
 @then("the fired alert line holds TRIGGER")
 def fired_default_line(engine_context):
-    from mrmkt.usecase.alerts import format_alert
+    from mrmkt.command.alerts import format_alert
 
     assert "TRIGGER" in format_alert(engine_context.fired[-1])
 
@@ -279,7 +279,7 @@ def trade_no_timestamp(engine_context):
 def print_to_file(engine_context, symbol, price):
     import tempfile
 
-    from mrmkt.usecase.alerts import FanoutSink, FileSink
+    from mrmkt.command.alerts import FanoutSink, FileSink
 
     with tempfile.NamedTemporaryFile("r", suffix=".log", delete=False) as tmp:
         engine_context.tmpfile = tmp.name
@@ -299,7 +299,7 @@ def file_holds_trigger(engine_context, symbol):
 def print_to_ntfy(engine_context, symbol, price):
     import requests_mock
 
-    from mrmkt.usecase.alerts import NtfySink
+    from mrmkt.command.alerts import NtfySink
 
     engine_context.engine.on_alert = NtfySink("https://ntfy.example/topic")
     with requests_mock.Mocker() as mocker:
@@ -325,7 +325,7 @@ def print_to_failing_ntfy(engine_context, symbol, price):
 
     import requests_mock
 
-    from mrmkt.usecase.alerts import NtfySink
+    from mrmkt.command.alerts import NtfySink
 
     engine_context.engine.on_alert = NtfySink("https://ntfy.example/secret-topic-xyz")
     stderr = io.StringIO()
@@ -346,7 +346,7 @@ def ntfy_failure_clean(engine_context):
 
 @when("I resolve the ntfy URL from env and config variants")
 def resolve_variants(engine_context):
-    from mrmkt.usecase.alerts import resolve_ntfy_url
+    from mrmkt.command.alerts import resolve_ntfy_url
 
     engine_context.resolved = {
         "env": resolve_ntfy_url("https://env.example/t", {"ntfy": "https://cfg.example/t"}),
@@ -372,7 +372,7 @@ def compute_levels_twice(engine_context):
     from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
     from mrmkt.entity.stock_price import StockPrice
     from mrmkt.entity.ticker import Ticker
-    from mrmkt.usecase.alerts import LevelsUseCase, render_levels_csv
+    from mrmkt.command.alerts import LevelsUseCase, render_levels_csv
 
     repo = InMemoryFinancialRepository()
     repo.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))

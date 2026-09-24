@@ -12,7 +12,6 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.models.buffet import BuffetModel
 from mrmkt.repo.provider import MarketDataProvider, ReadOnlyMarketDataProvider
-from mrmkt.usecase.runmodel import RunModel, RunModelRequest
 
 
 class TestBuffetModel(unittest.TestCase):
@@ -103,8 +102,6 @@ class TestBuffetModel(unittest.TestCase):
             stock_price=5,
             shares_outstanding=1000,
             market_cap=10000))
-
-        self.buf = RunModel(self.dst)
 
     def test_analyze_two_periods(self):
         self.when_analyzed('ICECREAM')
@@ -271,7 +268,11 @@ class TestBuffetModel(unittest.TestCase):
         })
 
     def when_analyzed(self, symbol):
-        self.buf.execute(RunModelRequest(symbol=symbol, model_class=BuffetModel))
+        model = BuffetModel()
+        reports = self.dst.financials.list_financial_reports(symbol)
+        for analysis in model.analyze(reports):
+            self.dst.financials.delete_analysis(analysis.symbol, analysis.date)
+            self.dst.financials.add_analysis(analysis)
 
     def with_close_price(self, symbol, date, price):
         self.finrepo.add_close_price(symbol, to_date(date), price)

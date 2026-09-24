@@ -10,7 +10,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
-from mrmkt.usecase.freshness import FreshnessRequest, FreshnessUseCase, render_csv
+from mrmkt.command.prices_freshness import FreshnessRequest, FreshnessUseCase, render_csv
 
 FEATURE = Path(__file__).parent.parent / "features" / "command" / "freshness.feature"
 scenarios(str(FEATURE))
