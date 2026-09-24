@@ -14,7 +14,7 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent / "features" / "screener.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "screener.feature"
 scenarios(str(FEATURE))
 
 START = date(2022, 1, 3)

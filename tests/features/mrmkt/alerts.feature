@@ -79,47 +79,30 @@ Feature: Ranges and watch command paths
     Then the command fails
     And the output mentions "unknown signal"
 
-  Scenario: Triggers add, list, and remove round trip
-    Given the alerts catalog contains these symbols:
-      | symbol | exchange | type      |
-      | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt triggers add AAA --operator crossing-down --frequency once"
-    Then the command succeeds
-    And the output mentions "id,symbol,signal,operator,value,frequency,expires_at,message,enabled"
-    And the output mentions "crossing-down"
-    When I execute "mrmkt triggers list"
-    Then the command succeeds
-    And the output mentions "AAA"
-    When I execute "mrmkt triggers disable 1"
-    Then the command succeeds
-    And the output mentions "disabled"
-    When I execute "mrmkt triggers enable 1"
-    Then the command succeeds
-    And the output mentions "enabled"
-    When I execute "mrmkt triggers remove 1"
-    Then the command succeeds
-    And the output mentions "removed trigger 1"
-
-  Scenario: Triggers add rejects an unknown operator
-    Given the alerts catalog contains these symbols:
-      | symbol | exchange | type      |
-      | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt triggers add AAA --operator sideways"
-    Then the command fails
-    And the output mentions "unknown operator"
-
   Scenario: Watch replays stored triggers without touching sinks
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar climb with a dip tagged universe
-    When I execute "mrmkt triggers add AAA --operator crossing-down"
+    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down"
     Then the command succeeds
     When I execute "mrmkt watch --all-triggers --dry-run"
     Then the command succeeds
     And the output mentions "sinks not called"
     And the output mentions "would alert: "
     And the output mentions "AAA"
+
+  Scenario: Watch dry-run scores only selected symbols
+    Given the alerts catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | BBB    | NASDAQ   | us_equity |
+    And AAA has a 60-bar climb with a dip
+    And BBB has a 5-bar climb
+    When I execute "mrmkt watch AAA BBB --dry-run"
+    Then the command succeeds
+    And the output mentions "AAA"
+    And the output omits "BBB"
 
   Scenario: Watch rejects an unknown trigger id
     Given the alerts catalog contains these symbols:

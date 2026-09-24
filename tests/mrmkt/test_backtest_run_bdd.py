@@ -14,7 +14,7 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent / "features" / "backtest_run.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "backtest_run.feature"
 scenarios(str(FEATURE))
 
 N_BARS = 400

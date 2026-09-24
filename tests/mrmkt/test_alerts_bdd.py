@@ -14,7 +14,7 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent / "features" / "alerts.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "alerts.feature"
 scenarios(str(FEATURE))
 
 START = date(2022, 1, 3)
@@ -92,6 +92,24 @@ def alerts_symbols_have_climb_with_dip(alerts_context, tag):
         alerts_context.local.add_tag(ticker.ticker, ticker.exchange, tag)
 
 
+@given(parsers.parse('{symbol} has a 60-bar climb with a dip'))
+def symbol_has_dip(alerts_context, symbol):
+    _add_climb(alerts_context.local, symbol, dip=True)
+
+
+@given(parsers.parse('{symbol} has a 5-bar climb'))
+def symbol_has_short_climb(alerts_context, symbol):
+    price = 100.0
+    for day in _business_days(START, 5):
+        alerts_context.local.add_price(
+            StockPrice(
+                symbol=symbol, date=day, open=price, high=price * 1.005,
+                low=price * 0.995, close=price, volume=1000.0,
+            )
+        )
+        price *= 1.002
+
+
 @when(parsers.parse('I execute "{command}"'))
 def execute_alerts_command(alerts_context, command):
     args = split(command)
@@ -106,6 +124,13 @@ def alerts_command_succeeds(alerts_context):
 @then("the command fails")
 def alerts_command_fails(alerts_context):
     assert alerts_context.result.exit_code != 0, alerts_context.result.output
+
+
+@then(parsers.parse('the output omits "{text}"'))
+def alerts_output_omits(alerts_context, text):
+    output = alerts_context.result.output
+    stderr = getattr(alerts_context.result, "stderr", "") or ""
+    assert text not in output and text not in stderr, output
 
 
 @then(parsers.parse('the output mentions "{text}"'))

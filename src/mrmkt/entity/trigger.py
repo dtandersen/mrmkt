@@ -23,6 +23,7 @@ DEFAULT_MESSAGE_TEMPLATE = (
 @dataclass
 class Trigger:
     id: int | None
+    name: str
     symbol: str
     signal: str = "risk-range"
     operator: str = "crossing-down"

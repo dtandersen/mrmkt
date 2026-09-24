@@ -12,7 +12,7 @@ from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 
-FEATURE = Path(__file__).parent / "features" / "list_prices.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "list_prices.feature"
 scenarios(str(FEATURE))
 
 

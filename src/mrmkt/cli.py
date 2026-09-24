@@ -61,13 +61,14 @@ prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical 
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 signals_app = typer.Typer(no_args_is_help=True, help="Inspect current strategy signals over stored prices")
-triggers_app = typer.Typer(no_args_is_help=True, help="Manage stored realtime alert triggers")
+trigger_app = typer.Typer(no_args_is_help=True, help="Manage stored realtime alert triggers")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(indicators_app, name="indicators")
 app.add_typer(backtest_app, name="backtest")
 app.add_typer(signals_app, name="signals")
-app.add_typer(triggers_app, name="triggers")
+app.add_typer(trigger_app, name="trigger")
+app.add_typer(trigger_app, name="trigger")
 
 
 def create_clock() -> Clock:
@@ -982,6 +983,7 @@ def _resolve_signal(signal: str) -> str:
 
 TRIGGER_COLUMNS = [
     "id",
+    "name",
     "symbol",
     "signal",
     "operator",
@@ -995,12 +997,13 @@ TRIGGER_COLUMNS = [
 
 def _render_triggers_csv(triggers: list[Trigger]) -> str:
     """Deterministic CSV of stored triggers."""
-    lines = ["# generator=mrmkt triggers list", ",".join(TRIGGER_COLUMNS)]
+    lines = ["# generator=mrmkt trigger list", ",".join(TRIGGER_COLUMNS)]
     for trigger in sorted(triggers, key=lambda t: t.id or 0):
         lines.append(
             ",".join(
                 [
                     str(trigger.id),
+                    trigger.name,
                     trigger.symbol,
                     trigger.signal,
                     trigger.operator,
@@ -1015,9 +1018,16 @@ def _render_triggers_csv(triggers: list[Trigger]) -> str:
     return "\n".join(lines) + "\n"
 
 
-@triggers_app.command("add")
-def triggers_add(
-    symbol: str = typer.Argument(..., help="Symbol to watch"),
+def _default_trigger_name() -> str:
+    import secrets
+
+    return f"trigger-{secrets.randbelow(900000) + 100000}"
+
+
+@trigger_app.command("create")
+def trigger_create(
+    name: str | None = typer.Argument(None, help="Trigger name (default: trigger-######)"),
+    symbol: str = typer.Option(..., "--symbol", help="Symbol to watch"),
     signal: str = typer.Option("risk-range", "--signal", help="Signal source (only 'risk-range')"),
     operator: str = typer.Option(
         "crossing-down", "--operator", help=f"Trigger operator (one of {', '.join(OPERATORS)})"
@@ -1033,6 +1043,7 @@ def triggers_add(
 ) -> None:
     """Store a realtime trigger; prints the created row."""
     _resolve_signal(signal)
+    trigger_name = name.strip() if name and name.strip() else _default_trigger_name()
     normalized_symbol = normalize_symbol(symbol)
     expires_at = None
     if expires is not None:
@@ -1046,6 +1057,7 @@ def triggers_add(
         stored = repository.add_trigger(
             Trigger(
                 id=None,
+                name=trigger_name,
                 symbol=normalized_symbol,
                 signal=signal.strip().lower(),
                 operator=operator.strip().lower(),
@@ -1067,7 +1079,7 @@ def triggers_add(
     typer.echo(_render_triggers_csv([stored]), nl=False)
 
 
-@triggers_app.command("list")
+@trigger_app.command("list")
 def triggers_list(
     enabled_only: bool = typer.Option(False, "--enabled-only", help="List only enabled triggers"),
 ) -> None:
@@ -1085,9 +1097,9 @@ def triggers_list(
     typer.echo(_render_triggers_csv(triggers), nl=False)
 
 
-@triggers_app.command("remove")
+@trigger_app.command("remove")
 def triggers_remove(
-    trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
+    trigger_id: int = typer.Argument(..., help="Trigger id from trigger list"),
 ) -> None:
     """Delete a stored trigger."""
     close_repository: Callable[[], None] | None = None
@@ -1105,15 +1117,15 @@ def triggers_remove(
     typer.echo(f"removed trigger {trigger_id}")
 
 
-@triggers_app.command("enable")
+@trigger_app.command("enable")
 def triggers_enable(
-    trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
+    trigger_id: int = typer.Argument(..., help="Trigger id from trigger list"),
 ) -> None:
     """Enable a stored trigger."""
     _set_trigger_enabled(trigger_id, True)
 
 
-@triggers_app.command("disable")
+@trigger_app.command("disable")
 def triggers_disable(
     trigger_id: int = typer.Argument(..., help="Trigger id from triggers list"),
 ) -> None:

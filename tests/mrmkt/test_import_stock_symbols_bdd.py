@@ -10,7 +10,7 @@ import mrmkt.cli as cli
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent / "features" / "import_stock_symbols.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "import_stock_symbols.feature"
 scenarios(str(FEATURE))
 
 

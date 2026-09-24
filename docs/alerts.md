@@ -12,8 +12,8 @@ uv run mrmkt ranges --tag sp500
 uv run mrmkt watch AAA --dry-run
 uv run mrmkt watch --tag sp500 --sink stdout --sink file --sink-file alerts.log
 uv run mrmkt watch --tag sp500 --sink ntfy --session-policy extended --feed sip
-uv run mrmkt triggers add CPAY --operator crossing-down --frequency once
-uv run mrmkt triggers list
+uv run mrmkt trigger create dip-watch --symbol CPAY --operator crossing-down --frequency once
+uv run mrmkt trigger list
 uv run mrmkt watch --all-triggers --sink ntfy
 ```
 
@@ -26,9 +26,9 @@ minimum 30 bars). `watch` needs symbols or `--tag`. Both accept
 ## Stored triggers (`mrmkt triggers`, DB-backed)
 
 Triggers persist in the `trigger` table (run `dbschema -c dbschema.yml` to
-apply `migrations/migration9`), so a symbol is associated with its alert
-configuration and `watch` can monitor a stored set: `triggers add/list`,
-`triggers enable/disable/remove`, then `watch --trigger-id 1
+apply pending migrations), so a symbol is associated with its alert
+configuration and `watch` can monitor a stored set: `trigger create/list`,
+`trigger enable/disable/remove`, then `watch --trigger-id 1
 --trigger-id 2` or `watch --all-triggers` (enabled, unexpired only).
 
 Each row: `symbol | signal | operator | value | frequency | expires_at |

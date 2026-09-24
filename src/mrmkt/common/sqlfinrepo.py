@@ -356,6 +356,7 @@ class SqlFinancialRepository(
     def trigger_mapper(self, row) -> Trigger:
         return Trigger(
             id=row["id"],
+            name=row["name"],
             symbol=row["symbol"],
             signal=row["signal"],
             operator=row["operator"],
@@ -368,7 +369,10 @@ class SqlFinancialRepository(
 
     def add_trigger(self, trigger: Trigger) -> Trigger:
         self._validate_trigger(trigger)
+        if not trigger.name or not trigger.name.strip():
+            raise ValueError("trigger name must not be blank")
         row = TriggerRow(
+            name=trigger.name.strip(),
             symbol=trigger.symbol,
             signal=trigger.signal,
             operator=trigger.operator,
@@ -411,6 +415,7 @@ class SqlFinancialRepository(
             (trigger_id,),
         )
         updated = TriggerRow(
+            name=current.name,
             symbol=current.symbol,
             signal=current.signal,
             operator=current.operator,
@@ -539,6 +544,7 @@ class TickerTagRow:
 
 @dataclass
 class TriggerRow:
+    name: str
     symbol: str
     signal: str
     operator: str

@@ -13,7 +13,7 @@ from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
-FEATURE = Path(__file__).parent / "features" / "import_prices.feature"
+FEATURE = Path(__file__).parent.parent / "features" / "mrmkt" / "import_prices.feature"
 scenarios(str(FEATURE))
 
 

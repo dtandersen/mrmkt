@@ -207,8 +207,14 @@ class InMemoryFinancialRepository(
                 raise ValueError(
                     f"trigger already exists for {trigger.symbol} {trigger.signal} {trigger.operator}"
                 )
+        if not trigger.name or not trigger.name.strip():
+            raise ValueError("trigger name must not be blank")
+        for existing in self.triggers.all():
+            if existing.name == trigger.name.strip():
+                raise ValueError(f"trigger name {trigger.name.strip()!r} already exists")
         stored = Trigger(
             id=self.next_trigger_id,
+            name=trigger.name.strip(),
             symbol=trigger.symbol,
             signal=trigger.signal,
             operator=trigger.operator,
@@ -239,6 +245,7 @@ class InMemoryFinancialRepository(
         self.triggers.add(
             Trigger(
                 id=current.id,
+                name=current.name,
                 symbol=current.symbol,
                 signal=current.signal,
                 operator=current.operator,
