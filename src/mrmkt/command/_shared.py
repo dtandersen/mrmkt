@@ -2,8 +2,8 @@
 
 Factories, name normalization, and date parsing live here so each
 command module stays focused on its own options and use-case calls.
-``mrmkt.cli`` re-exports these names for backwards compatibility
-(scanner.py and the test suite import them from there).
+Callers that used to reach these names through ``mrmkt.cli`` import them
+from here instead (scanner.py, the test suite).
 """
 
 import re

@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mrmkt = "mrmkt.cli:app"
+mrmkt = "mrmkt.cli.main:app"
 
 [dependency-groups]
 dev = [

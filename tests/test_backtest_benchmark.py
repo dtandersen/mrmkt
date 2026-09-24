@@ -4,7 +4,7 @@ import unittest
 
 from hamcrest import assert_that, equal_to, none
 
-from mrmkt.cli import split_benchmark_symbol
+from mrmkt.command._shared import split_benchmark_symbol
 
 
 class TestSplitBenchmarkSymbol(unittest.TestCase):

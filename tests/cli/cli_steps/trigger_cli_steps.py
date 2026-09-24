@@ -13,7 +13,7 @@ from shlex import split
 
 from typer.testing import CliRunner
 
-import mrmkt.cli as cli
+import mrmkt.cli.main as cli
 from mrmkt.command.triggers_common import _default_trigger_name
 from mrmkt.command.triggersets_common import _default_set_name
 from mrmkt.composition import TriggerCliDependencies

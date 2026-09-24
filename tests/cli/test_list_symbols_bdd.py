@@ -5,7 +5,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import mrmkt.cli as cli
+import mrmkt.cli.main as cli
 from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.entity.ticker import Ticker
