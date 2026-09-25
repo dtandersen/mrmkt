@@ -85,6 +85,8 @@ CLI commands do not use repositories.
 
 CLI commands do not perform validation.
 
+Create commands using the command factory in Typer ctx.
+
 ## Verbs
 
 - create / delete - resources
