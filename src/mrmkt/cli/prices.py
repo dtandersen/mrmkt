@@ -2,10 +2,8 @@
 
 import typer
 
-from mrmkt.command.list_prices import ListPrices
-from mrmkt.command.prices_freshness import CheckFreshness, render_csv
-from mrmkt.command.prices_import import ImportPrices
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.command.prices_freshness import render_csv
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical prices")
 
@@ -21,10 +19,10 @@ def import_prices(
     to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today)"),
 ) -> None:
     """Import bounded daily price history into the local store."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ImportPrices) as import_command:
-            outcome = import_command.execute(
+        import_command = env.command_factory.import_prices()
+        outcome = import_command.execute(
                 provider=provider,
                 symbols=symbols,
                 all_symbols=all_symbols,
@@ -62,10 +60,12 @@ def list_prices(
     to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today when --from is used)"),
 ) -> None:
     """List stored daily bars as a deterministic table."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ListPrices) as list_command:
-            prices = list_command.execute(symbols, from_date, to_date)
+        list_command = env.command_factory.list_prices()
+        prices = list_command.execute(
+            symbols=symbols, from_date=from_date, to_date=to_date
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -94,12 +94,16 @@ def run_prices_freshness(
     gap_threshold: float = typer.Option(0.20, "--gap-threshold", help="Overnight-gap heuristic threshold as a fraction"),
 ) -> None:
     """Report price staleness and bar-quality flags; prints deterministic CSV."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CheckFreshness) as freshness_command:
-            result = freshness_command.execute(
-                tags, exclude_tags, lookback_days, stale_after_days, gap_threshold
-            )
+        freshness_command = env.command_factory.check_freshness()
+        result = freshness_command.execute(
+            tags=tags,
+            exclude_tags=exclude_tags,
+            lookback_days=lookback_days,
+            stale_after_days=stale_after_days,
+            gap_threshold=gap_threshold,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

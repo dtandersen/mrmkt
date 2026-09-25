@@ -1,6 +1,5 @@
 import datetime
 from dataclasses import dataclass
-from typing import List
 
 from mrmkt.common.sql import Duplicate
 from mrmkt.common.table import Table
@@ -14,8 +13,8 @@ from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
@@ -57,7 +56,7 @@ class InMemoryFinancialRepository(
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
         return self.incomes.get(self.key(symbol, date))
 
-    def list_income_statements(self, symbol: str) -> List[IncomeStatement]:
+    def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
         return self.incomes.filter(lambda i: i.symbol == symbol)
 
     def add_income(self, income_statement: IncomeStatement) -> None:
@@ -66,7 +65,7 @@ class InMemoryFinancialRepository(
     def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
         return self.balances.get(f"{symbol}-{date}")
 
-    def list_balance_sheets(self, symbol: str) -> List[BalanceSheet]:
+    def list_balance_sheets(self, symbol: str) -> list[BalanceSheet]:
         return self.balances.filter(lambda i: i.symbol == symbol)
 
     def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
@@ -75,7 +74,7 @@ class InMemoryFinancialRepository(
     def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
         return self.cashflows.get(f"{symbol}-{date}")
 
-    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
+    def list_cash_flows(self, symbol: str) -> list[CashFlow]:
         return self.cashflows.filter(lambda i: i.symbol == symbol)
 
     def add_cash_flow(self, cash_flow: CashFlow):
@@ -84,7 +83,7 @@ class InMemoryFinancialRepository(
     def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
         return self.enterprises.get(f"{symbol}-{date}")
 
-    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+    def list_enterprise_value(self, symbol: str) -> list[EnterpriseValue]:
         return self.enterprises.filter(lambda i: i.symbol == symbol)
 
     def add_enterprise_value(self, enterprise_value: EnterpriseValue):
@@ -101,7 +100,7 @@ class InMemoryFinancialRepository(
             volume=0
         ))
 
-    def get_analysis(self, symbol: str) -> List[Analysis]:
+    def get_analysis(self, symbol: str) -> list[Analysis]:
         return self.analysis.filter(lambda s: s.symbol == symbol)
 
     def add_analysis(self, analysis: Analysis):
@@ -117,7 +116,7 @@ class InMemoryFinancialRepository(
     def get_price(self, symbol, date: datetime.date):
         return self.prices.get(self.key(symbol, date))
 
-    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices(self, ticker: str, start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
         prices = self.prices.filter(lambda p: p.symbol == ticker)
 
         if start is not None:
@@ -128,7 +127,7 @@ class InMemoryFinancialRepository(
 
         return prices
 
-    def list_prices_for_symbols(self, tickers: List[str], start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices_for_symbols(self, tickers: list[str], start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
         wanted = {ticker.strip().upper() for ticker in tickers}
         prices = self.prices.filter(lambda p: p.symbol in wanted)
 
@@ -148,10 +147,10 @@ class InMemoryFinancialRepository(
     def add_price(self, price: StockPrice):
         self.prices.add(price)
 
-    def get_symbols(self) -> List[str]:
-        return list(map(lambda t: t.ticker, self.tickers.all()))
+    def get_symbols(self) -> list[str]:
+        return [t.ticker for t in self.tickers.all()]
 
-    def get_tickers(self) -> List[Ticker]:
+    def get_tickers(self) -> list[Ticker]:
         return list(self.tickers.all())
 
     def add_ticker(self, ticker: Ticker):

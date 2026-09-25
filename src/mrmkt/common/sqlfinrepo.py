@@ -1,9 +1,9 @@
 import datetime
 import re
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import List
 
-from mrmkt.common.sql import Duplicate, SqlClient, JsonField
+from mrmkt.common.sql import Duplicate, SqlClient
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
@@ -15,8 +15,8 @@ from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.tags import TickerTagRepository
+from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
@@ -56,7 +56,7 @@ class SqlFinancialRepository(
 
         self.sql_client.insert("balance_sheet", row)
 
-    def get_income_statements(self, symbol: str) -> List[IncomeStatement]:
+    def get_income_statements(self, symbol: str) -> list[IncomeStatement]:
         return self.sql_client.select("select * " +
                                       "from income_stmt "
                                       "where symbol = %s",
@@ -184,7 +184,7 @@ class SqlFinancialRepository(
 
         self.sql_client.insert("daily_price", row)
 
-    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices(self, ticker: str, start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
         start_sql = ""
         end_sql = ""
         params: list = [ticker]
@@ -208,7 +208,7 @@ class SqlFinancialRepository(
 
         return rows
 
-    def list_prices_for_symbols(self, tickers: List[str], start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices_for_symbols(self, tickers: list[str], start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
         normalized = []
         for ticker in tickers:
             symbol = ticker.strip().upper()
@@ -257,7 +257,7 @@ class SqlFinancialRepository(
             volume=row["volume"]
         )
 
-    def get_price_on_or_after(self, symbol: str, date: str) -> StockPrice:
+    def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
         rows = self.sql_client.select("select * " +
                                       "from daily_price " +
                                       "where symbol = %s " +
@@ -275,7 +275,7 @@ class SqlFinancialRepository(
         )
         self.sql_client.insert("financials", f)
 
-    def get_symbols(self) -> List[str]:
+    def get_symbols(self) -> list[str]:
         rows = self.sql_client.select(
             "select distinct symbol " +
             "from daily_price ",
@@ -286,7 +286,7 @@ class SqlFinancialRepository(
     def symbol_mapper(self, row):
         return row["symbol"]
 
-    def get_tickers(self) -> List[Ticker]:
+    def get_tickers(self) -> list[Ticker]:
         rows = self.sql_client.select(
             "select * " +
             "from ticker",
@@ -348,7 +348,7 @@ class SqlFinancialRepository(
     def get_symbols_by_tag(self, tag: str) -> list[str]:
         return sorted({ticker.ticker for ticker in self.list_tickers_by_tag(tag)})
 
-    def list_triggers(self, enabled_only: bool = False) -> List[Trigger]:
+    def list_triggers(self, enabled_only: bool = False) -> list[Trigger]:
         query = "select * from trigger order by id asc"
         if enabled_only:
             query = "select * from trigger where enabled = %s order by id asc"
@@ -455,12 +455,10 @@ class SqlFinancialRepository(
         )
         if not triggers:
             raise ValueError(f"no trigger with name {trigger_name!r}")
-        try:
+        with suppress(Duplicate):
             self.sql_client.insert(
                 "trigger_set_member", TriggerSetMemberRow(set_name, trigger_name)
             )
-        except Duplicate:
-            pass
 
     def remove_from_set(self, set_name: str, trigger_name: str) -> bool:
         return self.sql_client.delete(
@@ -492,19 +490,19 @@ class SqlFinancialRepository(
         if trigger.signal not in ("risk-range",):
             raise ValueError(f"{trigger.signal!r} is an invalid signal")
 
-    def get_income_statement(self, symbol: str, date: datetime.date) -> List[IncomeStatement]:
+    def get_income_statement(self, symbol: str, date: datetime.date) -> list[IncomeStatement]:
         raise NotImplementedError
 
-    def list_income_statements(self, symbol: str) -> List[IncomeStatement]:
+    def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
         raise NotImplementedError
 
-    def get_balance_sheet(self, symbol, date: datetime.date) -> List[BalanceSheet]:
+    def get_balance_sheet(self, symbol, date: datetime.date) -> list[BalanceSheet]:
         raise NotImplementedError
 
-    def list_cash_flows(self, symbol: str) -> List[CashFlow]:
+    def list_cash_flows(self, symbol: str) -> list[CashFlow]:
         raise NotImplementedError
 
-    def list_enterprise_value(self, symbol: str) -> List[EnterpriseValue]:
+    def list_enterprise_value(self, symbol: str) -> list[EnterpriseValue]:
         raise NotImplementedError
 
 
@@ -575,7 +573,7 @@ class PriceRow:
 class FinancialRow:
     symbol: str
     date: datetime.date
-    data: JsonField
+    data: str
 
 
 @dataclass

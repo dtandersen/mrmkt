@@ -2,11 +2,7 @@
 
 import typer
 
-from mrmkt.command.list_symbols import ListSymbols
-from mrmkt.command.symbols_import import ImportSymbols
-from mrmkt.command.symbols_label import LabelSymbols
-from mrmkt.command.symbols_unlabel import UnlabelSymbols
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
 
@@ -17,10 +13,10 @@ def import_symbols(
     provider: str = typer.Option(..., "--provider", help="Symbol source (currently: alpaca)"),
 ) -> None:
     """Import the remote symbol catalog into the local repository."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ImportSymbols) as import_command:
-            count = import_command.execute(provider)
+        import_command = env.command_factory.import_symbols()
+        count = import_command.execute(provider=provider)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -35,10 +31,10 @@ def list_symbols(
     tag: str | None = typer.Option(None, "--tag", help="Only show symbols with this tag"),
 ) -> None:
     """List stored symbols as a deterministic table."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ListSymbols) as list_command:
-            tickers = list_command.execute(tag)
+        list_command = env.command_factory.list_symbols()
+        tickers = list_command.execute(tag=tag)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -57,10 +53,10 @@ def list_symbols(
 @symbols_app.command("label")
 def label_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Tag stored symbols; prints how many assignments changed."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(LabelSymbols) as label_command:
-            result = label_command.execute(symbols, tag)
+        label_command = env.command_factory.label_symbols()
+        result = label_command.execute(symbols=symbols, tag=tag)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -72,10 +68,10 @@ def label_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
 @symbols_app.command("unlabel")
 def unlabel_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Untag stored symbols; prints how many assignments changed."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(UnlabelSymbols) as unlabel_command:
-            result = unlabel_command.execute(symbols, tag)
+        unlabel_command = env.command_factory.unlabel_symbols()
+        result = unlabel_command.execute(symbols=symbols, tag=tag)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

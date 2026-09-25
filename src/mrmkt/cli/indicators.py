@@ -13,7 +13,7 @@ from mrmkt.command.indicators_volatility import CalculateVolatility
 from mrmkt.command.indicators_volatility_percentile import (
     CalculateVolatilityPercentile,
 )
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 
@@ -27,10 +27,12 @@ def calculate_sma(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the simple moving average over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateSma) as sma_command:
-            result = sma_command.execute(symbol, period, from_date, to_date)
+        sma_command = env.command_factory.calculate_sma()
+        result = sma_command.execute(
+            symbol=symbol, period=period, from_date=from_date, to_date=to_date
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -53,18 +55,18 @@ def calculate_risk_range(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print risk-range buy/sell levels over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateRiskRange) as range_command:
-            result = range_command.execute(
-                symbol,
-                horizon,
-                volatility_period,
-                width,
-                anchor_period,
-                from_date,
-                to_date,
-            )
+        range_command = env.command_factory.calculate_risk_range()
+        result = range_command.execute(
+            symbol=symbol,
+            horizon=horizon,
+            volatility_period=volatility_period,
+            width=width,
+            anchor_period=anchor_period,
+            from_date=from_date,
+            to_date=to_date,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -85,10 +87,12 @@ def calculate_volatility(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print realized volatility over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateVolatility) as volatility_command:
-            result = volatility_command.execute(symbol, period, from_date, to_date)
+        volatility_command = env.command_factory.calculate_volatility()
+        result = volatility_command.execute(
+            symbol=symbol, period=period, from_date=from_date, to_date=to_date
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -110,12 +114,16 @@ def calculate_volatility_percentile(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the volatility percentile rank over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateVolatilityPercentile) as percentile_command:
-            result = percentile_command.execute(
-                symbol, period, lookback, from_date, to_date
-            )
+        percentile_command = env.command_factory.calculate_volatility_percentile()
+        result = percentile_command.execute(
+            symbol=symbol,
+            period=period,
+            lookback=lookback,
+            from_date=from_date,
+            to_date=to_date,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -137,12 +145,16 @@ def calculate_volatility_of_volatility(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print volatility of volatility over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateVolOfVol) as vov_command:
-            result = vov_command.execute(
-                symbol, volatility_period, vol_of_vol_period, from_date, to_date
-            )
+        vov_command = env.command_factory.calculate_vol_of_vol()
+        result = vov_command.execute(
+            symbol=symbol,
+            volatility_period=volatility_period,
+            vol_of_vol_period=vol_of_vol_period,
+            from_date=from_date,
+            to_date=to_date,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -165,17 +177,17 @@ def calculate_volatility_of_volatility_percentile(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the vol-of-vol percentile rank over stored closes."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CalculateVolOfVolPercentile) as percentile_command:
-            result = percentile_command.execute(
-                symbol,
-                volatility_period,
-                vol_of_vol_period,
-                lookback,
-                from_date,
-                to_date,
-            )
+        percentile_command = env.command_factory.calculate_vol_of_vol_percentile()
+        result = percentile_command.execute(
+            symbol=symbol,
+            volatility_period=volatility_period,
+            vol_of_vol_period=vol_of_vol_period,
+            lookback=lookback,
+            from_date=from_date,
+            to_date=to_date,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

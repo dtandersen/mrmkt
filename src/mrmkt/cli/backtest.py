@@ -2,8 +2,7 @@
 
 import typer
 
-from mrmkt.command.backtest_run import RunBacktest
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 
@@ -29,23 +28,23 @@ def run_backtest(
     chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(RunBacktest) as backtest_command:
-            outcome = backtest_command.execute(
-                symbols,
-                all_symbols,
-                tags,
-                from_date,
-                to_date,
-                strategy_name,
-                params_text,
-                benchmark,
-                size_pct,
-                stop,
-                fees,
-                chunk_size,
-            )
+        backtest_command = env.command_factory.run_backtest()
+        outcome = backtest_command.execute(
+            symbols=symbols,
+            all_symbols=all_symbols,
+            tags=tags,
+            from_date=from_date,
+            to_date=to_date,
+            strategy_name=strategy_name,
+            params_text=params_text,
+            benchmark=benchmark,
+            size_pct=size_pct,
+            stop=stop,
+            fees=fees,
+            chunk_size=chunk_size,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

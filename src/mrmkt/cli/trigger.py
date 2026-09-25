@@ -2,12 +2,8 @@
 
 import typer
 
-from mrmkt.command.create_trigger import CreateTrigger
-from mrmkt.command.delete_trigger import DeleteTrigger
-from mrmkt.command.list_trigger import ListTriggers
-from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.triggers_common import _render_triggers_csv
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 trigger_app = typer.Typer(
     no_args_is_help=True, help="Manage stored realtime alert triggers"
@@ -49,19 +45,19 @@ def trigger_create(
     ),
 ) -> None:
     """Store a realtime trigger; prints the created row."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CreateTrigger) as create_command:
-            stored = create_command.execute(
-                name,
-                symbol,
-                signal=signal,
-                operator=operator,
-                value=value,
-                frequency=frequency,
-                expires=expires,
-                message=message,
-            )
+        command = env.command_factory.create_trigger()
+        stored = command.execute(
+            name=name,
+            symbol=symbol,
+            signal=signal,
+            operator=operator,
+            value=value,
+            frequency=frequency,
+            expires=expires,
+            message=message,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -78,10 +74,10 @@ def triggers_list(
     ),
 ) -> None:
     """List stored triggers as deterministic CSV."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ListTriggers) as list_command:
-            triggers = list_command.execute(enabled_only=enabled_only)
+        list_command = env.command_factory.list_triggers()
+        triggers = list_command.execute(enabled_only=enabled_only)
     except Exception as error:
         typer.echo(f"Failed to list triggers: {error}", err=True)
         raise typer.Exit(code=1) from error
@@ -94,10 +90,10 @@ def trigger_show(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Show a single stored trigger as CSV."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ShowTrigger) as show_command:
-            trigger = show_command.execute(name)
+        show_command = env.command_factory.show_trigger()
+        trigger = show_command.execute(name=name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -112,10 +108,10 @@ def triggers_delete(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Delete a stored trigger (also removed from any trigger sets)."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(DeleteTrigger) as delete_command:
-            trigger = delete_command.execute(name)
+        delete_command = env.command_factory.delete_trigger()
+        trigger = delete_command.execute(name=name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

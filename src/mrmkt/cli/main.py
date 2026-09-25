@@ -15,10 +15,12 @@ from mrmkt.cli.symbols import symbols_app
 from mrmkt.cli.trigger import trigger_app
 from mrmkt.cli.triggerset import triggerset_app
 from mrmkt.command.alerts import render_levels_csv
-from mrmkt.command.ranges import ListRanges
-from mrmkt.command.screen import ScreenSymbols, render_csv
-from mrmkt.command.watch import WatchPrices
-from mrmkt.composition import default_cli_dependencies, resolve_cli_dependencies
+from mrmkt.command.screen import render_csv
+from mrmkt.composition import (
+    CliDependencies,
+    default_cli_dependencies,
+    resolve_cli_dependencies,
+)
 
 __all__ = ["app"]
 
@@ -32,7 +34,16 @@ def _install_cli_dependencies(ctx: typer.Context) -> None:
     # their own through ``CliRunner(..., obj=...)`` keep it untouched.
     if ctx.obj is None:
         ctx.obj = default_cli_dependencies()
+    # App-scope teardown: release everything the invocation opened, on
+    # success and on error alike. Registered for injected test doubles too.
+    if isinstance(ctx.obj, CliDependencies):
+        ctx.call_on_close(lambda: teardown_app(ctx))
 
+def teardown_app(ctx: typer.Context) -> None:
+    """Release app-scoped resources for one CLI invocation (teardown)."""
+    deps = ctx.obj
+    if isinstance(deps, CliDependencies):
+        deps.close()
 
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
@@ -57,20 +68,20 @@ def run_screen(
     top: int | None = typer.Option(None, "--top", help="Keep only the top N ranked rows"),
 ) -> None:
     """Rank a tag universe on point-in-time technicals; prints deterministic CSV."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ScreenSymbols) as screen_command:
-            result = screen_command.execute(
-                tags,
-                exclude_tags,
-                as_of,
-                mode,
-                min_price,
-                min_dollar_vol,
-                min_bars,
-                max_stale_days,
-                top,
-            )
+        screen_command = env.command_factory.screen_symbols()
+        result = screen_command.execute(
+            tags=tags,
+            exclude_tags=exclude_tags,
+            as_of=as_of,
+            mode=mode,
+            min_price=min_price,
+            min_dollar_vol=min_dollar_vol,
+            min_bars=min_bars,
+            max_stale_days=max_stale_days,
+            top=top,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -92,19 +103,19 @@ def run_ranges(
     anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
 ) -> None:
     """Print deterministic risk-range bands from stored bars."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(ListRanges) as ranges_command:
-            result = ranges_command.execute(
-                symbols,
-                tags,
-                signal,
-                as_of,
-                horizon,
-                vol_period,
-                width,
-                anchor_period,
-            )
+        ranges_command = env.command_factory.list_ranges()
+        result = ranges_command.execute(
+            symbols=symbols,
+            tags=tags,
+            signal=signal,
+            as_of=as_of,
+            horizon=horizon,
+            vol_period=vol_period,
+            width=width,
+            anchor_period=anchor_period,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -130,23 +141,23 @@ def run_watch(
     verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
 ) -> None:
     """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(WatchPrices) as watch_command:
-            watch_command.execute(
-                symbols,
-                tags,
-                signal,
-                sinks,
-                sink_file,
-                feed,
-                dry_run,
-                session_policy,
-                as_of,
-                verbose,
-                trigger_ids,
-                all_triggers,
-            )
+        watch_command = env.command_factory.watch_prices()
+        watch_command.execute(
+            symbols=symbols,
+            tags=tags,
+            signal=signal,
+            sinks=sinks,
+            sink_file=sink_file,
+            feed=feed,
+            dry_run=dry_run,
+            session_policy=session_policy,
+            as_of=as_of,
+            verbose=verbose,
+            trigger_ids=trigger_ids,
+            all_triggers=all_triggers,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:

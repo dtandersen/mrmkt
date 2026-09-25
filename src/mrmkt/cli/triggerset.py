@@ -2,10 +2,8 @@
 
 import typer
 
-from mrmkt.command.add_triggerset import AddTriggerToSet, AddTriggerToSetError
-from mrmkt.command.create_triggerset import CreateTriggerSet
-from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
-from mrmkt.composition import resolve_cli_dependencies
+from mrmkt.command.add_triggerset import AddTriggerToSetError
+from mrmkt.composition import CliDependencies, resolve_cli_dependencies
 
 triggerset_app = typer.Typer(no_args_is_help=True, help="Manage trigger sets")
 
@@ -18,10 +16,10 @@ def triggerset_create(
     ),
 ) -> None:
     """Create an empty trigger set; prints its name."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(CreateTriggerSet) as create_command:
-            stored = create_command.execute(name)
+        create_command = env.command_factory.create_trigger_set()
+        stored = create_command.execute(name=name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
@@ -37,10 +35,10 @@ def triggerset_add(
     trigger_name: str = typer.Argument(..., help="Trigger name to add"),
 ) -> None:
     """Add a trigger to a trigger set."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(AddTriggerToSet) as add_command:
-            add_command.execute(set_name, trigger_name)
+        add_command = env.command_factory.add_trigger_to_set()
+        add_command.execute(set_name=set_name, trigger_name=trigger_name)
     except AddTriggerToSetError as error:
         for field_error in error.errors:
             typer.echo(field_error.message, err=True)
@@ -60,10 +58,10 @@ def triggerset_remove(
     trigger_name: str = typer.Argument(..., help="Trigger name to remove"),
 ) -> None:
     """Remove a trigger from a trigger set."""
-    deps = resolve_cli_dependencies(ctx)
+    env: CliDependencies = resolve_cli_dependencies(ctx)
     try:
-        with deps.command_factory(RemoveTriggerFromSet) as remove_command:
-            remove_command.execute(set_name, trigger_name)
+        remove_command = env.command_factory.remove_trigger_from_set()
+        remove_command.execute(set_name=set_name, trigger_name=trigger_name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
