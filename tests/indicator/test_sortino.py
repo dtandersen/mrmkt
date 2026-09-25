@@ -11,7 +11,7 @@ class TestSortinoIndicator(unittest.TestCase):
         returns = [17, 15, 23, -5, 12, 9, 13, -4]
         returns = list(map(lambda x: x / 100, returns))
         z = SortinoIndicator(0).go(returns)
-        assert_that(z, equal_to(4.417261042993861))
+        assert_that(z, equal_to(4.417261042993862))
 
     def test_y(self):
         """

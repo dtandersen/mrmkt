@@ -48,13 +48,13 @@ from mrmkt.command.list_prices import ListPrices
 from mrmkt.command.list_symbols import ListSymbols
 from mrmkt.command.list_trigger import ListTriggers
 from mrmkt.command.prices_freshness import CheckFreshness
-from mrmkt.command.prices_import import ImportPrices
+from mrmkt.command.import_prices import ImportPrices
 from mrmkt.command.ranges import ListRanges
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
 from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
-from mrmkt.command.symbols_import import ImportSymbols
+from mrmkt.command.import_symbols import ImportSymbols
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
@@ -243,9 +243,9 @@ def create_app_context() -> AppContext:
     teardown (:attr:`CliDependencies.close`, registered on the Typer context).
     """
     repository, release = _shared.create_local_ticker_repository()
-    clock=_shared.create_clock()
-    alpaca_client=_shared.create_alpaca_client()
-    alpaca_data_client=_shared.create_alpaca_data_client()
+    clock = _shared.create_clock()
+    alpaca_client = _shared.create_alpaca_client()
+    alpaca_data_client = _shared.create_alpaca_data_client()
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,

@@ -2,6 +2,7 @@
 
 import typer
 
+from mrmkt.command.import_symbols import ImportSymbolsRequest
 from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
@@ -16,12 +17,13 @@ def import_symbols(
     env: AppContext = resolve_cli_dependencies(ctx)
     try:
         import_command = env.command_factory.import_symbols()
-        count = import_command.execute(provider=provider)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
+        result = import_command.execute(ImportSymbolsRequest(provider=provider))
     except Exception as error:
         typer.echo(f"Failed to import symbols from Alpaca: {error}", err=True)
         raise typer.Exit(code=1) from error
+    if not result.success:
+        raise typer.BadParameter("; ".join(result.errors))
+    count = result.imported_count
     typer.echo(f"Imported {count} newly imported symbol{'s' if count != 1 else ''}.")
 
 

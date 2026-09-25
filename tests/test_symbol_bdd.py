@@ -18,7 +18,8 @@ from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.command.list_symbols import ListSymbols
-from mrmkt.command.symbols_import import ImportSymbols
+from mrmkt.command.base import BaseResult
+from mrmkt.command.import_symbols import ImportSymbols, ImportSymbolsRequest
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
@@ -96,6 +97,12 @@ def _invoke_command(symbol_context, command, *args, **kwargs):
     except ValueError as error:
         symbol_context.failed = True
         symbol_context.error = str(error)
+    if (
+        isinstance(symbol_context.result, BaseResult)
+        and not symbol_context.result.success
+    ):
+        symbol_context.failed = True
+        symbol_context.error = "; ".join(symbol_context.result.errors)
 
 
 @given("the local ticker catalog contains these symbols:")
@@ -189,7 +196,7 @@ def import_symbols_command(
     _invoke_command(
         symbol_context,
         ImportSymbols(remote_repository, financial_repository),
-        provider,
+        ImportSymbolsRequest(provider=provider),
     )
 
 
@@ -384,7 +391,7 @@ def no_stored_symbols_listed(symbol_context):
 
 @then(parsers.parse("the import count is {count:d}"))
 def import_count_is(symbol_context, count):
-    assert_that(symbol_context.result, equal_to(count))
+    assert_that(symbol_context.result.imported_count, equal_to(count))
 
 
 @then("the tag change is:")
