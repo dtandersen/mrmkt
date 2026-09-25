@@ -20,11 +20,13 @@ List all triggers.
 
 `mrmkt trigger list`
 
+- --enabled-only - only list enabled triggers
+
 ### Show trigger
 
 Show a trigger
 
-`mrmkt trigger show <trigger`
+`mrmkt trigger show <trigger>`
 
 ### Delete a trigger
 
@@ -36,9 +38,9 @@ Delete a trigger. It is also removed from any trigger sets.
 
 ### Create a trigger set
 
-`mrmkt triggerset create`
+`mrmkt triggerset create [<name>]`
 
-- --name <name> (optional)
+* name is set to `triggerset-12345` if it's not provided.
 
 ### Add a trigger to a trigger set
 
