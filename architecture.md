@@ -85,8 +85,10 @@ class ImportSymbols(Command[ImportSymbolsRequest, ImportSymbolsResult]):
       ...
 
     def execute(self, request: ImportSymbolsRequest) -> ImportSymbolsResult:
+      if request.provider.lower() != "alpaca":
+          return ImportSymbolsResult.invalid_data([...])
       ...
-      return result
+      return ImportSymbolsResult.success(imported_count)
 ```
 
 # CLI Commands
@@ -106,15 +108,13 @@ def import_symbols(
    ctx: typer.Context,
    provider: str = typer.Option(..., "--provider", help="Symbol source (currently: alpaca)"),
 ) -> None:
-   env: AppContext = resolve_cli_dependencies(ctx)
-
-   import_command = env.command_factory.import_symbols()
-   result = import_command.execute(ImportSymbolsRequest(provider=provider))
-   if result.success:
-      count = result.imported_count
-      typer.echo(f"Imported {count} newly imported symbol{'s' if count != 1 else ''}.")
-   else:
-      # print errors
+   handle(
+       ctx,
+       lambda factory: factory.import_symbols().execute(
+           ImportSymbolsRequest(provider=provider)
+       ),
+       lambda count: typer.echo(f"Imported {count} newly imported symbols."),
+   )
 ```
 
 ## Verbs
