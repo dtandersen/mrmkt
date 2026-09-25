@@ -6,11 +6,11 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, contains_string, equal_to, has_item
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
@@ -22,13 +22,10 @@ START = date(2022, 1, 3)
 
 
 @pytest.fixture
-def screener_context():
-    context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
-        result=None,
-    )
+def screener_context(financial_repository):
+    context = SimpleNamespace(result=None)
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
     )
     return context
 
@@ -39,15 +36,15 @@ def _table_rows(datatable):
 
 
 @given("the screener catalog contains these symbols:")
-def screener_catalog_contains_symbols(screener_context, datatable):
+def screener_catalog_contains_symbols(screener_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        screener_context.local.add_ticker(
+        financial_repository.add_ticker(
             Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
         )
 
 
 @given(parsers.parse("each screener symbol has a 250-bar climb tagged {tag}"))
-def screener_symbols_have_climb(screener_context, tag):
+def screener_symbols_have_climb(screener_context, tag, financial_repository):
     day = START
     closes = []
     price = 100.0
@@ -56,9 +53,9 @@ def screener_symbols_have_climb(screener_context, tag):
             closes.append((day, price))
             price *= 1.002
         day += timedelta(days=1)
-    for ticker in screener_context.local.get_tickers():
+    for ticker in financial_repository.get_tickers():
         for bar_day, close in closes:
-            screener_context.local.add_price(
+            financial_repository.add_price(
                 StockPrice(
                     symbol=ticker.ticker,
                     date=bar_day,
@@ -69,7 +66,7 @@ def screener_symbols_have_climb(screener_context, tag):
                     volume=100000.0,
                 )
             )
-        screener_context.local.add_tag(ticker.ticker, ticker.exchange, tag)
+        financial_repository.add_tag(ticker.ticker, ticker.exchange, tag)
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -82,11 +79,11 @@ def execute_screener_command(screener_context, command):
 
 @then("the command succeeds")
 def screener_command_succeeds(screener_context):
-    assert screener_context.result.exit_code == 0, screener_context.result.output
+    assert_that(screener_context.result.exit_code, equal_to(0))
 
 
 @then(parsers.parse('the output mentions "{text}"'))
 def screener_output_mentions(screener_context, text):
     output = screener_context.result.output
     stderr = getattr(screener_context.result, "stderr", "") or ""
-    assert text in output or text in stderr, output
+    assert_that([output, stderr], has_item(contains_string(text)))

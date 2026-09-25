@@ -6,11 +6,11 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, contains_string, equal_to, has_item, not_
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
@@ -23,13 +23,10 @@ N_BARS = 60
 
 
 @pytest.fixture
-def alerts_context():
-    context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
-        result=None,
-    )
+def alerts_context(financial_repository):
+    context = SimpleNamespace(result=None)
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
     )
     return context
 
@@ -70,37 +67,37 @@ def _add_climb(local, symbol, dip: bool) -> None:
 
 
 @given("the alerts catalog contains these symbols:")
-def alerts_catalog_contains_symbols(alerts_context, datatable):
+def alerts_catalog_contains_symbols(alerts_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        alerts_context.local.add_ticker(
+        financial_repository.add_ticker(
             Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
         )
 
 
 @given(parsers.parse("each alerts symbol has a 60-bar steady climb tagged {tag}"))
-def alerts_symbols_have_steady_climb(alerts_context, tag):
-    for ticker in alerts_context.local.get_tickers():
-        _add_climb(alerts_context.local, ticker.ticker, dip=False)
-        alerts_context.local.add_tag(ticker.ticker, ticker.exchange, tag)
+def alerts_symbols_have_steady_climb(alerts_context, tag, financial_repository):
+    for ticker in financial_repository.get_tickers():
+        _add_climb(financial_repository, ticker.ticker, dip=False)
+        financial_repository.add_tag(ticker.ticker, ticker.exchange, tag)
 
 
 @given(parsers.parse("each alerts symbol has a 60-bar climb with a dip tagged {tag}"))
-def alerts_symbols_have_climb_with_dip(alerts_context, tag):
-    for ticker in alerts_context.local.get_tickers():
-        _add_climb(alerts_context.local, ticker.ticker, dip=True)
-        alerts_context.local.add_tag(ticker.ticker, ticker.exchange, tag)
+def alerts_symbols_have_climb_with_dip(alerts_context, tag, financial_repository):
+    for ticker in financial_repository.get_tickers():
+        _add_climb(financial_repository, ticker.ticker, dip=True)
+        financial_repository.add_tag(ticker.ticker, ticker.exchange, tag)
 
 
 @given(parsers.parse('{symbol} has a 60-bar climb with a dip'))
-def symbol_has_dip(alerts_context, symbol):
-    _add_climb(alerts_context.local, symbol, dip=True)
+def symbol_has_dip(alerts_context, symbol, financial_repository):
+    _add_climb(financial_repository, symbol, dip=True)
 
 
 @given(parsers.parse('{symbol} has a 5-bar climb'))
-def symbol_has_short_climb(alerts_context, symbol):
+def symbol_has_short_climb(alerts_context, symbol, financial_repository):
     price = 100.0
     for day in _business_days(START, 5):
-        alerts_context.local.add_price(
+        financial_repository.add_price(
             StockPrice(
                 symbol=symbol, date=day, open=price, high=price * 1.005,
                 low=price * 0.995, close=price, volume=1000.0,
@@ -119,23 +116,24 @@ def execute_alerts_command(alerts_context, command):
 
 @then("the command succeeds")
 def alerts_command_succeeds(alerts_context):
-    assert alerts_context.result.exit_code == 0, alerts_context.result.output
+    assert_that(alerts_context.result.exit_code, equal_to(0))
 
 
 @then("the command fails")
 def alerts_command_fails(alerts_context):
-    assert alerts_context.result.exit_code != 0, alerts_context.result.output
+    assert_that(alerts_context.result.exit_code, not_(equal_to(0)))
 
 
 @then(parsers.parse('the output omits "{text}"'))
 def alerts_output_omits(alerts_context, text):
     output = alerts_context.result.output
     stderr = getattr(alerts_context.result, "stderr", "") or ""
-    assert text not in output and text not in stderr, output
+    assert_that(output, not_(contains_string(text)))
+    assert_that(stderr, not_(contains_string(text)))
 
 
 @then(parsers.parse('the output mentions "{text}"'))
 def alerts_output_mentions(alerts_context, text):
     output = alerts_context.result.output
     stderr = getattr(alerts_context.result, "stderr", "") or ""
-    assert text in output or text in stderr, output
+    assert_that([output, stderr], has_item(contains_string(text)))

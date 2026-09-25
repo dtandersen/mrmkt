@@ -4,12 +4,12 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, equal_to
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 
@@ -18,16 +18,15 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def indicator_context():
+def indicator_context(financial_repository):
     clock = ClockStub()
     clock.set_time(date(2024, 1, 31))
     context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
         clock=clock,
         result=None,
     )
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
         clock=context.clock,
     )
     return context
@@ -39,10 +38,10 @@ def _table_rows(datatable):
 
 
 @given("the local price catalog contains these daily bars:")
-def add_local_price_bars(indicator_context, datatable):
+def add_local_price_bars(indicator_context, datatable, financial_repository):
     for row in _table_rows(datatable):
         close = float(row["close"])
-        indicator_context.local.add_price(
+        financial_repository.add_price(
             StockPrice(
                 symbol=row["symbol"],
                 date=date.fromisoformat(row["date"]),
@@ -70,7 +69,7 @@ def execute_indicator_command(indicator_context, command):
 
 @then("the command succeeds")
 def indicator_command_succeeds(indicator_context):
-    assert indicator_context.result.exit_code == 0, indicator_context.result.output
+    assert_that(indicator_context.result.exit_code, equal_to(0))
 
 
 @then(parsers.parse('the indicator output has column "{column}" and these values:'))
@@ -80,8 +79,8 @@ def indicator_output_contains_values(indicator_context, column, datatable):
         for row in _table_rows(datatable)
     ]
     lines = indicator_context.result.output.splitlines()
-    assert lines[0] == f"DATE | CLOSE | {column}"
-    assert lines[1:] == expected
+    assert_that(lines[0], equal_to(f"DATE | CLOSE | {column}"))
+    assert_that(lines[1:], equal_to(expected))
 
 
 @then(parsers.parse('the indicator output has columns "{low}" and "{high}" and these values:'))
@@ -91,5 +90,5 @@ def indicator_output_contains_pair_values(indicator_context, low, high, datatabl
         for row in _table_rows(datatable)
     ]
     lines = indicator_context.result.output.splitlines()
-    assert lines[0] == f"DATE | CLOSE | {low} | {high}"
-    assert lines[1:] == expected
+    assert_that(lines[0], equal_to(f"DATE | CLOSE | {low} | {high}"))
+    assert_that(lines[1:], equal_to(expected))

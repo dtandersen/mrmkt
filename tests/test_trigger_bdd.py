@@ -2,8 +2,20 @@
 
 from shlex import split
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
+from hamcrest import (
+    assert_that,
+    contains_string,
+    equal_to,
+    greater_than,
+    has_item,
+    has_length,
+    instance_of,
+    is_,
+    not_none,
+)
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -21,7 +33,6 @@ from mrmkt.command.triggers_common import (
     _render_triggers_csv,
 )
 from mrmkt.command.triggersets_common import _default_set_name
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import Trigger
@@ -48,7 +59,6 @@ scenarios(
 @pytest.fixture
 def trigger_context():
     context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
         result=None,
         cli_result=None,
         failed=False,
@@ -57,25 +67,16 @@ def trigger_context():
         generated_trigger_name=None,
         generated_trigger_set_name=None,
         repository_closes=0,
-        repository_factory=None,
     )
-
-    def repository_factory():
-        def close_repository() -> None:
-            context.repository_closes += 1
-
-        return context.local, close_repository
-
-    context.repository_factory = repository_factory
     return context
 
 
 @given("the trigger catalog contains these symbols:")
-def trigger_catalog_contains_symbols(trigger_context, datatable):
+def trigger_catalog_contains_symbols(financial_repository, datatable):
     headers = [str(header) for header in datatable[0]]
     for row in datatable[1:]:
         values = dict(zip(headers, row, strict=True))
-        trigger_context.local.add_ticker(
+        financial_repository.add_ticker(
             Ticker(
                 ticker=values["symbol"],
                 exchange=values["exchange"],
@@ -85,8 +86,8 @@ def trigger_catalog_contains_symbols(trigger_context, datatable):
 
 
 @given(parsers.parse('trigger "{name}" exists'))
-def trigger_exists(trigger_context, name):
-    trigger_context.local.add_trigger(
+def trigger_exists(financial_repository, name):
+    financial_repository.add_trigger(
         Trigger(
             id=None,
             name=name,
@@ -103,13 +104,13 @@ def trigger_exists(trigger_context, name):
 
 
 @given(parsers.parse('trigger set "{name}" exists'))
-def trigger_set_exists(trigger_context, name):
-    trigger_context.local.create_set(name)
+def trigger_set_exists(financial_repository, name):
+    financial_repository.create_set(name)
 
 
 @given(parsers.parse('trigger "{trigger}" is in set "{set_name}"'))
-def trigger_is_in_set(trigger_context, trigger, set_name):
-    trigger_context.local.add_to_set(set_name, trigger)
+def trigger_is_in_set(financial_repository, trigger, set_name):
+    financial_repository.add_to_set(set_name, trigger)
 
 
 @given(parsers.parse('the generated trigger name is "{name}"'))
@@ -128,22 +129,29 @@ def next_trigger_name_is(trigger_context, name):
 
 
 @given(parsers.parse('trigger "{name}" is disabled in the store'))
-def disable_trigger_in_store(trigger_context, name):
-    trigger = next(
-        (item for item in trigger_context.local.list_triggers() if item.name == name),
-        None,
-    )
-    assert trigger is not None and trigger.id is not None
-    assert trigger_context.local.set_trigger_enabled(trigger.id, False)
+def disable_trigger_in_store(financial_repository, name):
+    matches = [
+        item for item in financial_repository.list_triggers() if item.name == name
+    ]
+    assert_that(matches, has_length(1))
+    trigger = matches[0]
+    assert_that(trigger.id, not_none())
+    trigger_id = cast(int, trigger.id)
+    assert_that(financial_repository.set_trigger_enabled(trigger_id, False), is_(True))
 
 
 @when(parsers.parse('I execute "{command}"'))
-def execute_cli_command(trigger_context, command):
+def execute_cli_command(trigger_context, command, financial_repository):
     args = split(command)
     trigger_name = trigger_context.generated_trigger_name
     trigger_set_name = trigger_context.generated_trigger_set_name
+
+    def release_repository() -> None:
+        trigger_context.repository_closes += 1
+
     deps = cli_dependencies_for_testing(
-        repository_factory=trigger_context.repository_factory,
+        repository=financial_repository,
+        repository_release=release_repository,
         trigger_name_generator=(
             (lambda: trigger_name)
             if trigger_name is not None
@@ -178,11 +186,11 @@ def _create_kwargs(options):
     return kwargs
 
 
-def _with_generator(context, command_type):
+def _with_generator(context, command_type, financial_repository):
     kwargs = {}
     if context.name_generator is not None:
         kwargs["name_generator"] = context.name_generator
-    return command_type(context.local, **kwargs)
+    return command_type(financial_repository, **kwargs)
 
 
 def _invoke(context, command, *args, **kwargs):
@@ -198,80 +206,86 @@ def _invoke(context, command, *args, **kwargs):
 
 
 @when("I create a trigger with:")
-def create_trigger_command(trigger_context, datatable):
+def create_trigger_command(trigger_context, datatable, financial_repository):
     headers = [str(header) for header in datatable[0]]
-    assert headers == ["field", "value"]
-    command = _with_generator(trigger_context, CreateTrigger)
+    assert_that(headers, equal_to(["field", "value"]))
+    command = _with_generator(trigger_context, CreateTrigger, financial_repository)
     _invoke(trigger_context, command, **_create_kwargs(_table_options(datatable)))
 
 
 @when(parsers.parse('I show trigger "{name}"'))
-def show_trigger_command(trigger_context, name):
-    _invoke(trigger_context, ShowTrigger(trigger_context.local), name)
+def show_trigger_command(trigger_context, name, financial_repository):
+    _invoke(trigger_context, ShowTrigger(financial_repository), name)
 
 
 @when("I list triggers")
-def list_triggers_command(trigger_context):
+def list_triggers_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
-        ListTriggers(trigger_context.local),
+        ListTriggers(financial_repository),
         enabled_only=False,
     )
 
 
 @when("I list enabled triggers")
-def list_enabled_triggers_command(trigger_context):
+def list_enabled_triggers_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
-        ListTriggers(trigger_context.local),
+        ListTriggers(financial_repository),
         enabled_only=True,
     )
 
 
 @when(parsers.parse('I delete trigger "{name}"'))
-def delete_trigger_command(trigger_context, name):
-    _invoke(trigger_context, DeleteTrigger(trigger_context.local), name)
+def delete_trigger_command(trigger_context, name, financial_repository):
+    _invoke(trigger_context, DeleteTrigger(financial_repository), name)
 
 
 @when(parsers.parse('I create trigger set "{name}"'))
-def create_trigger_set_command(trigger_context, name):
-    _invoke(trigger_context, CreateTriggerSet(trigger_context.local), name)
+def create_trigger_set_command(trigger_context, name, financial_repository):
+    _invoke(trigger_context, CreateTriggerSet(financial_repository), name)
 
 
 @when("I create a trigger set with no name")
-def create_default_trigger_set_command(trigger_context):
+def create_default_trigger_set_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
-        _with_generator(trigger_context, CreateTriggerSet),
+        _with_generator(trigger_context, CreateTriggerSet, financial_repository),
         None,
     )
 
 
 @when(parsers.parse('I add trigger "{trigger}" to set "{set_name}"'))
-def add_trigger_to_set_command(trigger_context, trigger, set_name):
+def add_trigger_to_set_command(
+    trigger_context, trigger, set_name, financial_repository
+):
     _invoke(
         trigger_context,
-        AddTriggerToSet(trigger_context.local),
+        AddTriggerToSet(financial_repository),
         set_name,
         trigger,
     )
 
 
 @when(parsers.parse('the trigger "{trigger}" is added to triggerset "{set_name}"'))
-def add_trigger_to_set_with_errors(trigger_context, trigger, set_name):
+def add_trigger_to_set_with_errors(
+    trigger_context, trigger, set_name, financial_repository
+):
     _invoke(
         trigger_context,
-        AddTriggerToSet(trigger_context.local),
+        AddTriggerToSet(financial_repository),
         set_name,
         trigger,
     )
 
 
 @when(parsers.parse('I remove trigger "{trigger}" from set "{set_name}"'))
-def remove_trigger_from_set_command(trigger_context, trigger, set_name):
+def remove_trigger_from_set_command(
+    trigger_context, trigger, set_name, financial_repository
+):
     _invoke(
         trigger_context,
-        RemoveTriggerFromSet(trigger_context.local),
+        RemoveTriggerFromSet(financial_repository),
         set_name,
         trigger,
     )
@@ -280,59 +294,56 @@ def remove_trigger_from_set_command(trigger_context, trigger, set_name):
 @then("the command succeeds")
 def command_succeeds(trigger_context):
     if trigger_context.cli_result is not None:
-        assert trigger_context.cli_result.exit_code == 0, trigger_context.cli_result.output
+        assert_that(trigger_context.cli_result.exit_code, equal_to(0))
     else:
-        assert not trigger_context.failed, trigger_context.error
+        assert_that(trigger_context.failed, is_(False), trigger_context.error)
 
 
 @then("the command fails")
 def cli_command_fails(trigger_context):
-    assert trigger_context.cli_result is not None
-    assert trigger_context.cli_result.exit_code != 0, trigger_context.cli_result.output
+    assert_that(trigger_context.cli_result, not_none())
+    assert_that(trigger_context.cli_result.exit_code, greater_than(0))
 
 
 @then("the command fails with errors:")
 def command_fails_with_errors(trigger_context, datatable):
     headers = [str(header) for header in datatable[0]]
-    assert headers == ["field", "message"]
-    assert trigger_context.failed, "expected the command to fail"
+    assert_that(headers, equal_to(["field", "message"]))
+    assert_that(trigger_context.failed, is_(True), "expected the command to fail")
     for row in datatable[1:]:
         field, message = str(row[0]), str(row[1])
-        assert field in trigger_context.error, (field, trigger_context.error)
-        assert message in trigger_context.error, (
-            field,
-            message,
-            trigger_context.error,
-        )
+        assert_that(trigger_context.error, contains_string(field))
+        assert_that(trigger_context.error, contains_string(message))
 
 
 @then("the console displays:")
 def console_output_is_exactly(trigger_context, docstring):
-    assert trigger_context.cli_result is not None
-    assert trigger_context.cli_result.output == f"{docstring}\n", (
+    assert_that(trigger_context.cli_result, not_none())
+    assert_that(
         trigger_context.cli_result.output,
+        equal_to(f"{docstring}\n"),
     )
 
 
 @then("the repository is released")
 def repository_was_released_once(trigger_context):
-    assert trigger_context.repository_closes == 1, trigger_context.repository_closes
+    assert_that(trigger_context.repository_closes, equal_to(1))
 
 
 @then(parsers.parse('the trigger is named "{name}"'))
 def trigger_is_named(trigger_context, name):
-    assert trigger_context.result.name == name
+    assert_that(trigger_context.result.name, equal_to(name))
 
 
 @then(parsers.parse('the result is "{text}"'))
 def result_is(trigger_context, text):
-    assert str(trigger_context.result) == text
+    assert_that(str(trigger_context.result), equal_to(text))
 
 
 @then(parsers.parse('the trigger "{name}" has:'))
 def trigger_has(trigger_context, name, datatable):
     headers = [str(header) for header in datatable[0]]
-    assert headers == ["field", "value"]
+    assert_that(headers, equal_to(["field", "value"]))
     aliases = {"expires": "expires_at"}
     expected = {
         aliases.get(str(row[0]), str(row[0])): str(row[1]) for row in datatable[1:]
@@ -340,35 +351,45 @@ def trigger_has(trigger_context, name, datatable):
     result = trigger_context.result
     if isinstance(result, list):
         matches = [item for item in result if item.name == name]
-        assert len(matches) == 1, [item.name for item in result]
+        assert_that(matches, has_length(1))
         trigger = matches[0]
     else:
-        assert result.name == name
+        assert_that(result.name, equal_to(name))
         trigger = result
     rendered = _render_triggers_csv([trigger]).splitlines()[-1]
     actual = dict(zip(TRIGGER_COLUMNS, rendered.split(","), strict=True))
-    assert set(expected) <= set(actual), (expected, actual)
+    assert_that(set(actual).issuperset(expected), is_(True))
     for field, value in expected.items():
-        assert actual[field] == value, (field, actual)
+        assert_that(actual[field], equal_to(value))
 
 
 @then(parsers.parse('trigger "{name}" is gone'))
-def trigger_is_gone(trigger_context, name):
-    assert [item for item in trigger_context.local.list_triggers() if item.name == name] == []
+def trigger_is_gone(trigger_context, name, financial_repository):
+    assert_that(
+        [
+            item
+            for item in financial_repository.list_triggers()
+            if item.name == name
+        ],
+        equal_to([]),
+    )
 
 
 @then(parsers.parse('trigger "{name}" is not listed'))
 def trigger_not_listed(trigger_context, name):
     result = trigger_context.result
-    assert isinstance(result, list)
-    assert [item for item in result if item.name == name] == []
+    assert_that(result, instance_of(list))
+    assert_that(
+        [item for item in result if item.name == name],
+        equal_to([]),
+    )
 
 
 @then(parsers.parse('set "{set_name}" contains "{trigger}"'))
-def set_contains_trigger(trigger_context, set_name, trigger):
-    assert trigger in trigger_context.local.list_set_members(set_name)
+def set_contains_trigger(financial_repository, set_name, trigger):
+    assert_that(financial_repository.list_set_members(set_name), has_item(trigger))
 
 
 @then(parsers.parse('set "{set_name}" is empty'))
-def set_is_empty(trigger_context, set_name):
-    assert trigger_context.local.list_set_members(set_name) == []
+def set_is_empty(set_name, financial_repository):
+    assert_that(financial_repository.list_set_members(set_name), has_length(0))

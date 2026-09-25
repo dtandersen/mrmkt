@@ -4,12 +4,12 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, equal_to, not_
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 
@@ -18,16 +18,15 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def price_list_context():
+def price_list_context(financial_repository):
     clock = ClockStub()
     clock.set_time(date(2024, 1, 31))
     context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
         clock=clock,
         result=None,
     )
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
         clock=context.clock,
     )
     return context
@@ -51,9 +50,9 @@ def _make_price(row):
 
 
 @given("the local price catalog contains these daily bars:")
-def seed_price_list_catalog(price_list_context, datatable):
+def seed_price_list_catalog(price_list_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        price_list_context.local.add_price(_make_price(row))
+        financial_repository.add_price(_make_price(row))
 
 
 @given(parsers.parse('the fake clock says today is "{today}"'))
@@ -71,12 +70,12 @@ def execute_list_prices_command(price_list_context, command):
 
 @then("the command succeeds")
 def list_prices_command_succeeds(price_list_context):
-    assert price_list_context.result.exit_code == 0, price_list_context.result.output
+    assert_that(price_list_context.result.exit_code, equal_to(0))
 
 
 @then("the command fails")
 def list_prices_command_fails(price_list_context):
-    assert price_list_context.result.exit_code != 0
+    assert_that(price_list_context.result.exit_code, not_(equal_to(0)))
 
 
 @then("the price table lists these rows in order:")
@@ -92,9 +91,9 @@ def price_table_lists_rows(price_list_context, datatable):
         for line in price_list_context.result.output.splitlines()
         if " | " in line and not line.startswith("SYMBOL |")
     ]
-    assert actual == expected
+    assert_that(actual, equal_to(expected))
 
 
 @then("the output says no prices were found")
 def output_says_no_prices(price_list_context):
-    assert price_list_context.result.output.strip() == "No prices found."
+    assert_that(price_list_context.result.output.strip(), equal_to("No prices found."))

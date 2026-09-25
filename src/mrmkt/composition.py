@@ -21,6 +21,7 @@ override any provider with a fake without touching anything else.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import typer
 
@@ -60,7 +61,7 @@ from mrmkt.command.triggers_common import _default_trigger_name
 from mrmkt.command.triggersets_common import _default_set_name
 from mrmkt.command.watch import WatchPrices
 from mrmkt.common.clock import Clock
-from mrmkt.common.env import MrMktEnvironment2, RepositoryFactory
+from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 
@@ -272,7 +273,8 @@ def resolve_cli_dependencies(ctx: typer.Context | None) -> AppContext:
 
 def cli_dependencies_for_testing(
     *,
-    repository_factory: RepositoryFactory | None = None,
+    repository: Any,
+    repository_release: Callable[[], None] | None = None,
     clock: Clock | None = None,
     alpaca_client: TradingClient | None = None,
     alpaca_data_client: StockHistoricalDataClient | None = None,
@@ -281,12 +283,11 @@ def cli_dependencies_for_testing(
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
-    Only the fakes a test cares about need stating; everything else falls
-    back to the production providers. The repository opens once per
-    invocation and is released at teardown, so close-counting assertions
-    keep working unchanged.
+    Tests pass the repository fixture directly; an optional release callback
+    lets resource-lifecycle scenarios verify app teardown without wrapping
+    the repository in a factory.
     """
-    repository, release = (repository_factory or _shared.create_local_ticker_repository)()
+    release = repository_release if repository_release is not None else lambda: None
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,

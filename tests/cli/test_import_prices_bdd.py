@@ -4,12 +4,19 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import (
+    assert_that,
+    contains_string,
+    equal_to,
+    greater_than,
+    has_length,
+    not_,
+)
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
@@ -35,17 +42,16 @@ class FakeAlpacaDataClient:
 
 
 @pytest.fixture
-def price_import_context():
+def price_import_context(financial_repository):
     clock = ClockStub()
     clock.set_time(date(2026, 6, 28))
     context = SimpleNamespace(
         alpaca=FakeAlpacaDataClient(),
-        local=InMemoryFinancialRepository(),
         clock=clock,
         result=None,
     )
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
         clock=context.clock,
         alpaca_data_client=context.alpaca,
     )
@@ -92,22 +98,22 @@ def alpaca_returns_daily_bars(price_import_context, datatable):
 
 
 @given("the local ticker catalog contains these symbols:")
-def local_catalog_contains_symbols(price_import_context, datatable):
+def local_catalog_contains_symbols(price_import_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        price_import_context.local.add_ticker(
+        financial_repository.add_ticker(
             Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
         )
 
 
 @given(parsers.parse('ticker "{symbol}" on "{exchange}" already has tag "{tag}"'))
-def ticker_already_has_tag(price_import_context, symbol, exchange, tag):
-    price_import_context.local.add_tag(symbol, exchange, tag)
+def ticker_already_has_tag(price_import_context, symbol, exchange, tag, financial_repository):
+    financial_repository.add_tag(symbol, exchange, tag)
 
 
 @given("the local price catalog already contains these daily bars:")
-def seed_local_price_catalog(price_import_context, datatable):
+def seed_local_price_catalog(price_import_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        price_import_context.local.add_price(_stock_price(row))
+        financial_repository.add_price(_stock_price(row))
 
 
 @given(parsers.parse('the fake clock says today is "{today}"'))
@@ -130,12 +136,12 @@ def execute_price_command(price_import_context, command):
 
 @then("the command succeeds")
 def price_command_succeeds(price_import_context):
-    assert price_import_context.result.exit_code == 0, price_import_context.result.output
+    assert_that(price_import_context.result.exit_code, equal_to(0))
 
 
 @then("the command fails")
 def price_command_fails(price_import_context):
-    assert price_import_context.result.exit_code != 0
+    assert_that(price_import_context.result.exit_code, not_(equal_to(0)))
 
 
 @then(parsers.parse('Alpaca receives the symbols "{symbols}"'))
@@ -146,19 +152,22 @@ def alpaca_receives_symbols(price_import_context, symbols):
         for request in price_import_context.alpaca.requests
         for symbol in request.symbol_or_symbols
     ]
-    assert requested == expected
+    assert_that(requested, equal_to(expected))
 
 
 @then(parsers.parse('Alpaca receives the date range from "{start}" to "{end}"'))
 def alpaca_receives_date_range(price_import_context, start, end):
-    assert price_import_context.alpaca.requests
+    assert_that(
+        price_import_context.alpaca.requests,
+        has_length(greater_than(0)),
+    )
     for request in price_import_context.alpaca.requests:
-        assert request.start.date() == date.fromisoformat(start)
-        assert request.end.date() == date.fromisoformat(end)
+        assert_that(request.start.date(), equal_to(date.fromisoformat(start)))
+        assert_that(request.end.date(), equal_to(date.fromisoformat(end)))
 
 
 @then("the local price catalog contains these daily bars:")
-def assert_local_price_catalog_contains_bars(price_import_context, datatable):
+def assert_local_price_catalog_contains_bars(price_import_context, datatable, financial_repository):
     expected = {
         (
             price.symbol,
@@ -181,31 +190,34 @@ def assert_local_price_catalog_contains_bars(price_import_context, datatable):
             price.close,
             price.volume,
         )
-        for price in price_import_context.local.prices.all()
+        for price in financial_repository.prices.all()
     }
-    assert actual == expected
+    assert_that(actual, equal_to(expected))
 
 
 @then(parsers.parse('the local price catalog contains exactly one "{symbol}" bar on "{day}"'))
-def local_price_is_unique(price_import_context, symbol, day):
+def local_price_is_unique(price_import_context, symbol, day, financial_repository):
     matching = [
         price
-        for price in price_import_context.local.list_prices(symbol)
+        for price in financial_repository.list_prices(symbol)
         if price.date == date.fromisoformat(day)
     ]
-    assert len(matching) == 1
+    assert_that(matching, has_length(1))
 
 
 @then(parsers.re(r"the import reports (?P<count>\d+) new daily bars?"))
 def import_reports_bar_count(price_import_context, count):
-    assert f"Imported {count} new daily bar" in price_import_context.result.output
+    assert_that(
+        price_import_context.result.output,
+        contains_string(f"Imported {count} new daily bar"),
+    )
 
 
 @then("no Alpaca request is sent")
 def no_alpaca_request_is_sent(price_import_context):
-    assert price_import_context.alpaca.requests == []
+    assert_that(price_import_context.alpaca.requests, equal_to([]))
 
 
 @then("the local price catalog remains empty")
-def local_price_catalog_remains_empty(price_import_context):
-    assert price_import_context.local.prices.all() == []
+def local_price_catalog_remains_empty(price_import_context, financial_repository):
+    assert_that(financial_repository.prices.all(), equal_to([]))

@@ -3,11 +3,11 @@ from shlex import split
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, contains_string, equal_to, has_item
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 
@@ -16,13 +16,10 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def symbol_tag_context():
-    context = SimpleNamespace(
-        local=InMemoryFinancialRepository(),
-        result=None,
-    )
+def symbol_tag_context(financial_repository):
+    context = SimpleNamespace(result=None)
     context.deps = cli_dependencies_for_testing(
-        repository_factory=lambda: (context.local, lambda: None),
+        repository=financial_repository,
     )
     return context
 
@@ -33,16 +30,16 @@ def _table_rows(datatable):
 
 
 @given("the local ticker catalog contains these symbols:")
-def local_ticker_catalog_contains_symbols(symbol_tag_context, datatable):
+def local_ticker_catalog_contains_symbols(symbol_tag_context, datatable, financial_repository):
     for row in _table_rows(datatable):
-        symbol_tag_context.local.add_ticker(
+        financial_repository.add_ticker(
             Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
         )
 
 
 @given(parsers.parse('ticker "{symbol}" on "{exchange}" already has tag "{tag}"'))
-def ticker_already_has_tag(symbol_tag_context, symbol, exchange, tag):
-    symbol_tag_context.local.add_tag(symbol, exchange, tag)
+def ticker_already_has_tag(symbol_tag_context, symbol, exchange, tag, financial_repository):
+    financial_repository.add_tag(symbol, exchange, tag)
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -55,17 +52,17 @@ def execute_symbol_tag_command(symbol_tag_context, command):
 
 @then("the command succeeds")
 def symbol_tag_command_succeeds(symbol_tag_context):
-    assert symbol_tag_context.result.exit_code == 0, symbol_tag_context.result.output
+    assert_that(symbol_tag_context.result.exit_code, equal_to(0))
 
 
 @then(parsers.parse('ticker "{symbol}" on "{exchange}" has tag "{tag}"'))
-def ticker_has_tag(symbol_tag_context, symbol, exchange, tag):
-    assert tag in symbol_tag_context.local.get_tags(symbol, exchange)
+def ticker_has_tag(symbol_tag_context, symbol, exchange, tag, financial_repository):
+    assert_that(financial_repository.get_tags(symbol, exchange), has_item(tag))
 
 
 @then(parsers.parse('ticker "{symbol}" on "{exchange}" has no tags'))
-def ticker_has_no_tags(symbol_tag_context, symbol, exchange):
-    assert symbol_tag_context.local.get_tags(symbol, exchange) == []
+def ticker_has_no_tags(symbol_tag_context, symbol, exchange, financial_repository):
+    assert_that(financial_repository.get_tags(symbol, exchange), equal_to([]))
 
 
 @then("the symbol list contains:")
@@ -80,14 +77,20 @@ def filtered_symbol_list_contains(symbol_tag_context, datatable):
         for line in lines
         if "|" in line
     }
-    assert actual == expected
+    assert_that(actual, equal_to(expected))
 
 
 @then("the output reports 0 new tag assignments")
 def output_reports_no_new_assignments(symbol_tag_context):
-    assert "Added 0 'sp500' tag assignments" in symbol_tag_context.result.output
+    assert_that(
+        symbol_tag_context.result.output,
+        contains_string("Added 0 'sp500' tag assignments"),
+    )
 
 
 @then("the output reports 2 tag assignments")
 def output_reports_two_assignments(symbol_tag_context):
-    assert "Added 2 'sp500' tag assignments" in symbol_tag_context.result.output
+    assert_that(
+        symbol_tag_context.result.output,
+        contains_string("Added 2 'sp500' tag assignments"),
+    )
