@@ -6,8 +6,8 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 
 FEATURE = Path(__file__).parent.parent / "features" / "cli" / "list_symbols.feature"
@@ -20,7 +20,7 @@ class UnavailableTickerRepository:
 
 
 @pytest.fixture
-def symbol_list_context(monkeypatch):
+def symbol_list_context():
     context = SimpleNamespace(
         repository=InMemoryFinancialRepository(),
         result=None,
@@ -29,7 +29,7 @@ def symbol_list_context(monkeypatch):
     def create_repository():
         return context.repository, lambda: None
 
-    monkeypatch.setattr(shared, "create_local_ticker_repository", create_repository)
+    context.deps = cli_dependencies_for_testing(repository_factory=create_repository)
     return context
 
 
@@ -52,17 +52,17 @@ def local_catalog_is_empty(symbol_list_context):
 
 
 @given("the local ticker catalog cannot be read")
-def local_catalog_cannot_be_read(symbol_list_context, monkeypatch):
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (UnavailableTickerRepository(), lambda: None),
+def local_catalog_cannot_be_read(symbol_list_context):
+    symbol_list_context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (UnavailableTickerRepository(), lambda: None),
     )
 
 
 @when('I run "mrmkt symbols list"')
 def run_list_symbols(symbol_list_context):
-    symbol_list_context.result = CliRunner().invoke(cli.app, ["symbols", "list"])
+    symbol_list_context.result = CliRunner().invoke(
+        cli.app, ["symbols", "list"], obj=symbol_list_context.deps
+    )
 
 
 @then("the command succeeds")

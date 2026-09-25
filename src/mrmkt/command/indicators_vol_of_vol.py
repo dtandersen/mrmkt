@@ -1,34 +1,36 @@
-"""Indicator calculation commands."""
+"""Vol-of-vol indicator command."""
+
+from mrmkt.command.indicator_series import IndicatorSeries, IndicatorSeriesResult
+from mrmkt.indicator.volatility import volatility_of_volatility
 
 
-import typer
+class CalculateVolOfVol(IndicatorSeries):
+    """Volatility of volatility over stored closes."""
 
-from mrmkt.command import indicators_app
-from mrmkt.command.indicators_common import _run_indicator_series
-from mrmkt.indicator.volatility import (
-    volatility_of_volatility,
-)
+    @staticmethod
+    def label(volatility_period: int, vol_of_vol_period: int) -> str:
+        return f"VOV_{volatility_period}D_{vol_of_vol_period}D"
 
-
-@indicators_app.command("vol-of-vol")
-def calculate_volatility_of_volatility(
-    symbol: str,
-    volatility_period: int = typer.Option(..., "--vol-period", min=2),
-    vol_of_vol_period: int = typer.Option(..., "--vov-period", min=2),
-    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
-    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
-) -> None:
-    if volatility_period < 2 or vol_of_vol_period < 2:
-        raise typer.BadParameter("both volatility periods must be at least 2")
-    _run_indicator_series(
-        symbol,
-        from_date,
-        to_date,
-        f"VOV_{volatility_period}D_{vol_of_vol_period}D",
-        lambda prices: volatility_of_volatility(
-            prices,
-            volatility_period,
-            vol_of_vol_period,
-        ),
-        volatility_period + vol_of_vol_period,
-    )
+    def execute(
+        self,
+        symbol: str,
+        volatility_period: int,
+        vol_of_vol_period: int,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> IndicatorSeriesResult:
+        if volatility_period < 2 or vol_of_vol_period < 2:
+            raise ValueError("both volatility periods must be at least 2")
+        return self._run(
+            symbol,
+            from_date,
+            to_date,
+            (self.label(volatility_period, vol_of_vol_period),),
+            lambda closes: volatility_of_volatility(
+                closes,
+                volatility_period,
+                vol_of_vol_period,
+            ),
+            lambda value: (value,),
+            volatility_period + vol_of_vol_period,
+        )

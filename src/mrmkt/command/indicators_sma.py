@@ -1,27 +1,31 @@
-"""Indicator calculation commands."""
+"""SMA indicator command."""
 
-
-import typer
-
-from mrmkt.command import indicators_app
-from mrmkt.command.indicators_common import _run_indicator_series
+from mrmkt.command.indicator_series import IndicatorSeries, IndicatorSeriesResult
 from mrmkt.indicator.sma import sma
 
 
-@indicators_app.command("sma")
-def calculate_sma(
-    symbol: str,
-    period: int = typer.Option(..., min=1, help="Number of daily bars"),
-    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
-    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
-) -> None:
-    if period < 1:
-        raise typer.BadParameter("period must be positive")
-    _run_indicator_series(
-        symbol,
-        from_date,
-        to_date,
-        f"SMA_{period}D",
-        lambda prices: sma(prices, period),
-        period - 1,
-    )
+class CalculateSma(IndicatorSeries):
+    """Simple moving average over stored closes."""
+
+    @staticmethod
+    def label(period: int) -> str:
+        return f"SMA_{period}D"
+
+    def execute(
+        self,
+        symbol: str,
+        period: int,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> IndicatorSeriesResult:
+        if period < 1:
+            raise ValueError("period must be positive")
+        return self._run(
+            symbol,
+            from_date,
+            to_date,
+            (self.label(period),),
+            lambda closes: sma(closes, period),
+            lambda value: (value,),
+            period - 1,
+        )

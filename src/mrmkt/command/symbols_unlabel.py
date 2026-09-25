@@ -1,11 +1,13 @@
-"""Symbol catalog commands (import/list/label/unlabel)."""
+"""Symbol unlabel command."""
+
+from mrmkt.command.symbols_common import TagChangeResult, apply_symbol_tags
 
 
+class UnlabelSymbols:
+    """Untag stored symbols; reports counts for the CLI to render."""
 
-from mrmkt.command import symbols_app
-from mrmkt.command.symbols_common import _change_symbol_tags
+    def __init__(self, repository):
+        self.repository = repository
 
-
-@symbols_app.command("unlabel")
-def unlabel_symbols(symbols: str, tag: str) -> None:
-    _change_symbol_tags(symbols, tag, add=False)
+    def execute(self, symbols: str, tag: str) -> TagChangeResult:
+        return apply_symbol_tags(self.repository, symbols, tag, add=False)

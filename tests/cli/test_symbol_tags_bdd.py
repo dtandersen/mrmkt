@@ -7,8 +7,8 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 
 FEATURE = Path(__file__).parent.parent / "features" / "cli" / "symbol_tags.feature"
@@ -16,15 +16,13 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def symbol_tag_context(monkeypatch):
+def symbol_tag_context():
     context = SimpleNamespace(
         local=InMemoryFinancialRepository(),
         result=None,
     )
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
     )
     return context
 
@@ -50,7 +48,9 @@ def ticker_already_has_tag(symbol_tag_context, symbol, exchange, tag):
 @when(parsers.parse('I execute "{command}"'))
 def execute_symbol_tag_command(symbol_tag_context, command):
     args = split(command)
-    symbol_tag_context.result = CliRunner().invoke(cli.app, args[1:])
+    symbol_tag_context.result = CliRunner().invoke(
+        cli.app, args[1:], obj=symbol_tag_context.deps
+    )
 
 
 @then("the command succeeds")

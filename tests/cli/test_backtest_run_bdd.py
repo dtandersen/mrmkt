@@ -10,8 +10,8 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
@@ -23,15 +23,13 @@ START = date(2022, 1, 3)
 
 
 @pytest.fixture
-def backtest_run_context(monkeypatch):
+def backtest_run_context():
     context = SimpleNamespace(
         local=InMemoryFinancialRepository(),
         result=None,
     )
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
     )
     return context
 
@@ -102,7 +100,9 @@ def price_catalog_contains_rise_then_fall(backtest_run_context, symbol):
 @when(parsers.parse('I execute "{command}"'))
 def execute_backtest_command(backtest_run_context, command):
     args = split(command)
-    backtest_run_context.result = CliRunner().invoke(cli.app, args[1:])
+    backtest_run_context.result = CliRunner().invoke(
+        cli.app, args[1:], obj=backtest_run_context.deps
+    )
 
 
 @then("the command succeeds")

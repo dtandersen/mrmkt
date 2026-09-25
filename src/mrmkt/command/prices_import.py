@@ -1,4 +1,4 @@
-"""Price commands (import/list/freshness)."""
+"""Price import commands."""
 
 import re
 import time
@@ -6,85 +6,89 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 
-import typer
-
-from mrmkt.command import _shared, prices_app
 from mrmkt.command._shared import normalize_symbol, normalize_tag, parse_cli_date
 from mrmkt.common.sql import Duplicate
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.repo.prices import PriceRepository
 
 
-@prices_app.command("import")
-def import_prices(
-    symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
-    provider: str = typer.Option(..., "--provider", help="Price source (currently: alpaca)"),
-    all_symbols: bool = typer.Option(False, "--all", help="Import every locally cataloged symbol"),
-    tag: str | None = typer.Option(None, "--tag", help="Import symbols with this tag"),
-    from_date: str = typer.Option(..., "--from", help="Start date (YYYY-MM-DD or duration such as 180d)"),
-    to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today)"),
-) -> None:
-    if provider.lower() != "alpaca":
-        raise typer.BadParameter("only the 'alpaca' provider is currently supported")
-    selector_count = sum((bool(symbols), all_symbols, tag is not None))
-    if selector_count != 1:
-        raise typer.BadParameter("provide symbols, --all, or --tag")
-    normalized_tag = normalize_tag(tag) if tag is not None else None
-    today = _shared.create_clock().today()
-    try:
-        start_date = parse_cli_date(from_date, today)
-        end_date = parse_cli_date(to_date, today) if to_date is not None else today
-    except ValueError as error:
-        raise typer.BadParameter("dates must be ISO dates, now, or durations such as 180d") from error
-    if start_date > end_date:
-        raise typer.BadParameter("--from must be on or before --to")
+@dataclass(frozen=True)
+class ImportPricesOutcome:
+    """Selected symbols plus the use-case result; the CLI renders it."""
 
-    close_repository: Callable[[], None] | None = None
-    try:
-        local_repository, close_repository = _shared.create_local_ticker_repository()
+    selected_symbols: list[str]
+    result: "ImportPricesResult"
+
+
+class ImportPrices:
+    """Import bounded daily price history into the local store."""
+
+    def __init__(
+        self,
+        price_source,
+        local_repository,
+        clock,
+        on_progress: Callable[[int, int], None] | None = None,
+    ):
+        self.price_source = price_source
+        self.local_repository = local_repository
+        self.clock = clock
+        self.on_progress = on_progress
+
+    def execute(
+        self,
+        provider: str,
+        symbols: list[str] | None,
+        all_symbols: bool,
+        tag: str | None,
+        from_date: str,
+        to_date: str | None,
+    ) -> ImportPricesOutcome:
+        if provider.lower() != "alpaca":
+            raise ValueError("only the 'alpaca' provider is currently supported")
+        selector_count = sum((bool(symbols), all_symbols, tag is not None))
+        if selector_count != 1:
+            raise ValueError("provide symbols, --all, or --tag")
+        normalized_tag = normalize_tag(tag) if tag is not None else None
+        today = self.clock.today()
+        try:
+            start_date = parse_cli_date(from_date, today)
+            end_date = parse_cli_date(to_date, today) if to_date is not None else today
+        except ValueError as error:
+            raise ValueError(
+                "dates must be ISO dates, now, or durations such as 180d"
+            ) from error
+        if start_date > end_date:
+            raise ValueError("--from must be on or before --to")
+
         if normalized_tag is not None:
-            selected_symbols = local_repository.get_symbols_by_tag(normalized_tag)
+            selected_symbols = self.local_repository.get_symbols_by_tag(normalized_tag)
         elif all_symbols:
-            selected_symbols = [ticker.ticker for ticker in local_repository.get_tickers()]
+            selected_symbols = [
+                ticker.ticker for ticker in self.local_repository.get_tickers()
+            ]
         else:
-            selected_symbols = symbols or []
-        selected_symbols = list(dict.fromkeys(normalize_symbol(symbol) for symbol in selected_symbols))
-        if not selected_symbols:
-            typer.echo("No symbols to import.")
-            return
-
-        price_source = AlpacaPriceSource(_shared.create_alpaca_data_client())
-
-        def report_progress(done: int, total: int) -> None:
-            typer.echo(f"Imported prices for {done}/{total} symbols...", err=True)
-
-        result = ImportPricesUseCase(
-            price_source,
-            local_repository,
-            on_progress=report_progress,
-        ).execute(
-            selected_symbols,
-            start_date,
-            end_date,
-        )
-    except Exception as error:
-        typer.echo(f"Failed to import prices from Alpaca: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
-
-    typer.echo(
-        f"Imported {result.imported} new daily bar{'s' if result.imported != 1 else ''} for "
-        f"{len(selected_symbols)} symbol{'s' if len(selected_symbols) != 1 else ''}."
-    )
-    if result.failed_batches:
-        for batch in result.failed_batches:
-            typer.echo(
-                f"Failed to import prices for: {', '.join(batch)}",
-                err=True,
+            selected_symbols = list(symbols or [])
+        try:
+            selected_symbols = list(
+                dict.fromkeys(normalize_symbol(symbol) for symbol in selected_symbols)
             )
-        raise typer.Exit(code=1)
+        except ValueError as error:
+            # Stored or supplied symbols that fail normalization are a data
+            # problem, reported through the generic failure path like before.
+            raise RuntimeError(str(error)) from error
+        if not selected_symbols:
+            return ImportPricesOutcome(
+                selected_symbols=[], result=ImportPricesResult()
+            )
+        result = ImportPricesUseCase(
+            self.price_source,
+            self.local_repository,
+            on_progress=self.on_progress,
+        ).execute(selected_symbols, start_date, end_date)
+        return ImportPricesOutcome(
+            selected_symbols=selected_symbols, result=result
+        )
 
 
 _SYMBOL_PATTERN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")

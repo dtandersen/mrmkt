@@ -9,17 +9,15 @@ populated pipeline), so only ``technical-only`` mode exists.
 """
 
 import statistics
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 
 import numpy as np
-import typer
 
-from mrmkt.command import _shared
 from mrmkt.command._shared import (
     MEMBERSHIP_VINTAGE_NOTE,
     normalize_tag,
+    parse_cli_date,
     resolve_universe,
 )
 from mrmkt.indicator.sma import sma
@@ -46,58 +44,6 @@ FIXED_INPUTS = (
     "pullback_period=20; pullback_cap=0.10; dollar_vol_window=63; "
     "weights=mom:0.4,trend:0.25,pullback:0.2,lowvol:0.15"
 )
-
-
-def run(
-    tags: list[str] | None = None,
-    exclude_tags: list[str] | None = None,
-    as_of: str | None = None,
-    mode: str = "technical-only",
-    min_price: float = 0.0,
-    min_dollar_vol: float = 0.0,
-    min_bars: int = 0,
-    max_stale_days: int | None = None,
-    top: int | None = None,
-) -> None:
-    """Rank a tag universe on point-in-time technicals; prints deterministic CSV."""
-    if min_price < 0 or min_dollar_vol < 0 or min_bars < 0:
-        raise typer.BadParameter(
-            "--min-price, --min-dollar-vol, and --min-bars must be >= 0"
-        )
-    if top is not None and top < 1:
-        raise typer.BadParameter("--top must be at least 1")
-    today = _shared.create_clock().today()
-    try:
-        as_of_date = _shared.parse_cli_date(as_of, today) if as_of is not None else None
-    except ValueError as error:
-        raise typer.BadParameter(
-            "dates must be ISO dates, now, or durations such as 180d"
-        ) from error
-    close_repository: Callable[[], None] | None = None
-    try:
-        repository, close_repository = _shared.create_local_ticker_repository()
-        result = ScreenUseCase(repository).execute(
-            ScreenRequest(
-                include_tags=[normalize_tag(tag) for tag in (tags or [])],
-                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
-                as_of=as_of_date,
-                mode=mode,
-                min_price=min_price,
-                min_dollar_vol=min_dollar_vol,
-                min_bars=min_bars,
-                max_stale_days=max_stale_days,
-                top_n=top,
-            )
-        )
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to run screen: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
-    typer.echo(render_csv(result), nl=False)
 
 
 @dataclass
@@ -175,6 +121,60 @@ def _pct_rank(values: list[float]) -> list[float]:
             ranks[order[k]] = mean_rank
         pos = tie_end + 1
     return ranks
+
+
+class ScreenSymbols:
+    """Rank a tag universe on point-in-time technicals."""
+
+    def __init__(self, repository, clock):
+        self.repository = repository
+        self.clock = clock
+
+    def execute(
+        self,
+        tags: list[str] | None,
+        exclude_tags: list[str] | None,
+        as_of: str | None,
+        mode: str,
+        min_price: float,
+        min_dollar_vol: float,
+        min_bars: int,
+        max_stale_days: int | None,
+        top: int | None,
+    ) -> ScreenResult:
+        if min_price < 0 or min_dollar_vol < 0 or min_bars < 0:
+            raise ValueError(
+                "--min-price, --min-dollar-vol, and --min-bars must be >= 0"
+            )
+        if top is not None and top < 1:
+            raise ValueError("--top must be at least 1")
+        today = self.clock.today()
+        try:
+            as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
+        except ValueError as error:
+            raise ValueError(
+                "dates must be ISO dates, now, or durations such as 180d"
+            ) from error
+        try:
+            include_tags = [normalize_tag(tag) for tag in (tags or [])]
+            exclude_tags = [normalize_tag(tag) for tag in (exclude_tags or [])]
+        except ValueError as error:
+            # Tag normalization failures surface through the generic
+            # failure path like before.
+            raise RuntimeError(str(error)) from error
+        return ScreenUseCase(self.repository).execute(
+            ScreenRequest(
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                as_of=as_of_date,
+                mode=mode,
+                min_price=min_price,
+                min_dollar_vol=min_dollar_vol,
+                min_bars=min_bars,
+                max_stale_days=max_stale_days,
+                top_n=top,
+            )
+        )
 
 
 class ScreenUseCase:

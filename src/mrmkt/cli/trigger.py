@@ -1,14 +1,13 @@
 """Trigger CLI commands (thin wrappers around trigger commands)."""
 
-from collections.abc import Callable
-
 import typer
 
+from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.delete_trigger import DeleteTrigger
 from mrmkt.command.list_trigger import ListTriggers
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.triggers_common import _render_triggers_csv
-from mrmkt.composition import create_trigger_command, resolve_trigger_dependencies
+from mrmkt.composition import resolve_cli_dependencies
 
 trigger_app = typer.Typer(
     no_args_is_help=True, help="Manage stored realtime alert triggers"
@@ -50,9 +49,10 @@ def trigger_create(
     ),
 ) -> None:
     """Store a realtime trigger; prints the created row."""
+    deps = resolve_cli_dependencies(ctx)
     try:
-        with create_trigger_command(resolve_trigger_dependencies(ctx)) as cmd:
-            stored = cmd.execute(
+        with deps.command_factory(CreateTrigger) as create_command:
+            stored = create_command.execute(
                 name,
                 symbol,
                 signal=signal,
@@ -78,18 +78,13 @@ def triggers_list(
     ),
 ) -> None:
     """List stored triggers as deterministic CSV."""
-    close_repository: Callable[[], None] | None = None
+    deps = resolve_cli_dependencies(ctx)
     try:
-        repository, close_repository = resolve_trigger_dependencies(
-            ctx
-        ).repository_factory()
-        triggers = ListTriggers(repository).execute(enabled_only=enabled_only)
+        with deps.command_factory(ListTriggers) as list_command:
+            triggers = list_command.execute(enabled_only=enabled_only)
     except Exception as error:
         typer.echo(f"Failed to list triggers: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(_render_triggers_csv(triggers), nl=False)
 
 
@@ -99,20 +94,15 @@ def trigger_show(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Show a single stored trigger as CSV."""
-    close_repository: Callable[[], None] | None = None
+    deps = resolve_cli_dependencies(ctx)
     try:
-        repository, close_repository = resolve_trigger_dependencies(
-            ctx
-        ).repository_factory()
-        trigger = ShowTrigger(repository).execute(name)
+        with deps.command_factory(ShowTrigger) as show_command:
+            trigger = show_command.execute(name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to show trigger: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(_render_triggers_csv([trigger]), nl=False)
 
 
@@ -122,18 +112,13 @@ def triggers_delete(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Delete a stored trigger (also removed from any trigger sets)."""
-    close_repository: Callable[[], None] | None = None
+    deps = resolve_cli_dependencies(ctx)
     try:
-        repository, close_repository = resolve_trigger_dependencies(
-            ctx
-        ).repository_factory()
-        trigger = DeleteTrigger(repository).execute(name)
+        with deps.command_factory(DeleteTrigger) as delete_command:
+            trigger = delete_command.execute(name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to remove trigger: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(f"deleted trigger {trigger.name}")

@@ -7,38 +7,33 @@ to sit in this module now live in :mod:`mrmkt.cli`.
 
 import typer
 
+from mrmkt.cli.backtest import backtest_app
+from mrmkt.cli.indicators import indicators_app
+from mrmkt.cli.prices import prices_app
+from mrmkt.cli.signals import signals_app
+from mrmkt.cli.symbols import symbols_app
 from mrmkt.cli.trigger import trigger_app
 from mrmkt.cli.triggerset import triggerset_app
-from mrmkt.command import (  # noqa: F401 -- side-effect registration of commands
-    backtest_app,
-    backtest_run,
-    indicators_app,
-    indicators_risk_range,
-    indicators_sma,
-    indicators_vol_of_vol,
-    indicators_vol_of_vol_percentile,
-    indicators_volatility,
-    indicators_volatility_percentile,
-    prices_app,
-    prices_freshness,
-    prices_import,
-    prices_list,
-    ranges,
-    screen,
-    signals_app,
-    signals_current,
-    symbols_app,
-    symbols_import,
-    symbols_label,
-    symbols_list,
-    symbols_unlabel,
-    watch,
-)
-from mrmkt.command._shared import _resolve_signal
+from mrmkt.command.alerts import render_levels_csv
+from mrmkt.command.ranges import ListRanges
+from mrmkt.command.screen import ScreenSymbols, render_csv
+from mrmkt.command.watch import WatchPrices
+from mrmkt.composition import default_cli_dependencies, resolve_cli_dependencies
 
 __all__ = ["app"]
 
 app = typer.Typer(no_args_is_help=True, help="MrMkt stock-market tools")
+
+
+@app.callback()
+def _install_cli_dependencies(ctx: typer.Context) -> None:
+    """MrMkt stock-market tools"""
+    # One shared composition-root object for every command; tests that inject
+    # their own through ``CliRunner(..., obj=...)`` keep it untouched.
+    if ctx.obj is None:
+        ctx.obj = default_cli_dependencies()
+
+
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(indicators_app, name="indicators")
@@ -50,6 +45,7 @@ app.add_typer(triggerset_app, name="triggerset")
 
 @app.command("screen")
 def run_screen(
+    ctx: typer.Context,
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable; default: all symbols)"),
     exclude_tags: list[str] | None = typer.Option(None, "--exclude-tag", help="Exclude symbols with this tag (repeatable)"),
     as_of: str | None = typer.Option(None, "--as-of", help="Screening date (defaults to latest stored bar)"),
@@ -61,21 +57,31 @@ def run_screen(
     top: int | None = typer.Option(None, "--top", help="Keep only the top N ranked rows"),
 ) -> None:
     """Rank a tag universe on point-in-time technicals; prints deterministic CSV."""
-    screen.run(
-        tags=tags,
-        exclude_tags=exclude_tags,
-        as_of=as_of,
-        mode=mode,
-        min_price=min_price,
-        min_dollar_vol=min_dollar_vol,
-        min_bars=min_bars,
-        max_stale_days=max_stale_days,
-        top=top,
-    )
+    deps = resolve_cli_dependencies(ctx)
+    try:
+        with deps.command_factory(ScreenSymbols) as screen_command:
+            result = screen_command.execute(
+                tags,
+                exclude_tags,
+                as_of,
+                mode,
+                min_price,
+                min_dollar_vol,
+                min_bars,
+                max_stale_days,
+                top,
+            )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to run screen: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(render_csv(result), nl=False)
 
 
 @app.command("ranges")
 def run_ranges(
+    ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
     signal: str = typer.Option("risk-range", "--signal", help="Signal source for ranges (only 'risk-range')"),
@@ -86,20 +92,30 @@ def run_ranges(
     anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
 ) -> None:
     """Print deterministic risk-range bands from stored bars."""
-    _resolve_signal(signal)
-    ranges.run(
-        symbols=symbols,
-        tags=tags,
-        as_of=as_of,
-        horizon=horizon,
-        vol_period=vol_period,
-        width=width,
-        anchor_period=anchor_period,
-    )
+    deps = resolve_cli_dependencies(ctx)
+    try:
+        with deps.command_factory(ListRanges) as ranges_command:
+            result = ranges_command.execute(
+                symbols,
+                tags,
+                signal,
+                as_of,
+                horizon,
+                vol_period,
+                width,
+                anchor_period,
+            )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to compute levels: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(render_levels_csv(result), nl=False)
 
 
 @app.command("watch")
 def run_watch(
+    ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
     tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
     trigger_ids: list[int] | None = typer.Option(None, "--trigger-id", help="Stored trigger id to watch (repeatable)"),
@@ -114,17 +130,25 @@ def run_watch(
     verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
 ) -> None:
     """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
-    _resolve_signal(signal)
-    watch.run(
-        symbols=symbols,
-        tags=tags,
-        sinks=sinks,
-        sink_file=sink_file,
-        feed=feed,
-        dry_run=dry_run,
-        session_policy=session_policy,
-        as_of=as_of,
-        verbose=verbose,
-        trigger_ids=trigger_ids,
-        all_triggers=all_triggers,
-    )
+    deps = resolve_cli_dependencies(ctx)
+    try:
+        with deps.command_factory(WatchPrices) as watch_command:
+            watch_command.execute(
+                symbols,
+                tags,
+                signal,
+                sinks,
+                sink_file,
+                feed,
+                dry_run,
+                session_policy,
+                as_of,
+                verbose,
+                trigger_ids,
+                all_triggers,
+            )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    except Exception as error:
+        typer.echo(f"Failed to watch alerts: {error}", err=True)
+        raise typer.Exit(code=1) from error

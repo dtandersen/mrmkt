@@ -12,7 +12,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import typer
 import yaml
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
@@ -45,16 +44,18 @@ def parse_cli_date(value: str, today: date) -> date:
 
 
 def normalize_tag(tag: str) -> str:
+    """Normalize a tag; raises ValueError (mapped to BadParameter by CLI handlers)."""
     normalized = tag.strip().lower()
     if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", normalized) is None:
-        raise typer.BadParameter("tags must start with a letter or number and contain only letters, numbers, '_' or '-'")
+        raise ValueError("tags must start with a letter or number and contain only letters, numbers, '_' or '-'")
     return normalized
 
 
 def normalize_symbol(symbol: str) -> str:
+    """Normalize a symbol; raises ValueError (mapped to BadParameter by CLI handlers)."""
     normalized = symbol.strip().upper()
     if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", normalized) is None:
-        raise typer.BadParameter(f"invalid stock symbol: {symbol}")
+        raise ValueError(f"invalid stock symbol: {symbol}")
     return normalized
 
 
@@ -137,9 +138,10 @@ def load_local_config() -> dict:
 
 
 def _resolve_signal(signal: str) -> str:
+    """Validate the signal name; raises ValueError (mapped to BadParameter by CLI handlers)."""
     normalized = (signal or "").strip().lower()
     if normalized != "risk-range":
-        raise typer.BadParameter(
+        raise ValueError(
             f"unknown signal {signal!r} (only 'risk-range' is supported)"
         )
     return normalized

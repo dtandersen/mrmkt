@@ -1,16 +1,11 @@
 """Triggerset CLI commands (thin wrappers around trigger-set commands)."""
 
-from collections.abc import Callable
-
 import typer
 
-from mrmkt.command.add_triggerset import AddTriggerToSetError
+from mrmkt.command.add_triggerset import AddTriggerToSet, AddTriggerToSetError
 from mrmkt.command.create_triggerset import CreateTriggerSet
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
-from mrmkt.composition import (
-    add_trigger_to_set_command,
-    resolve_trigger_dependencies,
-)
+from mrmkt.composition import resolve_cli_dependencies
 
 triggerset_app = typer.Typer(no_args_is_help=True, help="Manage trigger sets")
 
@@ -23,22 +18,15 @@ def triggerset_create(
     ),
 ) -> None:
     """Create an empty trigger set; prints its name."""
-    deps = resolve_trigger_dependencies(ctx)
-    close_repository: Callable[[], None] | None = None
+    deps = resolve_cli_dependencies(ctx)
     try:
-        repository, close_repository = deps.repository_factory()
-        creator = CreateTriggerSet(
-            repository, name_generator=deps.triggerset_name_generator
-        )
-        stored = creator.execute(name)
+        with deps.command_factory(CreateTriggerSet) as create_command:
+            stored = create_command.execute(name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to create trigger set: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(f"created trigger set {stored}")
 
 
@@ -49,10 +37,9 @@ def triggerset_add(
     trigger_name: str = typer.Argument(..., help="Trigger name to add"),
 ) -> None:
     """Add a trigger to a trigger set."""
+    deps = resolve_cli_dependencies(ctx)
     try:
-        with add_trigger_to_set_command(
-            resolve_trigger_dependencies(ctx)
-        ) as add_command:
+        with deps.command_factory(AddTriggerToSet) as add_command:
             add_command.execute(set_name, trigger_name)
     except AddTriggerToSetError as error:
         for field_error in error.errors:
@@ -73,18 +60,13 @@ def triggerset_remove(
     trigger_name: str = typer.Argument(..., help="Trigger name to remove"),
 ) -> None:
     """Remove a trigger from a trigger set."""
-    close_repository: Callable[[], None] | None = None
+    deps = resolve_cli_dependencies(ctx)
     try:
-        repository, close_repository = resolve_trigger_dependencies(
-            ctx
-        ).repository_factory()
-        RemoveTriggerFromSet(repository).execute(set_name, trigger_name)
+        with deps.command_factory(RemoveTriggerFromSet) as remove_command:
+            remove_command.execute(set_name, trigger_name)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
     except Exception as error:
         typer.echo(f"Failed to remove trigger from set: {error}", err=True)
         raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
     typer.echo(f"removed trigger {trigger_name} from trigger set {set_name}")

@@ -1,29 +1,31 @@
-"""Indicator calculation commands."""
+"""Volatility indicator command."""
+
+from mrmkt.command.indicator_series import IndicatorSeries, IndicatorSeriesResult
+from mrmkt.indicator.volatility import volatility
 
 
-import typer
+class CalculateVolatility(IndicatorSeries):
+    """Realized volatility over stored closes."""
 
-from mrmkt.command import indicators_app
-from mrmkt.command.indicators_common import _run_indicator_series
-from mrmkt.indicator.volatility import (
-    volatility,
-)
+    @staticmethod
+    def label(period: int) -> str:
+        return f"VOL_{period}D"
 
-
-@indicators_app.command("volatility")
-def calculate_volatility(
-    symbol: str,
-    period: int = typer.Option(..., min=2, help="Number of daily returns"),
-    from_date: str | None = typer.Option(None, "--from", help="Start date or duration such as 180d"),
-    to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
-) -> None:
-    if period < 2:
-        raise typer.BadParameter("period must be at least 2")
-    _run_indicator_series(
-        symbol,
-        from_date,
-        to_date,
-        f"VOL_{period}D",
-        lambda prices: volatility(prices, period),
-        period,
-    )
+    def execute(
+        self,
+        symbol: str,
+        period: int,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> IndicatorSeriesResult:
+        if period < 2:
+            raise ValueError("period must be at least 2")
+        return self._run(
+            symbol,
+            from_date,
+            to_date,
+            (self.label(period),),
+            lambda closes: volatility(closes, period),
+            lambda value: (value,),
+            period,
+        )

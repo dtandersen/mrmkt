@@ -8,9 +8,9 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 
 FEATURE = Path(__file__).parent.parent / "features" / "cli" / "list_prices.feature"
@@ -18,7 +18,7 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def price_list_context(monkeypatch):
+def price_list_context():
     clock = ClockStub()
     clock.set_time(date(2024, 1, 31))
     context = SimpleNamespace(
@@ -26,11 +26,9 @@ def price_list_context(monkeypatch):
         clock=clock,
         result=None,
     )
-    monkeypatch.setattr(shared, "create_clock", lambda: context.clock)
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
+        clock=context.clock,
     )
     return context
 
@@ -66,7 +64,9 @@ def fake_clock_says_today(price_list_context, today):
 @when(parsers.parse('I execute "{command}"'))
 def execute_list_prices_command(price_list_context, command):
     args = split(command)
-    price_list_context.result = CliRunner().invoke(cli.app, args[1:])
+    price_list_context.result = CliRunner().invoke(
+        cli.app, args[1:], obj=price_list_context.deps
+    )
 
 
 @then("the command succeeds")

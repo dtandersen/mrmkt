@@ -8,9 +8,9 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 
 FEATURE = Path(__file__).parent.parent / "features" / "cli" / "indicators.feature"
@@ -18,7 +18,7 @@ scenarios(str(FEATURE))
 
 
 @pytest.fixture
-def indicator_context(monkeypatch):
+def indicator_context():
     clock = ClockStub()
     clock.set_time(date(2024, 1, 31))
     context = SimpleNamespace(
@@ -26,12 +26,10 @@ def indicator_context(monkeypatch):
         clock=clock,
         result=None,
     )
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
+        clock=context.clock,
     )
-    monkeypatch.setattr(shared, "create_clock", lambda: context.clock)
     return context
 
 
@@ -65,7 +63,9 @@ def fake_clock_says_today(indicator_context, today):
 @when(parsers.parse('I execute "{command}"'))
 def execute_indicator_command(indicator_context, command):
     args = split(command)
-    indicator_context.result = CliRunner().invoke(cli.app, args[1:])
+    indicator_context.result = CliRunner().invoke(
+        cli.app, args[1:], obj=indicator_context.deps
+    )
 
 
 @then("the command succeeds")

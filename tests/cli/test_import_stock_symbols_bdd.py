@@ -7,8 +7,8 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 
 FEATURE = Path(__file__).parent.parent / "features" / "cli" / "import_stock_symbols.feature"
@@ -27,17 +27,15 @@ class FakeAlpacaClient:
 
 
 @pytest.fixture
-def symbol_import_context(monkeypatch):
+def symbol_import_context():
     context = SimpleNamespace(
         alpaca=FakeAlpacaClient(),
         local=InMemoryFinancialRepository(),
         result=None,
     )
-    monkeypatch.setattr(shared, "create_alpaca_client", lambda: context.alpaca)
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
+        alpaca_client=context.alpaca,
     )
     return context
 
@@ -94,6 +92,7 @@ def run_symbol_import(symbol_import_context):
     symbol_import_context.result = CliRunner().invoke(
         cli.app,
         ["symbols", "import", "--provider", "alpaca"],
+        obj=symbol_import_context.deps,
     )
 
 

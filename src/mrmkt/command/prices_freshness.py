@@ -9,13 +9,9 @@ Flags are suspicion heuristics, not determinations:
   market holidays.
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-import typer
-
-from mrmkt.command import _shared, prices_app
 from mrmkt.command._shared import normalize_tag, resolve_universe
 
 GAP_JUMP_THRESHOLD = 0.20
@@ -26,46 +22,6 @@ LIMITATION_NOTES = (
     "provenance on StockPrice); missing bars are measured against "
     "Mon-Fri business days, so market holidays appear as missing"
 )
-
-
-@prices_app.command("freshness")
-def run_prices_freshness(
-    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable; default: all symbols)"),
-    exclude_tags: list[str] | None = typer.Option(None, "--exclude-tag", help="Exclude symbols with this tag (repeatable)"),
-    lookback_days: int = typer.Option(365, "--lookback-days", help="Bar-quality window in days"),
-    stale_after_days: int = typer.Option(5, "--stale-after", help="Flag symbols with no bar for longer than this"),
-    gap_threshold: float = typer.Option(0.20, "--gap-threshold", help="Overnight-gap heuristic threshold as a fraction"),
-) -> None:
-    """Report price staleness and bar-quality flags; prints deterministic CSV."""
-    if lookback_days < 1:
-        raise typer.BadParameter("--lookback-days must be at least 1")
-    if stale_after_days < 0:
-        raise typer.BadParameter("--stale-after must be >= 0")
-    if gap_threshold <= 0:
-        raise typer.BadParameter("--gap-threshold must be positive")
-    today = _shared.create_clock().today()
-    close_repository: Callable[[], None] | None = None
-    try:
-        repository, close_repository = _shared.create_local_ticker_repository()
-        result = FreshnessUseCase(repository).execute(
-            FreshnessRequest(
-                include_tags=[normalize_tag(tag) for tag in (tags or [])],
-                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
-                today=today,
-                lookback_days=lookback_days,
-                stale_after_days=stale_after_days,
-                gap_threshold=gap_threshold,
-            )
-        )
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to check freshness: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    finally:
-        if close_repository is not None:
-            close_repository()
-    typer.echo(render_csv(result), nl=False)
 
 
 @dataclass
@@ -102,6 +58,39 @@ class FreshnessResult:
     universe_size: int
     rows: list[FreshnessRow]
     request: FreshnessRequest
+
+
+class CheckFreshness:
+    """Report price staleness and bar-quality flags over stored bars."""
+
+    def __init__(self, repository, clock):
+        self.repository = repository
+        self.clock = clock
+
+    def execute(
+        self,
+        tags: list[str] | None,
+        exclude_tags: list[str] | None,
+        lookback_days: int,
+        stale_after_days: int,
+        gap_threshold: float,
+    ) -> FreshnessResult:
+        if lookback_days < 1:
+            raise ValueError("--lookback-days must be at least 1")
+        if stale_after_days < 0:
+            raise ValueError("--stale-after must be >= 0")
+        if gap_threshold <= 0:
+            raise ValueError("--gap-threshold must be positive")
+        return FreshnessUseCase(self.repository).execute(
+            FreshnessRequest(
+                include_tags=[normalize_tag(tag) for tag in (tags or [])],
+                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
+                today=self.clock.today(),
+                lookback_days=lookback_days,
+                stale_after_days=stale_after_days,
+                gap_threshold=gap_threshold,
+            )
+        )
 
 
 def _business_days(start: date, end: date) -> list[date]:

@@ -8,9 +8,9 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command import _shared as shared
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
@@ -35,7 +35,7 @@ class FakeAlpacaDataClient:
 
 
 @pytest.fixture
-def price_import_context(monkeypatch):
+def price_import_context():
     clock = ClockStub()
     clock.set_time(date(2026, 6, 28))
     context = SimpleNamespace(
@@ -44,12 +44,10 @@ def price_import_context(monkeypatch):
         clock=clock,
         result=None,
     )
-    monkeypatch.setattr(shared, "create_alpaca_data_client", lambda: context.alpaca)
-    monkeypatch.setattr(shared, "create_clock", lambda: context.clock)
-    monkeypatch.setattr(
-        shared,
-        "create_local_ticker_repository",
-        lambda: (context.local, lambda: None),
+    context.deps = cli_dependencies_for_testing(
+        repository_factory=lambda: (context.local, lambda: None),
+        clock=context.clock,
+        alpaca_data_client=context.alpaca,
     )
     return context
 
@@ -125,7 +123,9 @@ def alpaca_price_request_fails(price_import_context):
 @when(parsers.parse('I execute "{command}"'))
 def execute_price_command(price_import_context, command):
     args = split(command)
-    price_import_context.result = CliRunner().invoke(cli.app, args[1:])
+    price_import_context.result = CliRunner().invoke(
+        cli.app, args[1:], obj=price_import_context.deps
+    )
 
 
 @then("the command succeeds")
