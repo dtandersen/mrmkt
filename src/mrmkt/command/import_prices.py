@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from mrmkt.command._shared import normalize_symbol, normalize_tag, parse_cli_date
+from mrmkt.command.base import BaseResult, Command
 from mrmkt.common.sql import Duplicate
 
 
@@ -15,14 +16,14 @@ class ImportPricesOutcome:
     """Selected symbols plus the import result; the CLI renders it."""
 
     selected_symbols: list[str]
-    result: "ImportPricesResult"
+    result: "PriceImportResult"
 
 
 _SYMBOL_PATTERN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")
 
 
 @dataclass
-class ImportPricesResult:
+class PriceImportResult:
     """Outcome of a bounded daily-price import."""
 
     imported: int = 0
@@ -33,11 +34,26 @@ class ImportPricesResult:
         return [symbol for batch in self.failed_batches for symbol in batch]
 
 
-class ImportPrices:
+@dataclass(frozen=True)
+class ImportPricesRequest:
+    provider: str
+    symbols: list[str] | None = None
+    all_symbols: bool = False
+    tag: str | None = None
+    from_date: str = ""
+    to_date: str | None = None
+
+
+@dataclass
+class ImportPricesResult(BaseResult[ImportPricesOutcome]):
+    pass
+
+
+class ImportPrices(Command[ImportPricesRequest, ImportPricesResult]):
     """Import bounded daily price history into the local store.
 
     Symbols are fetched in batches. A batch that keeps failing after
-    ``max_attempts`` is recorded in ``ImportPricesResult.failed_batches``
+    ``max_attempts`` is recorded in ``PriceImportResult.failed_batches``
     instead of aborting the whole run, so one bad batch does not discard
     thousands of successfully imported bars. Failed batches wait with
     exponential backoff between attempts.
@@ -63,65 +79,68 @@ class ImportPrices:
         self.retry_base_seconds = retry_base_seconds
         self.sleep = sleep
 
-    def execute(
-        self,
-        provider: str,
-        symbols: list[str] | None,
-        all_symbols: bool,
-        tag: str | None,
-        from_date: str,
-        to_date: str | None,
-    ) -> ImportPricesOutcome:
-        if provider.lower() != "alpaca":
-            raise ValueError("only the 'alpaca' provider is currently supported")
-        selector_count = sum((bool(symbols), all_symbols, tag is not None))
+    def execute(self, request: ImportPricesRequest) -> ImportPricesResult:
+        if request.provider.lower() != "alpaca":
+            return ImportPricesResult.invalid_data(
+                ["only the 'alpaca' provider is currently supported"]
+            )
+        selector_count = sum(
+            (bool(request.symbols), request.all_symbols, request.tag is not None)
+        )
         if selector_count != 1:
-            raise ValueError("provide symbols, --all, or --tag")
-        normalized_tag = normalize_tag(tag) if tag is not None else None
+            return ImportPricesResult.invalid_data(["provide symbols, --all, or --tag"])
+        try:
+            normalized_tag = (
+                normalize_tag(request.tag) if request.tag is not None else None
+            )
+        except ValueError as error:
+            return ImportPricesResult.invalid_data([str(error)])
         today = self.clock.today()
         try:
-            start_date = parse_cli_date(from_date, today)
-            end_date = parse_cli_date(to_date, today) if to_date is not None else today
-        except ValueError as error:
-            raise ValueError(
-                "dates must be ISO dates, now, or durations such as 180d"
-            ) from error
+            start_date = parse_cli_date(request.from_date, today)
+            end_date = (
+                parse_cli_date(request.to_date, today)
+                if request.to_date is not None
+                else today
+            )
+        except ValueError:
+            return ImportPricesResult.invalid_data(
+                ["dates must be ISO dates, now, or durations such as 180d"]
+            )
         if start_date > end_date:
-            raise ValueError("--from must be on or before --to")
+            return ImportPricesResult.invalid_data(["--from must be on or before --to"])
 
         if normalized_tag is not None:
             selected_symbols = self.local_repository.get_symbols_by_tag(normalized_tag)
-        elif all_symbols:
+        elif request.all_symbols:
             selected_symbols = [
                 ticker.ticker for ticker in self.local_repository.get_tickers()
             ]
         else:
-            selected_symbols = list(symbols or [])
+            selected_symbols = list(request.symbols or [])
         try:
             selected_symbols = list(
                 dict.fromkeys(normalize_symbol(symbol) for symbol in selected_symbols)
             )
         except ValueError as error:
-            # Stored or supplied symbols that fail normalization are a data
-            # problem, reported through the generic failure path like before.
-            raise RuntimeError(str(error)) from error
+            return ImportPricesResult.invalid_data([str(error)])
         if not selected_symbols:
-            return ImportPricesOutcome(
-                selected_symbols=[], result=ImportPricesResult()
+            return ImportPricesResult.success(
+                ImportPricesOutcome(selected_symbols=[], result=PriceImportResult())
             )
         result = self._import_batches(selected_symbols, start_date, end_date)
-        return ImportPricesOutcome(
-            selected_symbols=selected_symbols, result=result
+        return ImportPricesResult.success(
+            ImportPricesOutcome(selected_symbols=selected_symbols, result=result)
         )
 
     def _import_batches(
         self, symbols: list[str], start: date, end: date
-    ) -> ImportPricesResult:
+    ) -> PriceImportResult:
         normalized_symbols = list(dict.fromkeys(symbol.upper() for symbol in symbols))
         for symbol in normalized_symbols:
             if _SYMBOL_PATTERN.fullmatch(symbol) is None:
                 raise ValueError(f"invalid stock symbol: {symbol}")
-        result = ImportPricesResult()
+        result = PriceImportResult()
         total = len(normalized_symbols)
         done = 0
         for offset in range(0, total, self.batch_size):
@@ -145,9 +164,7 @@ class ImportPrices:
 
         return result
 
-    def _fetch_with_retry(
-        self, batch: list[str], start: date, end: date
-    ) -> dict:
+    def _fetch_with_retry(self, batch: list[str], start: date, end: date) -> dict:
         attempt = 0
         while True:
             try:

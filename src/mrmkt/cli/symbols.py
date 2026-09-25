@@ -4,7 +4,9 @@ import typer
 
 from mrmkt.cli.results import handle
 from mrmkt.command.import_symbols import ImportSymbolsRequest
-from mrmkt.composition import AppContext, resolve_cli_dependencies
+from mrmkt.command.list_symbols import ListSymbolsRequest
+from mrmkt.command.symbols_label import LabelSymbolsRequest
+from mrmkt.command.symbols_unlabel import UnlabelSymbolsRequest
 
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
 
@@ -36,20 +38,17 @@ def list_symbols(
     ),
 ) -> None:
     """List stored symbols as a deterministic table."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        list_command = env.command_factory.list_symbols()
-        tickers = list_command.execute(tag=tag)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to list symbols: {error}", err=True)
-        raise typer.Exit(code=1) from error
+    handle(
+        ctx,
+        lambda factory: factory.list_symbols().execute(ListSymbolsRequest(tag=tag)),
+        _echo_symbol_list,
+    )
 
+
+def _echo_symbol_list(tickers) -> None:
     if not tickers:
         typer.echo("No symbols found.")
         return
-
     typer.echo("SYMBOL | EXCHANGE | TYPE")
     for ticker in tickers:
         typer.echo(f"{ticker.ticker} | {ticker.exchange} | {ticker.type}")
@@ -58,31 +57,25 @@ def list_symbols(
 @symbols_app.command("label")
 def label_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Tag stored symbols; prints how many assignments changed."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        label_command = env.command_factory.label_symbols()
-        result = label_command.execute(symbols=symbols, tag=tag)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to label symbols: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    _echo_tag_change(result)
+    handle(
+        ctx,
+        lambda factory: factory.label_symbols().execute(
+            LabelSymbolsRequest(symbols=symbols, tag=tag)
+        ),
+        _echo_tag_change,
+    )
 
 
 @symbols_app.command("unlabel")
 def unlabel_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Untag stored symbols; prints how many assignments changed."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        unlabel_command = env.command_factory.unlabel_symbols()
-        result = unlabel_command.execute(symbols=symbols, tag=tag)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to unlabel symbols: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    _echo_tag_change(result)
+    handle(
+        ctx,
+        lambda factory: factory.unlabel_symbols().execute(
+            UnlabelSymbolsRequest(symbols=symbols, tag=tag)
+        ),
+        _echo_tag_change,
+    )
 
 
 def _echo_tag_change(result) -> None:

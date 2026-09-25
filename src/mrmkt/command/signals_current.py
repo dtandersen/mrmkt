@@ -21,6 +21,7 @@ from mrmkt.command._shared import (
     parse_cli_date,
     resolve_universe,
 )
+from mrmkt.command.base import BaseResult, Command
 
 FILL_CONVENTION_NOTE = (
     "signals are known after bar close; no fill price is shown or implied "
@@ -29,7 +30,7 @@ FILL_CONVENTION_NOTE = (
 
 
 @dataclass
-class SignalsRequest:
+class SignalsQuery:
     include_tags: list[str] = field(default_factory=list)
     exclude_tags: list[str] = field(default_factory=list)
     as_of: date | None = None
@@ -77,230 +78,238 @@ class SignalsResult:
     exclude_tags: list[str]
     universe_size: int
     rows: list[SignalRow]
-    request: SignalsRequest
+    request: SignalsQuery
 
 
-class CurrentSignals:
+@dataclass(frozen=True)
+class CurrentSignalsRequest:
+    tags: list[str] | None = None
+    exclude_tags: list[str] | None = None
+    as_of: str | None = None
+    strategy_name: str = "buy-red"
+    params_text: str | None = None
+    benchmark: str = ""
+    include_benchmark: bool = False
+    top: int | None = None
+
+
+@dataclass
+class CurrentSignalsResult(BaseResult[SignalsResult]):
+    pass
+
+
+class CurrentSignals(Command[CurrentSignalsRequest, CurrentSignalsResult]):
     """Show per-symbol strategy signals at a stored bar."""
 
     def __init__(self, repository, clock):
         self.repository = repository
         self.clock = clock
 
-    def execute(
-        self,
-        tags: list[str] | None,
-        exclude_tags: list[str] | None,
-        as_of: str | None,
-        strategy_name: str,
-        params_text: str | None,
-        benchmark: str,
-        include_benchmark: bool,
-        top: int | None,
-    ) -> SignalsResult:
-        if top is not None and top < 1:
-            raise ValueError("--top must be at least 1")
+    def execute(self, request: CurrentSignalsRequest) -> CurrentSignalsResult:
+        if request.top is not None and request.top < 1:
+            return CurrentSignalsResult.invalid_data(["--top must be at least 1"])
         today = self.clock.today()
         try:
-            as_of_date = parse_cli_date(as_of, today) if as_of is not None else None
-        except ValueError as error:
-            raise ValueError("dates must be ISO dates, now, or durations such as 180d") from error
+            as_of_date = (
+                parse_cli_date(request.as_of, today)
+                if request.as_of is not None
+                else None
+            )
+        except ValueError:
+            return CurrentSignalsResult.invalid_data(
+                ["dates must be ISO dates, now, or durations such as 180d"]
+            )
         try:
-            params = parse_params(params_text)
+            params = parse_params(request.params_text)
         except ValueError as error:
-            raise ValueError(str(error)) from error
+            return CurrentSignalsResult.invalid_data([str(error)])
         try:
-            include_tags = [normalize_tag(tag) for tag in (tags or [])]
-            exclude_tags = [normalize_tag(tag) for tag in (exclude_tags or [])]
+            include_tags = [normalize_tag(tag) for tag in (request.tags or [])]
+            exclude_tags = [normalize_tag(tag) for tag in (request.exclude_tags or [])]
             benchmark_symbol = (
-                normalize_symbol(benchmark)
-                if benchmark and benchmark.strip()
+                normalize_symbol(request.benchmark)
+                if request.benchmark and request.benchmark.strip()
                 else None
             )
         except ValueError as error:
-            # Tag/benchmark normalization failures surface through the
-            # generic failure path like before.
-            raise RuntimeError(str(error)) from error
-        return SignalsUseCase(self.repository).execute(
-            SignalsRequest(
-                include_tags=include_tags,
-                exclude_tags=exclude_tags,
-                as_of=as_of_date,
-                strategy_name=strategy_name,
-                params=params,
-                benchmark_symbol=benchmark_symbol,
-                include_benchmark=include_benchmark,
-                top_n=top,
-            )
+            return CurrentSignalsResult.invalid_data([str(error)])
+        query = SignalsQuery(
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            as_of=as_of_date,
+            strategy_name=request.strategy_name,
+            params=params,
+            benchmark_symbol=benchmark_symbol,
+            include_benchmark=request.include_benchmark,
+            top_n=request.top,
         )
+        try:
+            outcome = _score_signals(self.repository, query)
+        except ValueError as error:
+            return CurrentSignalsResult.invalid_data([str(error)])
+        except Exception as error:
+            return CurrentSignalsResult.error([f"Failed to inspect signals: {error}"])
+        return CurrentSignalsResult.success(outcome)
 
 
-class SignalsUseCase:
+def _score_signals(repository, query: SignalsQuery) -> SignalsResult:
     """Score the current bar per symbol through a registered strategy."""
+    strategy = build_strategy(query.strategy_name, dict(query.params))
+    symbols = resolve_universe(repository, query.include_tags, query.exclude_tags)
+    if query.benchmark_symbol and not query.include_benchmark:
+        # The benchmark is non-tradable gate context; drop it from the
+        # scored universe unless explicitly included.
+        symbols = [s for s in symbols if s != query.benchmark_symbol]
+    bars_by_symbol: dict = {}
+    for price in repository.list_prices_for_symbols(
+        symbols, date.min, query.as_of if query.as_of is not None else date.max
+    ):
+        bars_by_symbol.setdefault(price.symbol, []).append(price)
 
-    def __init__(self, repository):
-        self.repository = repository
-
-    def execute(self, request: SignalsRequest) -> SignalsResult:
-        """Run signal discovery; raises ValueError on bad strategy/params."""
-        strategy = build_strategy(request.strategy_name, dict(request.params))
-        symbols = resolve_universe(
-            self.repository, request.include_tags, request.exclude_tags
-        )
-        if request.benchmark_symbol and not request.include_benchmark:
-            # The benchmark is non-tradable gate context; drop it from the
-            # scored universe unless explicitly included.
-            symbols = [s for s in symbols if s != request.benchmark_symbol]
-        bars_by_symbol: dict = {}
-        for price in self.repository.list_prices_for_symbols(
-            symbols, date.min, request.as_of if request.as_of is not None else date.max
-        ):
-            bars_by_symbol.setdefault(price.symbol, []).append(price)
-
-        as_of = request.as_of
+    as_of = query.as_of
+    if as_of is None:
+        known = [b.date for bars in bars_by_symbol.values() for b in bars]
+        as_of = max(known) if known else None
         if as_of is None:
-            known = [b.date for bars in bars_by_symbol.values() for b in bars]
-            as_of = max(known) if known else None
-            if as_of is None:
-                return SignalsResult(
-                    as_of=None,  # type: ignore[arg-type]
-                    data_vintage=None,
-                    strategy_name=request.strategy_name,
-                    params=dict(request.params),
-                    description=strategy.describe(),
-                    include_tags=sorted(request.include_tags),
-                    exclude_tags=sorted(request.exclude_tags),
-                    universe_size=0,
-                    rows=[],
-                    request=request,
-                )
-
-        frames: dict[str, list] = {}
-        for symbol in symbols:
-            bars = sorted(
-                (b for b in bars_by_symbol.get(symbol, []) if b.date <= as_of),
-                key=lambda b: b.date,
-            )
-            if bars:
-                frames[symbol] = bars
-        if not frames:
-            benchmark, benchmark_resolved = _load_benchmark(
-                self.repository, request.benchmark_symbol, as_of
-            )
             return SignalsResult(
-                as_of=as_of,
+                as_of=None,  # type: ignore[arg-type]
                 data_vintage=None,
-                strategy_name=request.strategy_name,
-                params=dict(request.params),
+                strategy_name=query.strategy_name,
+                params=dict(query.params),
                 description=strategy.describe(),
-                benchmark_symbol=request.benchmark_symbol,
-                benchmark_resolved=benchmark_resolved,
-                include_tags=sorted(request.include_tags),
-                exclude_tags=sorted(request.exclude_tags),
-                universe_size=len(symbols),
+                include_tags=sorted(query.include_tags),
+                exclude_tags=sorted(query.exclude_tags),
+                universe_size=0,
                 rows=[],
-                request=request,
+                request=query,
             )
 
-        index = sorted({b.date for bars in frames.values() for b in bars})
-        idx = pd.DatetimeIndex(index)
-        closes = pd.DataFrame(
-            {
-                symbol: pd.Series({b.date: b.close for b in bars}).reindex(index)
-                for symbol, bars in frames.items()
-            },
-            index=idx,
+    frames: dict[str, list] = {}
+    for symbol in symbols:
+        bars = sorted(
+            (b for b in bars_by_symbol.get(symbol, []) if b.date <= as_of),
+            key=lambda b: b.date,
         )
-        highs = pd.DataFrame(
-            {
-                symbol: pd.Series({b.date: b.high for b in bars}).reindex(index)
-                for symbol, bars in frames.items()
-            },
-            index=idx,
-        )
-        lows = pd.DataFrame(
-            {
-                symbol: pd.Series({b.date: b.low for b in bars}).reindex(index)
-                for symbol, bars in frames.items()
-            },
-            index=idx,
-        )
-        from mrmkt.backtest.strategy.base import MarketContext
-
+        if bars:
+            frames[symbol] = bars
+    if not frames:
         benchmark, benchmark_resolved = _load_benchmark(
-            self.repository, request.benchmark_symbol, as_of
+            repository, query.benchmark_symbol, as_of
         )
-        context = MarketContext(benchmark=benchmark)
-        signals = strategy.generate(closes, highs, lows, context=context)
-        attribution = _attribution(strategy, closes, context, as_of)
-
-        rows: list[SignalRow] = []
-        for symbol, bars in frames.items():
-            last_bar = bars[-1]
-            entry_dates = list(signals.entries.index[signals.entries[symbol].fillna(False)])
-            exit_dates = list(signals.exits.index[signals.exits[symbol].fillna(False)])
-            last_entry = entry_dates[-1].date() if entry_dates else None
-            last_exit = exit_dates[-1].date() if exit_dates else None
-            if last_bar.date == as_of and bool(signals.entries.loc[idx[-1], symbol]):
-                status = "entry_signal"
-            elif last_bar.date == as_of and bool(signals.exits.loc[idx[-1], symbol]):
-                status = "exit_signal"
-            else:
-                status = "neutral"
-            attr = attribution.get(symbol, {})
-            rows.append(
-                SignalRow(
-                    symbol=symbol,
-                    signal_date=last_bar.date,
-                    close=last_bar.close,
-                    status=status,
-                    last_entry_date=last_entry,
-                    last_entry_close=(
-                        closes.loc[pd.Timestamp(last_entry), symbol]
-                        if last_entry is not None
-                        else None
-                    ),
-                    last_exit_date=last_exit,
-                    last_exit_close=(
-                        closes.loc[pd.Timestamp(last_exit), symbol]
-                        if last_exit is not None
-                        else None
-                    ),
-                    days_since_entry=(
-                        (as_of - last_entry).days if last_entry is not None else None
-                    ),
-                    days_since_exit=(
-                        (as_of - last_exit).days if last_exit is not None else None
-                    ),
-                    n_bars=len(bars),
-                    dist_lo=attr.get("dist_lo"),
-                    drawdown=attr.get("drawdown"),
-                    vov_pct=attr.get("vov_pct"),
-                    above_fast=attr.get("above_fast"),
-                    above_slow=attr.get("above_slow"),
-                    mom_value=attr.get("mom_value"),
-                    mom_rank=attr.get("mom_rank"),
-                    pullback_dist=attr.get("pullback_dist"),
-                    gate=attr.get("gate"),
-                )
-            )
-        vintage = max((r.signal_date for r in rows), default=None)
-        if request.top_n is not None:
-            rows = rows[: request.top_n]
         return SignalsResult(
             as_of=as_of,
-            data_vintage=vintage,
-            strategy_name=request.strategy_name,
-            params=dict(request.params),
+            data_vintage=None,
+            strategy_name=query.strategy_name,
+            params=dict(query.params),
             description=strategy.describe(),
-            benchmark_symbol=request.benchmark_symbol,
+            benchmark_symbol=query.benchmark_symbol,
             benchmark_resolved=benchmark_resolved,
-            include_tags=sorted(request.include_tags),
-            exclude_tags=sorted(request.exclude_tags),
+            include_tags=sorted(query.include_tags),
+            exclude_tags=sorted(query.exclude_tags),
             universe_size=len(symbols),
-            rows=rows,
-            request=request,
+            rows=[],
+            request=query,
         )
+
+    index = sorted({b.date for bars in frames.values() for b in bars})
+    idx = pd.DatetimeIndex(index)
+    closes = pd.DataFrame(
+        {
+            symbol: pd.Series({b.date: b.close for b in bars}).reindex(index)
+            for symbol, bars in frames.items()
+        },
+        index=idx,
+    )
+    highs = pd.DataFrame(
+        {
+            symbol: pd.Series({b.date: b.high for b in bars}).reindex(index)
+            for symbol, bars in frames.items()
+        },
+        index=idx,
+    )
+    lows = pd.DataFrame(
+        {
+            symbol: pd.Series({b.date: b.low for b in bars}).reindex(index)
+            for symbol, bars in frames.items()
+        },
+        index=idx,
+    )
+    from mrmkt.backtest.strategy.base import MarketContext
+
+    benchmark, benchmark_resolved = _load_benchmark(
+        repository, query.benchmark_symbol, as_of
+    )
+    context = MarketContext(benchmark=benchmark)
+    signals = strategy.generate(closes, highs, lows, context=context)
+    attribution = _attribution(strategy, closes, context, as_of)
+
+    rows: list[SignalRow] = []
+    for symbol, bars in frames.items():
+        last_bar = bars[-1]
+        entry_dates = list(signals.entries.index[signals.entries[symbol].fillna(False)])
+        exit_dates = list(signals.exits.index[signals.exits[symbol].fillna(False)])
+        last_entry = entry_dates[-1].date() if entry_dates else None
+        last_exit = exit_dates[-1].date() if exit_dates else None
+        if last_bar.date == as_of and bool(signals.entries.loc[idx[-1], symbol]):
+            status = "entry_signal"
+        elif last_bar.date == as_of and bool(signals.exits.loc[idx[-1], symbol]):
+            status = "exit_signal"
+        else:
+            status = "neutral"
+        attr = attribution.get(symbol, {})
+        rows.append(
+            SignalRow(
+                symbol=symbol,
+                signal_date=last_bar.date,
+                close=last_bar.close,
+                status=status,
+                last_entry_date=last_entry,
+                last_entry_close=(
+                    closes.loc[pd.Timestamp(last_entry), symbol]
+                    if last_entry is not None
+                    else None
+                ),
+                last_exit_date=last_exit,
+                last_exit_close=(
+                    closes.loc[pd.Timestamp(last_exit), symbol]
+                    if last_exit is not None
+                    else None
+                ),
+                days_since_entry=(
+                    (as_of - last_entry).days if last_entry is not None else None
+                ),
+                days_since_exit=(
+                    (as_of - last_exit).days if last_exit is not None else None
+                ),
+                n_bars=len(bars),
+                dist_lo=attr.get("dist_lo"),
+                drawdown=attr.get("drawdown"),
+                vov_pct=attr.get("vov_pct"),
+                above_fast=attr.get("above_fast"),
+                above_slow=attr.get("above_slow"),
+                mom_value=attr.get("mom_value"),
+                mom_rank=attr.get("mom_rank"),
+                pullback_dist=attr.get("pullback_dist"),
+                gate=attr.get("gate"),
+            )
+        )
+    vintage = max((r.signal_date for r in rows), default=None)
+    if query.top_n is not None:
+        rows = rows[: query.top_n]
+    return SignalsResult(
+        as_of=as_of,
+        data_vintage=vintage,
+        strategy_name=query.strategy_name,
+        params=dict(query.params),
+        description=strategy.describe(),
+        benchmark_symbol=query.benchmark_symbol,
+        benchmark_resolved=benchmark_resolved,
+        include_tags=sorted(query.include_tags),
+        exclude_tags=sorted(query.exclude_tags),
+        universe_size=len(symbols),
+        rows=rows,
+        request=query,
+    )
 
 
 def _load_benchmark(repository, benchmark_symbol: str | None, as_of: date):
@@ -335,7 +344,9 @@ def _attribution(strategy, closes: pd.DataFrame, context, as_of: date) -> dict:
     return {}
 
 
-def _trend_pullback_attribution(strategy, closes: pd.DataFrame, context, as_of: date) -> dict:
+def _trend_pullback_attribution(
+    strategy, closes: pd.DataFrame, context, as_of: date
+) -> dict:
     """Momentum value/rank, trend/rising state, pullback gap, gate."""
     from mrmkt.backtest.strategy.trend_pullback import market_gate, momentum_rank
 
@@ -350,8 +361,13 @@ def _trend_pullback_attribution(strategy, closes: pd.DataFrame, context, as_of: 
     past = closes.shift(p.mom_skip)
     mom_value = past / past.shift(p.mom_lookback - p.mom_skip) - 1
     gate = market_gate(
-        closes.index, closes, context, p.market_sma, p.require_rising,
-        p.rising_bars, p.benchmark_fallback,
+        closes.index,
+        closes,
+        context,
+        p.market_sma,
+        p.require_rising,
+        p.rising_bars,
+        p.benchmark_fallback,
     )
     out = {}
     for symbol in closes.columns:
@@ -390,8 +406,13 @@ def _rotation_attribution(strategy, closes: pd.DataFrame, context, as_of: date) 
     rank = mom_value.loc[stamp].rank(pct=True)
     if p.use_gate:
         gate = market_gate(
-            closes.index, closes, context, p.market_sma, False,
-            p.rising_bars, p.benchmark_fallback,
+            closes.index,
+            closes,
+            context,
+            p.market_sma,
+            False,
+            p.rising_bars,
+            p.benchmark_fallback,
         )
         gate_at = bool(gate.loc[stamp]) if stamp in gate.index else None
     else:
@@ -412,7 +433,9 @@ def _buy_red_attribution(strategy, closes: pd.DataFrame, as_of: date) -> dict:
     params = strategy.params
     sma_fast, sma_slow, _, _, dist_lo, drawdown, _ = _levels(closes, params)
     ranking = (
-        vov_percentile(closes, vol_period=params.vol_period, lookback=params.vov_lookback)
+        vov_percentile(
+            closes, vol_period=params.vol_period, lookback=params.vov_lookback
+        )
         if params.use_vov
         else None
     )
@@ -427,9 +450,15 @@ def _buy_red_attribution(strategy, closes: pd.DataFrame, as_of: date) -> dict:
         out[symbol] = {
             "dist_lo": _num(dist_lo.loc[stamp, symbol]),
             "drawdown": _num(drawdown.loc[stamp, symbol]),
-            "vov_pct": _num(ranking.loc[stamp, symbol]) if ranking is not None else None,
-            "above_fast": bool(close > fast) if pd.notna(close) and pd.notna(fast) else None,
-            "above_slow": bool(close > slow) if pd.notna(close) and pd.notna(slow) else None,
+            "vov_pct": _num(ranking.loc[stamp, symbol])
+            if ranking is not None
+            else None,
+            "above_fast": bool(close > fast)
+            if pd.notna(close) and pd.notna(fast)
+            else None,
+            "above_slow": bool(close > slow)
+            if pd.notna(close) and pd.notna(slow)
+            else None,
         }
     return out
 
@@ -511,7 +540,9 @@ def render_csv(result: SignalsResult) -> str:
                     _fmt(row.last_entry_close),
                     row.last_exit_date.isoformat() if row.last_exit_date else "",
                     _fmt(row.last_exit_close),
-                    str(row.days_since_entry) if row.days_since_entry is not None else "",
+                    str(row.days_since_entry)
+                    if row.days_since_entry is not None
+                    else "",
                     str(row.days_since_exit) if row.days_since_exit is not None else "",
                     str(row.n_bars),
                     _fmt(row.dist_lo),

@@ -2,21 +2,36 @@
 
 import typer
 
-from mrmkt.composition import AppContext, resolve_cli_dependencies
+from mrmkt.cli.results import handle
+from mrmkt.command.backtest_run import RunBacktestRequest
 
-backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
+backtest_app = typer.Typer(
+    no_args_is_help=True, help="Backtest signal portfolios over stored prices"
+)
 
 
 @backtest_app.command("run")
 def run_backtest(
     ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
-    all_symbols: bool = typer.Option(False, "--all", help="Include every locally cataloged symbol"),
-    tags: list[str] | None = typer.Option(None, "--tag", help="Include symbols with this tag (repeatable)"),
-    from_date: str | None = typer.Option(None, "--from", help="Test window start (defaults to auto warm-up)"),
-    to_date: str | None = typer.Option(None, "--to", help="Test window end (defaults to today)"),
-    strategy_name: str = typer.Option("buy-red", "--strategy", help="Strategy name from the registry"),
-    params_text: str | None = typer.Option(None, "--params", help="Strategy params as k=v,... (defaults when omitted)"),
+    all_symbols: bool = typer.Option(
+        False, "--all", help="Include every locally cataloged symbol"
+    ),
+    tags: list[str] | None = typer.Option(
+        None, "--tag", help="Include symbols with this tag (repeatable)"
+    ),
+    from_date: str | None = typer.Option(
+        None, "--from", help="Test window start (defaults to auto warm-up)"
+    ),
+    to_date: str | None = typer.Option(
+        None, "--to", help="Test window end (defaults to today)"
+    ),
+    strategy_name: str = typer.Option(
+        "buy-red", "--strategy", help="Strategy name from the registry"
+    ),
+    params_text: str | None = typer.Option(
+        None, "--params", help="Strategy params as k=v,... (defaults when omitted)"
+    ),
     benchmark: str = typer.Option(
         "SPY",
         "--benchmark",
@@ -24,33 +39,37 @@ def run_backtest(
     ),
     size_pct: float = typer.Option(2.0, help="Percent of equity per position"),
     stop: float = typer.Option(0.08, help="Stop-loss fraction"),
-    fees: float = typer.Option(0.0, "--fees", help="All-in friction per side as a fraction (0 = none)"),
-    chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
+    fees: float = typer.Option(
+        0.0, "--fees", help="All-in friction per side as a fraction (0 = none)"
+    ),
+    chunk_size: int = typer.Option(
+        250, "--chunk-size", help="Symbols loaded and simulated per chunk"
+    ),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        backtest_command = env.command_factory.run_backtest()
-        outcome = backtest_command.execute(
-            symbols=symbols,
-            all_symbols=all_symbols,
-            tags=tags,
-            from_date=from_date,
-            to_date=to_date,
-            strategy_name=strategy_name,
-            params_text=params_text,
-            benchmark=benchmark,
-            size_pct=size_pct,
-            stop=stop,
-            fees=fees,
-            chunk_size=chunk_size,
-        )
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to run backtest: {error}", err=True)
-        raise typer.Exit(code=1) from error
+    handle(
+        ctx,
+        lambda factory: factory.run_backtest().execute(
+            RunBacktestRequest(
+                symbols=symbols,
+                all_symbols=all_symbols,
+                tags=tags,
+                from_date=from_date,
+                to_date=to_date,
+                strategy_name=strategy_name,
+                params_text=params_text,
+                benchmark=benchmark,
+                size_pct=size_pct,
+                stop=stop,
+                fees=fees,
+                chunk_size=chunk_size,
+            )
+        ),
+        _echo_backtest,
+    )
 
+
+def _echo_backtest(outcome) -> None:
     if outcome.status == "no_symbols":
         typer.echo("No symbols to backtest.")
         return
@@ -68,11 +87,17 @@ def run_backtest(
         typer.echo("No trades generated in the test window.")
         return
     summary = outcome.summary
-    typer.echo(f"Symbols: {outcome.n_symbols}  Test window: {outcome.start} to {outcome.end_date}")
+    typer.echo(
+        f"Symbols: {outcome.n_symbols}  Test window: {outcome.start} to {outcome.end_date}"
+    )
     typer.echo(f"Trades: {summary.n_trades}  Win rate: {summary.win_rate:.1%}")
     typer.echo(f"Avg win: {summary.avg_win:+.2%}  Avg loss: {summary.avg_loss:+.2%}")
-    typer.echo(f"Expectancy: {summary.expectancy:+.3%}  Profit factor: {summary.profit_factor:.2f}")
-    typer.echo(f"Avg hold: {summary.avg_hold_days:.1f}d  Exposure: {summary.exposure:.1%}")
+    typer.echo(
+        f"Expectancy: {summary.expectancy:+.3%}  Profit factor: {summary.profit_factor:.2f}"
+    )
+    typer.echo(
+        f"Avg hold: {summary.avg_hold_days:.1f}d  Exposure: {summary.exposure:.1%}"
+    )
     typer.echo(
         f"CAGR: {summary.cagr:+.1%}  Sharpe: {summary.sharpe:.2f}  Max DD: {summary.max_drawdown:.1%}"
     )

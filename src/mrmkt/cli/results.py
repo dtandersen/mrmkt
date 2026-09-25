@@ -1,6 +1,7 @@
 """Shared mapping from command results to CLI behavior."""
 
 from collections.abc import Callable
+from typing import cast
 
 import typer
 
@@ -11,7 +12,7 @@ from mrmkt.composition import CommandFactory, resolve_cli_dependencies
 def handle[T](
     ctx: typer.Context | None,
     run: Callable[[CommandFactory], BaseResult[T]],
-    on_success: Callable[[T | None], None],
+    on_success: Callable[[T], None],
 ) -> None:
     """Resolve dependencies, run a command, and render or raise its outcome."""
     env = resolve_cli_dependencies(ctx)
@@ -19,7 +20,7 @@ def handle[T](
 
 
 def result_or_exit[T](
-    result: BaseResult[T], on_success: Callable[[T | None], None]
+    result: BaseResult[T], on_success: Callable[[T], None]
 ) -> None:
     """Render a successful payload, or raise the CLI failure for a bad outcome.
 
@@ -27,7 +28,7 @@ def result_or_exit[T](
     failure reported on stderr.
     """
     if result.is_success():
-        on_success(result.result)
+        on_success(cast(T, result.result))
         return
     if result.is_invalid_data() or result.is_not_found():
         raise typer.BadParameter("; ".join(result.errors))

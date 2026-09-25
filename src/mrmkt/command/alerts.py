@@ -15,7 +15,7 @@ from datetime import date, datetime
 
 import requests
 
-from mrmkt.command._shared import MEMBERSHIP_VINTAGE_NOTE, resolve_universe
+from mrmkt.command._shared import MEMBERSHIP_VINTAGE_NOTE
 from mrmkt.common.clock import ET
 from mrmkt.indicator.risk_range import risk_range_series
 
@@ -25,7 +25,9 @@ DEFAULT_WIDTH = 0.5
 DEFAULT_ANCHOR = 5
 MIN_BARS = 30
 
-WEBHOOK_ENV_VAR = "MRMKT_ALERTS_WEBHOOK_URL"  # reserved; ntfy is the supported remote sink
+WEBHOOK_ENV_VAR = (
+    "MRMKT_ALERTS_WEBHOOK_URL"  # reserved; ntfy is the supported remote sink
+)
 NTFY_ENV_VAR = "MRMKT_ALERTS_NTFY_URL"
 NTFY_CONFIG_KEYS = ("ntfy", "nfty")  # nfty: legacy misspelling, still honored
 NTFY_DEFAULT_HOST = "https://ntfy.sh"
@@ -74,80 +76,6 @@ class LevelsResult:
     include_tags: list[str]
     symbols: list[str]
     rows: list[LevelRow]
-
-
-class LevelsUseCase:
-    """Deterministic buy/sell levels from stored bars; no ad hoc SQL."""
-
-    def __init__(self, repository):
-        self.repository = repository
-
-    def execute(
-        self,
-        include_tags: list[str],
-        symbols: list[str],
-        as_of: date | None = None,
-        horizon: int = DEFAULT_HORIZON,
-        vol_period: int = DEFAULT_VOL_PERIOD,
-        width: float = DEFAULT_WIDTH,
-        anchor_period: int = DEFAULT_ANCHOR,
-    ) -> LevelsResult:
-        """Compute one range per symbol from bars on/before as-of."""
-        explicit = {s.strip().upper() for s in symbols}
-        if include_tags:
-            universe = resolve_universe(self.repository, include_tags, [])
-            wanted = sorted(set(universe) | explicit)
-        else:
-            # Explicit symbols alone: never fall back to the whole catalog.
-            wanted = sorted(explicit)
-        bars_by_symbol: dict = {}
-        for price in self.repository.list_prices_for_symbols(
-            wanted, date.min, as_of if as_of is not None else date.max
-        ):
-            if as_of is not None and price.date > as_of:
-                continue
-            bars_by_symbol.setdefault(price.symbol, []).append(price)
-        if as_of is None:
-            known = [b.date for bars in bars_by_symbol.values() for b in bars]
-            as_of = max(known) if known else None
-        rows: list[LevelRow] = []
-        for symbol in wanted:
-            bars = sorted(
-                (b for b in bars_by_symbol.get(symbol, []) if as_of is None or b.date <= as_of),
-                key=lambda b: b.date,
-            )
-            if len(bars) < MIN_BARS:
-                continue
-            closes = [b.close for b in bars]
-            try:
-                ranges = risk_range_series(closes, horizon, vol_period, width, anchor_period)
-            except ValueError:
-                continue
-            if not ranges:
-                continue
-            latest = ranges[-1]
-            rows.append(
-                LevelRow(
-                    symbol=symbol,
-                    as_of=bars[-1].date,
-                    close=bars[-1].close,
-                    range_low=latest.low,
-                    range_high=latest.high,
-                    n_bars=len(bars),
-                )
-            )
-        vintage = max((r.as_of for r in rows), default=None)
-        return LevelsResult(
-            as_of=as_of,
-            data_vintage=vintage,
-            horizon=horizon,
-            vol_period=vol_period,
-            width=width,
-            anchor_period=anchor_period,
-            include_tags=sorted(include_tags),
-            symbols=wanted,
-            rows=sorted(rows, key=lambda r: r.symbol),
-        )
 
 
 LEVELS_COLUMNS = ["symbol", "as_of", "close", "range_low", "range_high", "n_bars"]
@@ -229,7 +157,15 @@ class TriggerRule:
 DEFAULT_RULE = TriggerRule()
 
 
-def render_message(template: str, *, symbol: str, price: float, level: float, moment: datetime, session: str) -> str:
+def render_message(
+    template: str,
+    *,
+    symbol: str,
+    price: float,
+    level: float,
+    moment: datetime,
+    session: str,
+) -> str:
     """Render a trigger message template; falls back to the default line."""
     try:
         return template.format(
@@ -289,7 +225,12 @@ class AlertEngine:
 
     def set_rule(self, symbol: str, rule: TriggerRule) -> None:
         """Attach an evaluation rule; validates operator/frequency."""
-        if rule.operator not in ("crossing-down", "crossing-up", "greater-than", "less-than"):
+        if rule.operator not in (
+            "crossing-down",
+            "crossing-up",
+            "greater-than",
+            "less-than",
+        ):
             raise ValueError(f"unknown operator {rule.operator!r}")
         if rule.frequency not in ("once_per_rearm", "once", "every_time"):
             raise ValueError(f"unknown frequency {rule.frequency!r}")
@@ -325,7 +266,9 @@ class AlertEngine:
         if last_bar_date is not None:
             self.last_bar_dates[symbol] = last_bar_date
 
-    def roll_daily_bar(self, symbol: str, close: float, bar_date: date | None) -> float | None:
+    def roll_daily_bar(
+        self, symbol: str, close: float, bar_date: date | None
+    ) -> float | None:
         """Roll a new daily close into history and recompute the level.
 
         Same-date updates are ignored (levels stay as-of the last stored
@@ -365,18 +308,43 @@ class AlertEngine:
         return ("regular",)
 
     def _fire(
-        self, symbol: str, price: float, moment: datetime, session: str, level: float, rule: TriggerRule
+        self,
+        symbol: str,
+        price: float,
+        moment: datetime,
+        session: str,
+        level: float,
+        rule: TriggerRule,
     ) -> Alert:
         """Emit an alert; ``once`` rules never re-arm afterwards."""
         if rule.frequency == "once":
             self.spent.add(symbol)
         self.armed[symbol] = False
-        text = render_message(rule.message, symbol=symbol, price=price, level=level, moment=moment, session=session) if rule.message else None
+        text = (
+            render_message(
+                rule.message,
+                symbol=symbol,
+                price=price,
+                level=level,
+                moment=moment,
+                session=session,
+            )
+            if rule.message
+            else None
+        )
         alert = Alert(symbol, moment, session, price, level, text=text)
         self.on_alert(alert)
         return alert
 
-    def _ignore(self, symbol: str, price: float, moment: datetime, session: str, level: float, reason: str) -> None:
+    def _ignore(
+        self,
+        symbol: str,
+        price: float,
+        moment: datetime,
+        session: str,
+        level: float,
+        reason: str,
+    ) -> None:
         """Record a non-firing tick explicitly (never silently dropped)."""
         tick = IgnoredTick(
             symbol=symbol,
@@ -410,14 +378,18 @@ class AlertEngine:
             if symbol not in self.spent:
                 self.armed[symbol] = True
             return None
-        if (
-            rule.frequency == "every_time"
-            and rule.operator in ("greater-than", "less-than")
+        if rule.frequency == "every_time" and rule.operator in (
+            "greater-than",
+            "less-than",
         ):
             if in_session:
                 return self._fire(symbol, price, moment, session, level, rule)
             self._ignore(
-                symbol, price, moment, session, level,
+                symbol,
+                price,
+                moment,
+                session,
+                level,
                 f"{session} tick ignored under {self.session_policy}-only policy",
             )
             return None
@@ -427,7 +399,11 @@ class AlertEngine:
             self.armed[symbol] = False
         elif not in_session:
             self._ignore(
-                symbol, price, moment, session, level,
+                symbol,
+                price,
+                moment,
+                session,
+                level,
                 f"{session} tick ignored under {self.session_policy}-only policy",
             )
         return None
@@ -508,8 +484,7 @@ class NtfySink:
     def __init__(self, url: str):
         if not url:
             raise ValueError(
-                "ntfy URL must not be blank "
-                f"(set {NTFY_ENV_VAR}, never the repo)"
+                f"ntfy URL must not be blank (set {NTFY_ENV_VAR}, never the repo)"
             )
         _require_http_url(url)
         self.url = url
@@ -530,7 +505,11 @@ class NtfySink:
         except requests.RequestException as error:
             # Never log the error text: requests errors often embed the
             # full URL, which would expose the configured topic.
-            status = error.response.status_code if error.response is not None else "no-response"
+            status = (
+                error.response.status_code
+                if error.response is not None
+                else "no-response"
+            )
             print(
                 f"alert ntfy sink failed: {type(error).__name__} status={status}",
                 file=sys.stderr,

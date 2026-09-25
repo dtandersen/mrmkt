@@ -17,11 +17,11 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command.list_symbols import ListSymbols
+from mrmkt.command.list_symbols import ListSymbols, ListSymbolsRequest
 from mrmkt.command.base import BaseResult
 from mrmkt.command.import_symbols import ImportSymbols, ImportSymbolsRequest
-from mrmkt.command.symbols_label import LabelSymbols
-from mrmkt.command.symbols_unlabel import UnlabelSymbols
+from mrmkt.command.symbols_label import LabelSymbols, LabelSymbolsRequest
+from mrmkt.command.symbols_unlabel import UnlabelSymbols, UnlabelSymbolsRequest
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
@@ -181,12 +181,20 @@ def execute_symbol_command(
 
 @when("I list stored symbols")
 def list_stored_symbols(symbol_context, financial_repository):
-    _invoke_command(symbol_context, ListSymbols(financial_repository))
+    _invoke_command(
+        symbol_context,
+        ListSymbols(financial_repository),
+        ListSymbolsRequest(),
+    )
 
 
 @when(parsers.parse('I list stored symbols tagged "{tag}"'))
 def list_stored_symbols_by_tag(symbol_context, tag, financial_repository):
-    _invoke_command(symbol_context, ListSymbols(financial_repository), tag=tag)
+    _invoke_command(
+        symbol_context,
+        ListSymbols(financial_repository),
+        ListSymbolsRequest(tag=tag),
+    )
 
 
 @when(parsers.parse('I import symbols from "{provider}"'))
@@ -205,8 +213,7 @@ def label_symbols_command(symbol_context, symbols, tag, financial_repository):
     _invoke_command(
         symbol_context,
         LabelSymbols(financial_repository),
-        symbols=symbols,
-        tag=tag,
+        LabelSymbolsRequest(symbols=symbols, tag=tag),
     )
 
 
@@ -215,8 +222,7 @@ def label_no_symbols_command(symbol_context, tag, financial_repository):
     _invoke_command(
         symbol_context,
         LabelSymbols(financial_repository),
-        symbols="",
-        tag=tag,
+        LabelSymbolsRequest(symbols="", tag=tag),
     )
 
 
@@ -225,8 +231,7 @@ def unlabel_symbols_command(symbol_context, tag, symbols, financial_repository):
     _invoke_command(
         symbol_context,
         UnlabelSymbols(financial_repository),
-        symbols=symbols,
-        tag=tag,
+        UnlabelSymbolsRequest(symbols=symbols, tag=tag),
     )
 
 
@@ -379,14 +384,14 @@ def stored_symbols_are(symbol_context, datatable):
     ]
     actual = [
         (ticker.ticker, ticker.exchange, ticker.type)
-        for ticker in symbol_context.result
+        for ticker in symbol_context.result.result
     ]
     assert_that(actual, equal_to(expected))
 
 
 @then("no stored symbols are listed")
 def no_stored_symbols_listed(symbol_context):
-    assert_that(symbol_context.result, equal_to([]))
+    assert_that(symbol_context.result.result, equal_to([]))
 
 
 @then(parsers.parse("the import count is {count:d}"))
@@ -400,10 +405,10 @@ def tag_change_is(symbol_context, datatable):
     assert_that(headers, equal_to(["field", "value"]))
     expected = {str(row[0]): str(row[1]) for row in datatable[1:]}
     actual = {
-        "changed": str(symbol_context.result.changed_count),
-        "matched": str(symbol_context.result.matched_count),
-        "unmatched": str(symbol_context.result.unmatched_count),
-        "tag": symbol_context.result.tag,
+        "changed": str(symbol_context.result.result.changed_count),
+        "matched": str(symbol_context.result.result.matched_count),
+        "unmatched": str(symbol_context.result.result.unmatched_count),
+        "tag": symbol_context.result.result.tag,
     }
     for field, value in expected.items():
         assert_that(actual[field], equal_to(value))

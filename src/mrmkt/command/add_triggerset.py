@@ -1,7 +1,8 @@
 """Stored trigger-set add command."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from mrmkt.command.base import BaseResult, Command, Status
 from mrmkt.repo.trigger_sets import TriggerSetNotFound
 
 
@@ -13,34 +14,41 @@ class FieldError:
     message: str
 
 
-class AddTriggerToSetError(ValueError):
-    """Raised when an add is invalid; carries every error found.
-
-    Messages are operator-facing: callers print them verbatim.
-    """
-
-    def __init__(self, errors: list[FieldError]) -> None:
-        self.errors = list(errors)
-        super().__init__("\n".join(f"{e.field}: {e.message}" for e in self.errors))
+@dataclass(frozen=True)
+class AddTriggerToSetRequest:
+    set_name: str
+    trigger_name: str
 
 
-class AddTriggerToSet:
+@dataclass
+class AddTriggerToSetResult(BaseResult[None]):
+    field_errors: list[FieldError] = field(default_factory=list)
+
+
+class AddTriggerToSet(Command[AddTriggerToSetRequest, AddTriggerToSetResult]):
     """Add a trigger to a set, validating both names before writing."""
 
     def __init__(self, repository):
         self.repository = repository
 
-    def execute(self, set_name: str, trigger_name: str) -> None:
+    def execute(self, request: AddTriggerToSetRequest) -> AddTriggerToSetResult:
         errors: list[FieldError] = []
-        if not self._known_set(set_name):
+        if not self._known_set(request.set_name):
             errors.append(
-                FieldError("triggerset", f"Triggerset {set_name!r} not found")
+                FieldError("triggerset", f"Triggerset {request.set_name!r} not found")
             )
-        if not self._known_trigger(trigger_name):
-            errors.append(FieldError("trigger", f"Trigger {trigger_name!r} not found"))
+        if not self._known_trigger(request.trigger_name):
+            errors.append(
+                FieldError("trigger", f"Trigger {request.trigger_name!r} not found")
+            )
         if errors:
-            raise AddTriggerToSetError(errors)
-        self.repository.add_to_set(set_name, trigger_name)
+            return AddTriggerToSetResult(
+                status=Status.NOT_FOUND,
+                errors=[f"{error.field}: {error.message}" for error in errors],
+                field_errors=errors,
+            )
+        self.repository.add_to_set(request.set_name, request.trigger_name)
+        return AddTriggerToSetResult.success(None)
 
     def _known_set(self, name: str) -> bool:
         try:

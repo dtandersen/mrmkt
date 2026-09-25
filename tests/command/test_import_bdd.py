@@ -8,7 +8,7 @@ import pytest
 from hamcrest import assert_that, contains_string, equal_to, none
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from mrmkt.command.import_prices import ImportPrices
+from mrmkt.command.import_prices import ImportPrices, ImportPricesRequest
 from mrmkt.command.import_symbols import ImportSymbols, ImportSymbolsRequest
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
@@ -172,15 +172,22 @@ def _run_import(import_context, symbols):
         command.batch_size = import_context.batch_size
     try:
         outcome = command.execute(
-            provider="alpaca",
-            symbols=symbols,
-            all_symbols=False,
-            tag=None,
-            from_date=import_context.start.isoformat(),
-            to_date=import_context.end.isoformat(),
+            ImportPricesRequest(
+                provider="alpaca",
+                symbols=symbols,
+                all_symbols=False,
+                tag=None,
+                from_date=import_context.start.isoformat(),
+                to_date=import_context.end.isoformat(),
+            )
         )
-        import_context.result = outcome.result
-        import_context.error = None
+        if outcome.is_success():
+            assert outcome.result is not None
+            import_context.result = outcome.result.result
+            import_context.error = None
+        else:
+            import_context.result = None
+            import_context.error = "; ".join(outcome.errors)
     except ValueError as error:
         import_context.result = None
         import_context.error = str(error)

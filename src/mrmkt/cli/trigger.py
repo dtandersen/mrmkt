@@ -2,8 +2,12 @@
 
 import typer
 
+from mrmkt.cli.results import handle
+from mrmkt.command.create_trigger import CreateTriggerRequest
+from mrmkt.command.delete_trigger import DeleteTriggerRequest
+from mrmkt.command.list_trigger import ListTriggersRequest
+from mrmkt.command.show_trigger import ShowTriggerRequest
 from mrmkt.command.triggers_common import _render_triggers_csv
-from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 trigger_app = typer.Typer(
     no_args_is_help=True, help="Manage stored realtime alert triggers"
@@ -45,25 +49,22 @@ def trigger_create(
     ),
 ) -> None:
     """Store a realtime trigger; prints the created row."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        command = env.command_factory.create_trigger()
-        stored = command.execute(
-            name=name,
-            symbol=symbol,
-            signal=signal,
-            operator=operator,
-            value=value,
-            frequency=frequency,
-            expires=expires,
-            message=message,
-        )
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to add trigger: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(_render_triggers_csv([stored]), nl=False)
+    handle(
+        ctx,
+        lambda factory: factory.create_trigger().execute(
+            CreateTriggerRequest(
+                name=name,
+                symbol=symbol,
+                signal=signal,
+                operator=operator,
+                value=value,
+                frequency=frequency,
+                expires=expires,
+                message=message,
+            )
+        ),
+        lambda stored: typer.echo(_render_triggers_csv([stored]), nl=False),
+    )
 
 
 @trigger_app.command("list")
@@ -74,14 +75,13 @@ def triggers_list(
     ),
 ) -> None:
     """List stored triggers as deterministic CSV."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        list_command = env.command_factory.list_triggers()
-        triggers = list_command.execute(enabled_only=enabled_only)
-    except Exception as error:
-        typer.echo(f"Failed to list triggers: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(_render_triggers_csv(triggers), nl=False)
+    handle(
+        ctx,
+        lambda factory: factory.list_triggers().execute(
+            ListTriggersRequest(enabled_only=enabled_only)
+        ),
+        lambda triggers: typer.echo(_render_triggers_csv(triggers), nl=False),
+    )
 
 
 @trigger_app.command("show")
@@ -90,16 +90,11 @@ def trigger_show(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Show a single stored trigger as CSV."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        show_command = env.command_factory.show_trigger()
-        trigger = show_command.execute(name=name)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to show trigger: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(_render_triggers_csv([trigger]), nl=False)
+    handle(
+        ctx,
+        lambda factory: factory.show_trigger().execute(ShowTriggerRequest(name=name)),
+        lambda trigger: typer.echo(_render_triggers_csv([trigger]), nl=False),
+    )
 
 
 @trigger_app.command("delete")
@@ -108,13 +103,10 @@ def triggers_delete(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Delete a stored trigger (also removed from any trigger sets)."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        delete_command = env.command_factory.delete_trigger()
-        trigger = delete_command.execute(name=name)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to remove trigger: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(f"deleted trigger {trigger.name}")
+    handle(
+        ctx,
+        lambda factory: factory.delete_trigger().execute(
+            DeleteTriggerRequest(name=name)
+        ),
+        lambda trigger: typer.echo(f"deleted trigger {trigger.name}"),
+    )

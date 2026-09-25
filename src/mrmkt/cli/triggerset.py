@@ -2,8 +2,11 @@
 
 import typer
 
-from mrmkt.command.add_triggerset import AddTriggerToSetError
-from mrmkt.composition import AppContext, resolve_cli_dependencies
+from mrmkt.cli.results import handle
+from mrmkt.command.add_triggerset import AddTriggerToSetRequest
+from mrmkt.command.create_triggerset import CreateTriggerSetRequest
+from mrmkt.command.remove_triggerset import RemoveTriggerFromSetRequest
+from mrmkt.composition import resolve_cli_dependencies
 
 triggerset_app = typer.Typer(no_args_is_help=True, help="Manage trigger sets")
 
@@ -16,16 +19,13 @@ def triggerset_create(
     ),
 ) -> None:
     """Create an empty trigger set; prints its name."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        create_command = env.command_factory.create_trigger_set()
-        stored = create_command.execute(name=name)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to create trigger set: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(f"created trigger set {stored}")
+    handle(
+        ctx,
+        lambda factory: factory.create_trigger_set().execute(
+            CreateTriggerSetRequest(name=name)
+        ),
+        lambda stored: typer.echo(f"created trigger set {stored}"),
+    )
 
 
 @triggerset_app.command("add")
@@ -35,20 +35,16 @@ def triggerset_add(
     trigger_name: str = typer.Argument(..., help="Trigger name to add"),
 ) -> None:
     """Add a trigger to a trigger set."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        add_command = env.command_factory.add_trigger_to_set()
-        add_command.execute(set_name=set_name, trigger_name=trigger_name)
-    except AddTriggerToSetError as error:
-        for field_error in error.errors:
-            typer.echo(field_error.message, err=True)
-        raise typer.Exit(code=1) from error
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to add trigger to set: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(f"added trigger {trigger_name} to trigger set {set_name}")
+    env = resolve_cli_dependencies(ctx)
+    result = env.command_factory.add_trigger_to_set().execute(
+        AddTriggerToSetRequest(set_name=set_name, trigger_name=trigger_name)
+    )
+    if result.is_success():
+        typer.echo(f"added trigger {trigger_name} to trigger set {set_name}")
+        return
+    for field_error in result.field_errors:
+        typer.echo(field_error.message, err=True)
+    raise typer.Exit(code=1)
 
 
 @triggerset_app.command("remove")
@@ -58,13 +54,12 @@ def triggerset_remove(
     trigger_name: str = typer.Argument(..., help="Trigger name to remove"),
 ) -> None:
     """Remove a trigger from a trigger set."""
-    env: AppContext = resolve_cli_dependencies(ctx)
-    try:
-        remove_command = env.command_factory.remove_trigger_from_set()
-        remove_command.execute(set_name=set_name, trigger_name=trigger_name)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from error
-    except Exception as error:
-        typer.echo(f"Failed to remove trigger from set: {error}", err=True)
-        raise typer.Exit(code=1) from error
-    typer.echo(f"removed trigger {trigger_name} from trigger set {set_name}")
+    handle(
+        ctx,
+        lambda factory: factory.remove_trigger_from_set().execute(
+            RemoveTriggerFromSetRequest(set_name=set_name, trigger_name=trigger_name)
+        ),
+        lambda _: typer.echo(
+            f"removed trigger {trigger_name} from trigger set {set_name}"
+        ),
+    )

@@ -10,7 +10,9 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 from mrmkt.command.alerts import AlertEngine, ListSink, TriggerRule, dry_run_alerts
 
-FEATURE = Path(__file__).parent.parent / "features" / "command" / "alerts_engine.feature"
+FEATURE = (
+    Path(__file__).parent.parent / "features" / "command" / "alerts_engine.feature"
+)
 scenarios(str(FEATURE))
 
 ET = ZoneInfo("America/New_York")
@@ -20,7 +22,11 @@ SESSION_HOURS = {"regular": (10, 0), "pre": (8, 0), "post": (17, 0)}
 @pytest.fixture
 def engine_context():
     return SimpleNamespace(
-        engine=None, alerts=None, bars=None, fired=[], delivered=[],
+        engine=None,
+        alerts=None,
+        bars=None,
+        fired=[],
+        delivered=[],
         day=date(2026, 9, 22),
     )
 
@@ -30,8 +36,12 @@ def _moment(context, session):
     from datetime import datetime
 
     return datetime(
-        context.day.year, context.day.month, context.day.day,
-        hour, minute, tzinfo=ET,
+        context.day.year,
+        context.day.month,
+        context.day.day,
+        hour,
+        minute,
+        tzinfo=ET,
     )
 
 
@@ -45,7 +55,11 @@ def engine_seeded_above(engine_context, symbol, level):
     engine_context.alerts = alerts
 
 
-@given(parsers.parse('an engine watching "{symbol}" at level {level:f} seeded above expiring yesterday'))
+@given(
+    parsers.parse(
+        'an engine watching "{symbol}" at level {level:f} seeded above expiring yesterday'
+    )
+)
 def engine_expiring(engine_context, symbol, level):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
@@ -58,7 +72,11 @@ def engine_expiring(engine_context, symbol, level):
     engine_context.alerts = alerts
 
 
-@given(parsers.parse('an engine watching "{symbol}" at level {level:f} seeded above with frequency {frequency}'))
+@given(
+    parsers.parse(
+        'an engine watching "{symbol}" at level {level:f} seeded above with frequency {frequency}'
+    )
+)
 def engine_seeded_above_frequency(engine_context, symbol, level, frequency):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
@@ -69,7 +87,11 @@ def engine_seeded_above_frequency(engine_context, symbol, level, frequency):
     engine_context.alerts = alerts
 
 
-@given(parsers.parse('an engine watching "{symbol}" at level {level:f} seeded above with message "{message}"'))
+@given(
+    parsers.parse(
+        'an engine watching "{symbol}" at level {level:f} seeded above with message "{message}"'
+    )
+)
 def engine_seeded_above_message(engine_context, symbol, level, message):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
@@ -80,7 +102,11 @@ def engine_seeded_above_message(engine_context, symbol, level, message):
     engine_context.alerts = alerts
 
 
-@given(parsers.parse('an engine watching "{symbol}" at level {level:f} from below with operator {operator} and frequency {frequency}'))
+@given(
+    parsers.parse(
+        'an engine watching "{symbol}" at level {level:f} from below with operator {operator} and frequency {frequency}'
+    )
+)
 def engine_from_below_frequency(engine_context, symbol, level, operator, frequency):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
@@ -91,7 +117,7 @@ def engine_from_below_frequency(engine_context, symbol, level, operator, frequen
     engine_context.alerts = alerts
 
 
-@then("the fired alert text is \"AAA ping\"")
+@then('the fired alert text is "AAA ping"')
 def fired_text(engine_context):
     assert engine_context.fired[-1].text == "AAA ping"
 
@@ -103,7 +129,11 @@ def fired_default_line(engine_context):
     assert "TRIGGER" in format_alert(engine_context.fired[-1])
 
 
-@given(parsers.parse('an engine watching "{symbol}" at level {level:f} from below with operator {operator}'))
+@given(
+    parsers.parse(
+        'an engine watching "{symbol}" at level {level:f} from below with operator {operator}'
+    )
+)
 def engine_from_below(engine_context, symbol, level, operator):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
@@ -131,15 +161,25 @@ def stored_bars_with_dip(engine_context, symbol):
         close = closes[pos]
         bars.append(
             SimpleNamespace(
-                symbol=symbol, date=day, open=close, high=close * 1.005,
-                low=close * 0.995, close=close, volume=1000.0,
+                symbol=symbol,
+                date=day,
+                open=close,
+                high=close * 1.005,
+                low=close * 0.995,
+                close=close,
+                volume=1000.0,
             )
         )
     dip_close = level + 1.0
     bars.append(
         SimpleNamespace(
-            symbol=symbol, date=days[34], open=dip_close, high=dip_close,
-            low=level - 0.5, close=dip_close, volume=1000.0,
+            symbol=symbol,
+            date=days[34],
+            open=dip_close,
+            high=dip_close,
+            low=level - 0.5,
+            close=dip_close,
+            volume=1000.0,
         )
     )
     engine_context.bars = {symbol: bars}
@@ -147,7 +187,9 @@ def stored_bars_with_dip(engine_context, symbol):
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the {session} session'))
 def print_tick(engine_context, symbol, price, session):
-    fired = engine_context.engine.on_tick(symbol, price, _moment(engine_context, session))
+    fired = engine_context.engine.on_tick(
+        symbol, price, _moment(engine_context, session)
+    )
     if fired is not None:
         engine_context.fired.append(fired)
 
@@ -190,19 +232,21 @@ def construction_fails(engine_context):
 def engine_with_history(engine_context, symbol, price):
     alerts = ListSink()
     engine = AlertEngine(on_alert=alerts)
-    engine.set_history(symbol, [price * (1.001**i) for i in range(40)], date(2026, 9, 21))
+    engine.set_history(
+        symbol, [price * (1.001**i) for i in range(40)], date(2026, 9, 21)
+    )
     engine_context.engine = engine
     engine_context.alerts = alerts
     engine_context.symbol = symbol
 
 
-@given(parsers.parse('the trigger level is {level:f} seeded from {prior:f}'))
+@given(parsers.parse("the trigger level is {level:f} seeded from {prior:f}"))
 def seed_explicit_level(engine_context, level, prior):
     engine_context.engine.set_levels({engine_context.symbol: level})
     engine_context.engine.seed_baseline({engine_context.symbol: prior})
 
 
-@when(parsers.parse('a new daily bar closes at {close:f}'))
+@when(parsers.parse("a new daily bar closes at {close:f}"))
 def roll_new_bar(engine_context, close):
     engine = engine_context.engine
     assert engine.roll_daily_bar(engine_context.symbol, 95.0, date(2026, 9, 21)) is None
@@ -220,8 +264,12 @@ def level_changes(engine_context):
 def tick_between_levels(engine_context):
     engine = engine_context.engine
     symbol = engine_context.symbol
-    engine.on_tick(symbol, engine_context.new_level + 1.0, _moment(engine_context, "regular"))
-    fired = engine.on_tick(symbol, engine_context.new_level - 0.5, _moment(engine_context, "regular"))
+    engine.on_tick(
+        symbol, engine_context.new_level + 1.0, _moment(engine_context, "regular")
+    )
+    fired = engine.on_tick(
+        symbol, engine_context.new_level - 0.5, _moment(engine_context, "regular")
+    )
     assert fired is not None
 
 
@@ -249,8 +297,14 @@ def trade_stamped_pre(engine_context):
             pass
 
     stream = StubStream()
-    AlpacaStreamSource(stream, engine_context.engine, lambda: _moment(engine_context, "regular")).start(["AAA"])
-    stream.trade_handler(SimpleNamespace(symbol="AAA", price=99.0, timestamp=_moment(engine_context, "pre")))
+    AlpacaStreamSource(
+        stream, engine_context.engine, lambda: _moment(engine_context, "regular")
+    ).start(["AAA"])
+    stream.trade_handler(
+        SimpleNamespace(
+            symbol="AAA", price=99.0, timestamp=_moment(engine_context, "pre")
+        )
+    )
     received.append(True)
 
 
@@ -271,11 +325,15 @@ def trade_no_timestamp(engine_context):
             pass
 
     stream = StubStream()
-    AlpacaStreamSource(stream, engine_context.engine, lambda: _moment(engine_context, "regular")).start(["AAA"])
+    AlpacaStreamSource(
+        stream, engine_context.engine, lambda: _moment(engine_context, "regular")
+    ).start(["AAA"])
     stream.trade_handler(SimpleNamespace(symbol="AAA", price=99.0, timestamp=None))
 
 
-@when(parsers.parse('"{symbol}" prints {price:f} in the regular session into a temp file'))
+@when(
+    parsers.parse('"{symbol}" prints {price:f} in the regular session into a temp file')
+)
 def print_to_file(engine_context, symbol, price):
     import tempfile
 
@@ -283,7 +341,9 @@ def print_to_file(engine_context, symbol, price):
 
     with tempfile.NamedTemporaryFile("r", suffix=".log", delete=False) as tmp:
         engine_context.tmpfile = tmp.name
-    engine_context.engine.on_alert = FanoutSink([engine_context.alerts, FileSink(tmp.name)])
+    engine_context.engine.on_alert = FanoutSink(
+        [engine_context.alerts, FileSink(tmp.name)]
+    )
     print_tick(engine_context, symbol, price, "regular")
 
 
@@ -308,7 +368,9 @@ def print_to_ntfy(engine_context, symbol, price):
         engine_context.ntfy_history = list(mocker.request_history)
 
 
-@then(parsers.parse('ntfy receives a POST with title "{title}" and priority "{priority}"'))
+@then(
+    parsers.parse('ntfy receives a POST with title "{title}" and priority "{priority}"')
+)
 def ntfy_post(engine_context, title, priority):
     (request,) = engine_context.ntfy_history
     assert request.method == "POST"
@@ -318,7 +380,11 @@ def ntfy_post(engine_context, title, priority):
     assert "TRIGGER" in request.text
 
 
-@when(parsers.parse('"{symbol}" prints {price:f} in the regular session to a failing ntfy'))
+@when(
+    parsers.parse(
+        '"{symbol}" prints {price:f} in the regular session to a failing ntfy'
+    )
+)
 def print_to_failing_ntfy(engine_context, symbol, price):
     import io
     from contextlib import redirect_stderr
@@ -333,7 +399,9 @@ def print_to_failing_ntfy(engine_context, symbol, price):
         requests_mock.Mocker() as mocker,
         redirect_stderr(stderr),
     ):
-        mocker.post("https://ntfy.example/secret-topic-xyz", status_code=500, text="boom")
+        mocker.post(
+            "https://ntfy.example/secret-topic-xyz", status_code=500, text="boom"
+        )
         print_tick(engine_context, symbol, price, "regular")
     engine_context.stderr = stderr.getvalue()
 
@@ -349,7 +417,9 @@ def resolve_variants(engine_context):
     from mrmkt.command.alerts import resolve_ntfy_url
 
     engine_context.resolved = {
-        "env": resolve_ntfy_url("https://env.example/t", {"ntfy": "https://cfg.example/t"}),
+        "env": resolve_ntfy_url(
+            "https://env.example/t", {"ntfy": "https://cfg.example/t"}
+        ),
         "ntfy": resolve_ntfy_url("", {"ntfy": "https://cfg.example/t"}),
         "nfty": resolve_ntfy_url("", {"nfty": "https://cfg.example/t"}),
         "bare": resolve_ntfy_url("", {"ntfy": "my-topic"}),
@@ -369,10 +439,12 @@ def resolution_order(engine_context):
 
 @when("I compute levels twice")
 def compute_levels_twice(engine_context):
+    from mrmkt.command.alerts import render_levels_csv
+    from mrmkt.command.ranges import ListRanges, ListRangesRequest
+    from mrmkt.common.clock import ClockStub
     from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
     from mrmkt.entity.stock_price import StockPrice
     from mrmkt.entity.ticker import Ticker
-    from mrmkt.command.alerts import LevelsUseCase, render_levels_csv
 
     repo = InMemoryFinancialRepository()
     repo.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))
@@ -383,20 +455,30 @@ def compute_levels_twice(engine_context):
             day += timedelta(days=1)
         repo.add_price(
             StockPrice(
-                symbol="AAA", date=day, open=price, high=price * 1.005,
-                low=price * 0.995, close=price, volume=1000.0,
+                symbol="AAA",
+                date=day,
+                open=price,
+                high=price * 1.005,
+                low=price * 0.995,
+                close=price,
+                volume=1000.0,
             )
         )
         price *= 1.002
         day += timedelta(days=1)
     repo.add_tag("AAA", "NASDAQ", "universe")
-    use_case = LevelsUseCase(repo)
-    first = use_case.execute(include_tags=["universe"], symbols=[])
+    command = ListRanges(repo, ClockStub())
+    request = ListRangesRequest(tags=["universe"], symbols=[])
+    first = command.execute(request)
+    assert first.is_success()
+    assert first.result is not None
+    second = command.execute(request)
+    assert second.result is not None
     engine_context.levels_csvs = [
-        render_levels_csv(first),
-        render_levels_csv(use_case.execute(include_tags=["universe"], symbols=[])),
+        render_levels_csv(first.result),
+        render_levels_csv(second.result),
     ]
-    engine_context.level_row = first.rows[0]
+    engine_context.level_row = first.result.rows[0]
 
 
 @then("both levels CSVs are identical")

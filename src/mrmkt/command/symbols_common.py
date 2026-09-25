@@ -17,6 +17,10 @@ class TagChangeResult:
     added: bool
 
 
+class UnknownSymbolsError(ValueError):
+    """None of the supplied symbols are in the local ticker catalog."""
+
+
 def apply_symbol_tags(
     repository, symbols: str, tag: str, add: bool
 ) -> TagChangeResult:
@@ -54,7 +58,7 @@ def apply_symbol_tags(
                 changed_count += 1
 
     if not matched_symbols:
-        raise ValueError(
+        raise UnknownSymbolsError(
             "none of the supplied symbols are in the local ticker catalog"
         )
     return TagChangeResult(

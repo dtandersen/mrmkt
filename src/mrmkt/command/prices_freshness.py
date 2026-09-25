@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from mrmkt.command._shared import normalize_tag, resolve_universe
+from mrmkt.command.base import BaseResult, Command
 
 GAP_JUMP_THRESHOLD = 0.20
 
@@ -25,10 +26,10 @@ LIMITATION_NOTES = (
 
 
 @dataclass
-class FreshnessRequest:
+class FreshnessQuery:
+    today: date
     include_tags: list[str] = field(default_factory=list)
     exclude_tags: list[str] = field(default_factory=list)
-    today: date | None = None
     lookback_days: int = 365
     stale_after_days: int = 5
     gap_threshold: float = GAP_JUMP_THRESHOLD
@@ -57,73 +58,67 @@ class FreshnessResult:
     exclude_tags: list[str]
     universe_size: int
     rows: list[FreshnessRow]
-    request: FreshnessRequest
+    request: FreshnessQuery
 
 
-class CheckFreshness:
+@dataclass(frozen=True)
+class CheckFreshnessRequest:
+    tags: list[str] | None = None
+    exclude_tags: list[str] | None = None
+    lookback_days: int = 365
+    stale_after_days: int = 5
+    gap_threshold: float = GAP_JUMP_THRESHOLD
+
+
+@dataclass
+class CheckFreshnessResult(BaseResult[FreshnessResult]):
+    pass
+
+
+class CheckFreshness(Command[CheckFreshnessRequest, CheckFreshnessResult]):
     """Report price staleness and bar-quality flags over stored bars."""
 
     def __init__(self, repository, clock):
         self.repository = repository
         self.clock = clock
 
-    def execute(
-        self,
-        tags: list[str] | None,
-        exclude_tags: list[str] | None,
-        lookback_days: int,
-        stale_after_days: int,
-        gap_threshold: float,
-    ) -> FreshnessResult:
-        if lookback_days < 1:
-            raise ValueError("--lookback-days must be at least 1")
-        if stale_after_days < 0:
-            raise ValueError("--stale-after must be >= 0")
-        if gap_threshold <= 0:
-            raise ValueError("--gap-threshold must be positive")
-        return FreshnessUseCase(self.repository).execute(
-            FreshnessRequest(
-                include_tags=[normalize_tag(tag) for tag in (tags or [])],
-                exclude_tags=[normalize_tag(tag) for tag in (exclude_tags or [])],
-                today=self.clock.today(),
-                lookback_days=lookback_days,
-                stale_after_days=stale_after_days,
-                gap_threshold=gap_threshold,
-            )
-        )
-
-
-def _business_days(start: date, end: date) -> list[date]:
-    days = []
-    current = start
-    while current <= end:
-        if current.weekday() < 5:
-            days.append(current)
-        current += timedelta(days=1)
-    return days
-
-
-class FreshnessUseCase:
-    """Report staleness and bar-quality flags; no ad hoc SQL."""
-
-    def __init__(self, repository):
-        self.repository = repository
-
-    def execute(self, request: FreshnessRequest) -> FreshnessResult:
-        """Score each universe symbol over the lookback window."""
+    def execute(self, request: CheckFreshnessRequest) -> CheckFreshnessResult:
         if request.lookback_days < 1:
-            raise ValueError("lookback_days must be at least 1")
+            return CheckFreshnessResult.invalid_data(
+                ["--lookback-days must be at least 1"]
+            )
         if request.stale_after_days < 0:
-            raise ValueError("stale_after_days must be >= 0")
+            return CheckFreshnessResult.invalid_data(["--stale-after must be >= 0"])
         if request.gap_threshold <= 0:
-            raise ValueError("gap_threshold must be positive")
-        today = request.today
-        if today is None:
-            raise ValueError("today must be provided (CLI fills it from the clock)")
+            return CheckFreshnessResult.invalid_data(
+                ["--gap-threshold must be positive"]
+            )
+        try:
+            query = FreshnessQuery(
+                include_tags=[normalize_tag(tag) for tag in (request.tags or [])],
+                exclude_tags=[
+                    normalize_tag(tag) for tag in (request.exclude_tags or [])
+                ],
+                today=self.clock.today(),
+                lookback_days=request.lookback_days,
+                stale_after_days=request.stale_after_days,
+                gap_threshold=request.gap_threshold,
+            )
+        except ValueError as error:
+            return CheckFreshnessResult.invalid_data([str(error)])
+        try:
+            outcome = self._score(query)
+        except Exception as error:
+            return CheckFreshnessResult.error([f"Failed to check freshness: {error}"])
+        return CheckFreshnessResult.success(outcome)
+
+    def _score(self, query: FreshnessQuery) -> FreshnessResult:
+        """Score each universe symbol over the lookback window."""
+        today = query.today
         symbols = resolve_universe(
-            self.repository, request.include_tags, request.exclude_tags
+            self.repository, query.include_tags, query.exclude_tags
         )
-        window_start = today - timedelta(days=request.lookback_days)
+        window_start = today - timedelta(days=query.lookback_days)
         bars_by_symbol: dict = {}
         for price in self.repository.list_prices_for_symbols(symbols, date.min, today):
             bars_by_symbol.setdefault(price.symbol, []).append(price)
@@ -155,7 +150,7 @@ class FreshnessUseCase:
             missing = [d for d in expected if d not in present]
             flags: list[str] = []
             details: list[str] = []
-            if staleness > request.stale_after_days:
+            if staleness > query.stale_after_days:
                 flags.append("STALE")
                 details.append(f"last bar {last_bar.isoformat()} ({staleness}d ago)")
             if missing:
@@ -188,14 +183,14 @@ class FreshnessUseCase:
             for b in window:
                 if prior is not None and prior.close > 0 and b.open > 0:
                     move = abs(b.open / prior.close - 1)
-                    if move >= request.gap_threshold:
+                    if move >= query.gap_threshold:
                         jumps.append(f"{b.date.isoformat()} ({move:.0%})")
                 prior = b
             if jumps:
                 flags.append("GAP_JUMP_HEURISTIC")
                 details.append(
                     "overnight gaps >= "
-                    f"{request.gap_threshold:.0%}: {','.join(jumps[:5])} "
+                    f"{query.gap_threshold:.0%}: {','.join(jumps[:5])} "
                     "(suspicious, NOT proof of splits/actions)"
                 )
             rows.append(
@@ -213,15 +208,25 @@ class FreshnessUseCase:
             )
         return FreshnessResult(
             today=today,
-            lookback_days=request.lookback_days,
-            stale_after_days=request.stale_after_days,
-            gap_threshold=request.gap_threshold,
-            include_tags=sorted(request.include_tags),
-            exclude_tags=sorted(request.exclude_tags),
+            lookback_days=query.lookback_days,
+            stale_after_days=query.stale_after_days,
+            gap_threshold=query.gap_threshold,
+            include_tags=sorted(query.include_tags),
+            exclude_tags=sorted(query.exclude_tags),
             universe_size=len(symbols),
             rows=sorted(rows, key=lambda r: r.symbol),
-            request=request,
+            request=query,
         )
+
+
+def _business_days(start: date, end: date) -> list[date]:
+    days = []
+    current = start
+    while current <= end:
+        if current.weekday() < 5:
+            days.append(current)
+        current += timedelta(days=1)
+    return days
 
 
 FRESHNESS_COLUMNS = [

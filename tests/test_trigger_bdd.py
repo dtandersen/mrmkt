@@ -12,7 +12,6 @@ from hamcrest import (
     greater_than,
     has_item,
     has_length,
-    instance_of,
     is_,
     not_none,
 )
@@ -20,13 +19,17 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command.add_triggerset import AddTriggerToSet
-from mrmkt.command.create_trigger import CreateTrigger
-from mrmkt.command.create_triggerset import CreateTriggerSet
-from mrmkt.command.delete_trigger import DeleteTrigger
-from mrmkt.command.list_trigger import ListTriggers
-from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
-from mrmkt.command.show_trigger import ShowTrigger
+from mrmkt.command.add_triggerset import AddTriggerToSet, AddTriggerToSetRequest
+from mrmkt.command.base import BaseResult
+from mrmkt.command.create_trigger import CreateTrigger, CreateTriggerRequest
+from mrmkt.command.create_triggerset import CreateTriggerSet, CreateTriggerSetRequest
+from mrmkt.command.delete_trigger import DeleteTrigger, DeleteTriggerRequest
+from mrmkt.command.list_trigger import ListTriggers, ListTriggersRequest
+from mrmkt.command.remove_triggerset import (
+    RemoveTriggerFromSet,
+    RemoveTriggerFromSetRequest,
+)
+from mrmkt.command.show_trigger import ShowTrigger, ShowTriggerRequest
 from mrmkt.command.triggers_common import (
     TRIGGER_COLUMNS,
     _default_trigger_name,
@@ -203,6 +206,9 @@ def _invoke(context, command, *args, **kwargs):
     except ValueError as error:
         context.failed = True
         context.error = str(error)
+    if isinstance(context.result, BaseResult) and not context.result.is_success():
+        context.failed = True
+        context.error = "; ".join(context.result.errors)
 
 
 @when("I create a trigger with:")
@@ -210,12 +216,20 @@ def create_trigger_command(trigger_context, datatable, financial_repository):
     headers = [str(header) for header in datatable[0]]
     assert_that(headers, equal_to(["field", "value"]))
     command = _with_generator(trigger_context, CreateTrigger, financial_repository)
-    _invoke(trigger_context, command, **_create_kwargs(_table_options(datatable)))
+    _invoke(
+        trigger_context,
+        command,
+        CreateTriggerRequest(**_create_kwargs(_table_options(datatable))),
+    )
 
 
 @when(parsers.parse('I show trigger "{name}"'))
 def show_trigger_command(trigger_context, name, financial_repository):
-    _invoke(trigger_context, ShowTrigger(financial_repository), name)
+    _invoke(
+        trigger_context,
+        ShowTrigger(financial_repository),
+        ShowTriggerRequest(name=name),
+    )
 
 
 @when("I list triggers")
@@ -223,7 +237,7 @@ def list_triggers_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
         ListTriggers(financial_repository),
-        enabled_only=False,
+        ListTriggersRequest(enabled_only=False),
     )
 
 
@@ -232,18 +246,26 @@ def list_enabled_triggers_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
         ListTriggers(financial_repository),
-        enabled_only=True,
+        ListTriggersRequest(enabled_only=True),
     )
 
 
 @when(parsers.parse('I delete trigger "{name}"'))
 def delete_trigger_command(trigger_context, name, financial_repository):
-    _invoke(trigger_context, DeleteTrigger(financial_repository), name)
+    _invoke(
+        trigger_context,
+        DeleteTrigger(financial_repository),
+        DeleteTriggerRequest(name=name),
+    )
 
 
 @when(parsers.parse('I create trigger set "{name}"'))
 def create_trigger_set_command(trigger_context, name, financial_repository):
-    _invoke(trigger_context, CreateTriggerSet(financial_repository), name)
+    _invoke(
+        trigger_context,
+        CreateTriggerSet(financial_repository),
+        CreateTriggerSetRequest(name=name),
+    )
 
 
 @when("I create a trigger set with no name")
@@ -251,7 +273,7 @@ def create_default_trigger_set_command(trigger_context, financial_repository):
     _invoke(
         trigger_context,
         _with_generator(trigger_context, CreateTriggerSet, financial_repository),
-        None,
+        CreateTriggerSetRequest(name=None),
     )
 
 
@@ -262,8 +284,7 @@ def add_trigger_to_set_command(
     _invoke(
         trigger_context,
         AddTriggerToSet(financial_repository),
-        set_name,
-        trigger,
+        AddTriggerToSetRequest(set_name=set_name, trigger_name=trigger),
     )
 
 
@@ -274,8 +295,7 @@ def add_trigger_to_set_with_errors(
     _invoke(
         trigger_context,
         AddTriggerToSet(financial_repository),
-        set_name,
-        trigger,
+        AddTriggerToSetRequest(set_name=set_name, trigger_name=trigger),
     )
 
 
@@ -286,8 +306,7 @@ def remove_trigger_from_set_command(
     _invoke(
         trigger_context,
         RemoveTriggerFromSet(financial_repository),
-        set_name,
-        trigger,
+        RemoveTriggerFromSetRequest(set_name=set_name, trigger_name=trigger),
     )
 
 
@@ -332,12 +351,12 @@ def repository_was_released_once(trigger_context):
 
 @then(parsers.parse('the trigger is named "{name}"'))
 def trigger_is_named(trigger_context, name):
-    assert_that(trigger_context.result.name, equal_to(name))
+    assert_that(trigger_context.result.result.name, equal_to(name))
 
 
 @then(parsers.parse('the result is "{text}"'))
 def result_is(trigger_context, text):
-    assert_that(str(trigger_context.result), equal_to(text))
+    assert_that(str(trigger_context.result.result), equal_to(text))
 
 
 @then(parsers.parse('the trigger "{name}" has:'))
@@ -349,13 +368,17 @@ def trigger_has(trigger_context, name, datatable):
         aliases.get(str(row[0]), str(row[0])): str(row[1]) for row in datatable[1:]
     }
     result = trigger_context.result
-    if isinstance(result, list):
-        matches = [item for item in result if item.name == name]
+    assert isinstance(result, BaseResult)
+    assert result.is_success()
+    payload = result.result
+    assert payload is not None
+    if isinstance(payload, list):
+        matches = [item for item in payload if item.name == name]
         assert_that(matches, has_length(1))
         trigger = matches[0]
     else:
-        assert_that(result.name, equal_to(name))
-        trigger = result
+        assert_that(payload.name, equal_to(name))
+        trigger = payload
     rendered = _render_triggers_csv([trigger]).splitlines()[-1]
     actual = dict(zip(TRIGGER_COLUMNS, rendered.split(","), strict=True))
     assert_that(set(actual).issuperset(expected), is_(True))
@@ -366,11 +389,7 @@ def trigger_has(trigger_context, name, datatable):
 @then(parsers.parse('trigger "{name}" is gone'))
 def trigger_is_gone(trigger_context, name, financial_repository):
     assert_that(
-        [
-            item
-            for item in financial_repository.list_triggers()
-            if item.name == name
-        ],
+        [item for item in financial_repository.list_triggers() if item.name == name],
         equal_to([]),
     )
 
@@ -378,9 +397,12 @@ def trigger_is_gone(trigger_context, name, financial_repository):
 @then(parsers.parse('trigger "{name}" is not listed'))
 def trigger_not_listed(trigger_context, name):
     result = trigger_context.result
-    assert_that(result, instance_of(list))
+    assert isinstance(result, BaseResult)
+    assert result.is_success()
+    payload = result.result
+    assert isinstance(payload, list)
     assert_that(
-        [item for item in result if item.name == name],
+        [item for item in payload if item.name == name],
         equal_to([]),
     )
 
