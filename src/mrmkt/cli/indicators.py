@@ -13,7 +13,7 @@ from mrmkt.command.indicators_volatility import CalculateVolatility
 from mrmkt.command.indicators_volatility_percentile import (
     CalculateVolatilityPercentile,
 )
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 indicators_app = typer.Typer(no_args_is_help=True, help="Calculate indicators over stored prices")
 
@@ -27,7 +27,7 @@ def calculate_sma(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the simple moving average over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         sma_command = env.command_factory.calculate_sma()
         result = sma_command.execute(
@@ -55,7 +55,7 @@ def calculate_risk_range(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print risk-range buy/sell levels over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         range_command = env.command_factory.calculate_risk_range()
         result = range_command.execute(
@@ -87,7 +87,7 @@ def calculate_volatility(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print realized volatility over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         volatility_command = env.command_factory.calculate_volatility()
         result = volatility_command.execute(
@@ -114,7 +114,7 @@ def calculate_volatility_percentile(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the volatility percentile rank over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         percentile_command = env.command_factory.calculate_volatility_percentile()
         result = percentile_command.execute(
@@ -145,7 +145,7 @@ def calculate_volatility_of_volatility(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print volatility of volatility over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         vov_command = env.command_factory.calculate_vol_of_vol()
         result = vov_command.execute(
@@ -177,7 +177,7 @@ def calculate_volatility_of_volatility_percentile(
     to_date: str | None = typer.Option(None, "--to", help="End date; defaults to today"),
 ) -> None:
     """Print the vol-of-vol percentile rank over stored closes."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         percentile_command = env.command_factory.calculate_vol_of_vol_percentile()
         result = percentile_command.execute(

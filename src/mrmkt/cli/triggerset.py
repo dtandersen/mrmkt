@@ -3,7 +3,7 @@
 import typer
 
 from mrmkt.command.add_triggerset import AddTriggerToSetError
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 triggerset_app = typer.Typer(no_args_is_help=True, help="Manage trigger sets")
 
@@ -16,7 +16,7 @@ def triggerset_create(
     ),
 ) -> None:
     """Create an empty trigger set; prints its name."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         create_command = env.command_factory.create_trigger_set()
         stored = create_command.execute(name=name)
@@ -35,7 +35,7 @@ def triggerset_add(
     trigger_name: str = typer.Argument(..., help="Trigger name to add"),
 ) -> None:
     """Add a trigger to a trigger set."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         add_command = env.command_factory.add_trigger_to_set()
         add_command.execute(set_name=set_name, trigger_name=trigger_name)
@@ -58,7 +58,7 @@ def triggerset_remove(
     trigger_name: str = typer.Argument(..., help="Trigger name to remove"),
 ) -> None:
     """Remove a trigger from a trigger set."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         remove_command = env.command_factory.remove_trigger_from_set()
         remove_command.execute(set_name=set_name, trigger_name=trigger_name)

@@ -41,5 +41,3 @@ class MrMktEnvironment2:
     alpaca_data_client: StockHistoricalDataClient
     trigger_name_generator: Callable[[], str]
     triggerset_name_generator: Callable[[], str]
-    # Wired by the composition root right after the factory is built; never None.
-    command_factory: CommandFactory = field(init=False)

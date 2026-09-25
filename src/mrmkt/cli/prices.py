@@ -3,7 +3,7 @@
 import typer
 
 from mrmkt.command.prices_freshness import render_csv
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical prices")
 
@@ -19,7 +19,7 @@ def import_prices(
     to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today)"),
 ) -> None:
     """Import bounded daily price history into the local store."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         import_command = env.command_factory.import_prices()
         outcome = import_command.execute(
@@ -60,7 +60,7 @@ def list_prices(
     to_date: str | None = typer.Option(None, "--to", help="End date (defaults to today when --from is used)"),
 ) -> None:
     """List stored daily bars as a deterministic table."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         list_command = env.command_factory.list_prices()
         prices = list_command.execute(
@@ -94,7 +94,7 @@ def run_prices_freshness(
     gap_threshold: float = typer.Option(0.20, "--gap-threshold", help="Overnight-gap heuristic threshold as a fraction"),
 ) -> None:
     """Report price staleness and bar-quality flags; prints deterministic CSV."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         freshness_command = env.command_factory.check_freshness()
         result = freshness_command.execute(

@@ -3,7 +3,7 @@
 import typer
 
 from mrmkt.command.triggers_common import _render_triggers_csv
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 trigger_app = typer.Typer(
     no_args_is_help=True, help="Manage stored realtime alert triggers"
@@ -45,7 +45,7 @@ def trigger_create(
     ),
 ) -> None:
     """Store a realtime trigger; prints the created row."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         command = env.command_factory.create_trigger()
         stored = command.execute(
@@ -74,7 +74,7 @@ def triggers_list(
     ),
 ) -> None:
     """List stored triggers as deterministic CSV."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         list_command = env.command_factory.list_triggers()
         triggers = list_command.execute(enabled_only=enabled_only)
@@ -90,7 +90,7 @@ def trigger_show(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Show a single stored trigger as CSV."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         show_command = env.command_factory.show_trigger()
         trigger = show_command.execute(name=name)
@@ -108,7 +108,7 @@ def triggers_delete(
     name: str = typer.Argument(..., help="Trigger name from trigger list"),
 ) -> None:
     """Delete a stored trigger (also removed from any trigger sets)."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         delete_command = env.command_factory.delete_trigger()
         trigger = delete_command.execute(name=name)

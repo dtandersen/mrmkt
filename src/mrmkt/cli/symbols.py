@@ -2,7 +2,7 @@
 
 import typer
 
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 symbols_app = typer.Typer(no_args_is_help=True, help="Manage the local symbol catalog")
 
@@ -13,7 +13,7 @@ def import_symbols(
     provider: str = typer.Option(..., "--provider", help="Symbol source (currently: alpaca)"),
 ) -> None:
     """Import the remote symbol catalog into the local repository."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         import_command = env.command_factory.import_symbols()
         count = import_command.execute(provider=provider)
@@ -31,7 +31,7 @@ def list_symbols(
     tag: str | None = typer.Option(None, "--tag", help="Only show symbols with this tag"),
 ) -> None:
     """List stored symbols as a deterministic table."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         list_command = env.command_factory.list_symbols()
         tickers = list_command.execute(tag=tag)
@@ -53,7 +53,7 @@ def list_symbols(
 @symbols_app.command("label")
 def label_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Tag stored symbols; prints how many assignments changed."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         label_command = env.command_factory.label_symbols()
         result = label_command.execute(symbols=symbols, tag=tag)
@@ -68,7 +68,7 @@ def label_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
 @symbols_app.command("unlabel")
 def unlabel_symbols(ctx: typer.Context, symbols: str, tag: str) -> None:
     """Untag stored symbols; prints how many assignments changed."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         unlabel_command = env.command_factory.unlabel_symbols()
         result = unlabel_command.execute(symbols=symbols, tag=tag)

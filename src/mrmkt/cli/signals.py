@@ -3,7 +3,7 @@
 import typer
 
 from mrmkt.command.signals_current import render_csv
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 signals_app = typer.Typer(no_args_is_help=True, help="Inspect current strategy signals over stored prices")
 
@@ -29,7 +29,7 @@ def run_signals_current(
     top: int | None = typer.Option(None, "--top", help="Keep only the first N symbol rows"),
 ) -> None:
     """Show per-symbol strategy signals at a stored bar; prints deterministic CSV."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         signals_command = env.command_factory.current_signals()
         result = signals_command.execute(

@@ -2,7 +2,7 @@
 
 import typer
 
-from mrmkt.composition import CliDependencies, resolve_cli_dependencies
+from mrmkt.composition import AppContext, resolve_cli_dependencies
 
 backtest_app = typer.Typer(no_args_is_help=True, help="Backtest signal portfolios over stored prices")
 
@@ -28,7 +28,7 @@ def run_backtest(
     chunk_size: int = typer.Option(250, "--chunk-size", help="Symbols loaded and simulated per chunk"),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         backtest_command = env.command_factory.run_backtest()
         outcome = backtest_command.execute(

@@ -198,7 +198,7 @@ class CommandFactory:
 
 
 @dataclass(frozen=True)
-class CliDependencies:
+class AppContext:
     """Shared, app-level CLI dependencies installed on the Typer context."""
 
     command_factory: CommandFactory
@@ -235,13 +235,16 @@ def _run_live_stream(symbols: list[str], engine, feed: str) -> None:
     )
 
 
-def default_cli_dependencies() -> CliDependencies:
+def create_app_context() -> AppContext:
     """Production wiring installed by the CLI root callback.
 
     The repository opens lazily on first use and its release runs once at
     teardown (:attr:`CliDependencies.close`, registered on the Typer context).
     """
     repository, release = _shared.create_local_ticker_repository()
+    clock=_shared.create_clock()
+    alpaca_client=_shared.create_alpaca_client()
+    alpaca_data_client=_shared.create_alpaca_data_client()
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,
@@ -249,23 +252,22 @@ def default_cli_dependencies() -> CliDependencies:
         tags=repository,
         triggers=repository,
         trigger_sets=repository,
-        clock=_shared.create_clock(),
-        alpaca_client=_shared.create_alpaca_client(),
-        alpaca_data_client=_shared.create_alpaca_data_client(),
+        clock=clock,
+        alpaca_client=alpaca_client,
+        alpaca_data_client=alpaca_data_client,
         trigger_name_generator=_default_trigger_name,
         triggerset_name_generator=_default_set_name,
     )
     factory = CommandFactory(env)
-    env.command_factory = factory
-    return CliDependencies(command_factory=factory, close=release)
+    return AppContext(command_factory=factory, close=release)
 
 
-def resolve_cli_dependencies(ctx: typer.Context | None) -> CliDependencies:
+def resolve_cli_dependencies(ctx: typer.Context | None) -> AppContext:
     """Return the shared dependencies installed on the Typer context, else defaults."""
     obj = getattr(ctx, "obj", None)
-    if isinstance(obj, CliDependencies):
+    if isinstance(obj, AppContext):
         return obj
-    return default_cli_dependencies()
+    return create_app_context()
 
 
 def cli_dependencies_for_testing(
@@ -276,7 +278,7 @@ def cli_dependencies_for_testing(
     alpaca_data_client: StockHistoricalDataClient | None = None,
     trigger_name_generator: Callable[[], str] | None = None,
     triggerset_name_generator: Callable[[], str] | None = None,
-) -> CliDependencies:
+) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
     Only the fakes a test cares about need stating; everything else falls
@@ -303,5 +305,4 @@ def cli_dependencies_for_testing(
         triggerset_name_generator=triggerset_name_generator or _default_set_name,
     )
     factory = CommandFactory(env)
-    env.command_factory = factory
-    return CliDependencies(command_factory=factory, close=release)
+    return AppContext(command_factory=factory, close=release)

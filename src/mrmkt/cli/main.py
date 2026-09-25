@@ -17,8 +17,8 @@ from mrmkt.cli.triggerset import triggerset_app
 from mrmkt.command.alerts import render_levels_csv
 from mrmkt.command.screen import render_csv
 from mrmkt.composition import (
-    CliDependencies,
-    default_cli_dependencies,
+    AppContext,
+    create_app_context,
     resolve_cli_dependencies,
 )
 
@@ -33,16 +33,16 @@ def _install_cli_dependencies(ctx: typer.Context) -> None:
     # One shared composition-root object for every command; tests that inject
     # their own through ``CliRunner(..., obj=...)`` keep it untouched.
     if ctx.obj is None:
-        ctx.obj = default_cli_dependencies()
+        ctx.obj = create_app_context()
     # App-scope teardown: release everything the invocation opened, on
     # success and on error alike. Registered for injected test doubles too.
-    if isinstance(ctx.obj, CliDependencies):
+    if isinstance(ctx.obj, AppContext):
         ctx.call_on_close(lambda: teardown_app(ctx))
 
 def teardown_app(ctx: typer.Context) -> None:
     """Release app-scoped resources for one CLI invocation (teardown)."""
     deps = ctx.obj
-    if isinstance(deps, CliDependencies):
+    if isinstance(deps, AppContext):
         deps.close()
 
 app.add_typer(symbols_app, name="symbols")
@@ -68,7 +68,7 @@ def run_screen(
     top: int | None = typer.Option(None, "--top", help="Keep only the top N ranked rows"),
 ) -> None:
     """Rank a tag universe on point-in-time technicals; prints deterministic CSV."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         screen_command = env.command_factory.screen_symbols()
         result = screen_command.execute(
@@ -103,7 +103,7 @@ def run_ranges(
     anchor_period: int = typer.Option(5, "--anchor", help="Trailing mean the range is centered on"),
 ) -> None:
     """Print deterministic risk-range bands from stored bars."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         ranges_command = env.command_factory.list_ranges()
         result = ranges_command.execute(
@@ -141,7 +141,7 @@ def run_watch(
     verbose: bool = typer.Option(False, "--verbose", help="Also print ignored non-trigger ticks"),
 ) -> None:
     """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
-    env: CliDependencies = resolve_cli_dependencies(ctx)
+    env: AppContext = resolve_cli_dependencies(ctx)
     try:
         watch_command = env.command_factory.watch_prices()
         watch_command.execute(
