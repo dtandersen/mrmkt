@@ -54,14 +54,14 @@ class TestImportSymbols(TestCase):
         self.result = cmd.execute(ImportSymbolsRequest(provider="alpaca"))
 
     def ticker_count(self):
-        assert_that(self.result.success, equal_to(True))
-        return self.result.imported_count
+        assert_that(self.result.is_success(), equal_to(True))
+        return self.result.result
 
     def test_unsupported_provider_fails(self):
         cmd = ImportSymbols(self.env.remote.tickers, self.env.local.tickers)
         result = cmd.execute(ImportSymbolsRequest(provider="tiingo"))
 
-        assert_that(result.success, equal_to(False))
+        assert_that(result.is_invalid_data(), equal_to(True))
         assert_that(
             result.errors,
             equal_to(["only the 'alpaca' provider is currently supported"]),

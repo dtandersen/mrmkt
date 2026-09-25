@@ -99,7 +99,7 @@ def _invoke_command(symbol_context, command, *args, **kwargs):
         symbol_context.error = str(error)
     if (
         isinstance(symbol_context.result, BaseResult)
-        and not symbol_context.result.success
+        and not symbol_context.result.is_success()
     ):
         symbol_context.failed = True
         symbol_context.error = "; ".join(symbol_context.result.errors)
@@ -330,7 +330,7 @@ def import_reports_failure(symbol_context):
     assert_that(symbol_context.cli_result.exit_code, not_(equal_to(0)))
     assert_that(
         symbol_context.cli_result.output,
-        contains_string("Failed to import symbols from Alpaca"),
+        contains_string("Alpaca request unavailable"),
     )
 
 
@@ -391,7 +391,7 @@ def no_stored_symbols_listed(symbol_context):
 
 @then(parsers.parse("the import count is {count:d}"))
 def import_count_is(symbol_context, count):
-    assert_that(symbol_context.result.imported_count, equal_to(count))
+    assert_that(symbol_context.result.result, equal_to(count))
 
 
 @then("the tag change is:")

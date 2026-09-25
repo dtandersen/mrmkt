@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from hamcrest import assert_that, contains_string, equal_to, none
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from mrmkt.command.import_prices import ImportPrices
@@ -219,48 +220,53 @@ def run_fetch_again(import_context):
 
 @then(parsers.parse('{count:d} bars are stored for "{symbol}"'))
 def bars_stored(import_context, count, symbol):
-    assert len(import_context.local.list_prices(symbol)) == count
+    assert_that(len(import_context.local.list_prices(symbol)), equal_to(count))
 
 
 @then(parsers.parse("{count:d} bars were imported"))
 def bars_imported(import_context, count):
-    assert import_context.result.imported == count
+    assert_that(import_context.result.imported, equal_to(count))
 
 
 @then(parsers.parse("the price source was called {count:d} times"))
 def price_source_called(import_context, count):
-    assert len(import_context.source.calls) == count
+    assert_that(len(import_context.source.calls), equal_to(count))
 
 
 @then("the price source was not called")
 def price_source_not_called(import_context):
-    assert import_context.source.calls == []
+    assert_that(import_context.source.calls, equal_to([]))
 
 
 @then("the retry delays were:")
 def retry_delays_were(import_context, datatable):
-    assert [float(row[0]) for row in datatable[1:]] == import_context.delays
+    assert_that(
+        [float(row[0]) for row in datatable[1:]], equal_to(import_context.delays)
+    )
 
 
 @then("progress reports were:")
 def progress_reports_were(import_context, datatable):
-    assert [
-        (int(row[0]), int(row[1])) for row in datatable[1:]
-    ] == import_context.progress
+    assert_that(
+        [(int(row[0]), int(row[1])) for row in datatable[1:]],
+        equal_to(import_context.progress),
+    )
 
 
 @then(parsers.parse('the batch "{batch}" is recorded failed'))
 def batch_failed(import_context, batch):
-    assert [batch.split(",")] == import_context.result.failed_batches
+    assert_that([batch.split(",")], equal_to(import_context.result.failed_batches))
 
 
 @then("the import fails naming the date order")
 def import_rejected(import_context):
-    assert import_context.result is None
-    assert "--from must be on or before --to" in import_context.error
+    assert_that(import_context.result, none())
+    assert_that(
+        import_context.error, contains_string("--from must be on or before --to")
+    )
 
 
 @then(parsers.parse("{count:d} tickers are imported"))
 def tickers_imported(import_context, count):
-    assert import_context.result.success is True
-    assert import_context.result.imported_count == count
+    assert_that(import_context.result.is_success(), equal_to(True))
+    assert_that(import_context.result.result, equal_to(count))

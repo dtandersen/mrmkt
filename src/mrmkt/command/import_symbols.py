@@ -13,8 +13,8 @@ class ImportSymbolsRequest:
 
 
 @dataclass
-class ImportSymbolsResult(BaseResult):
-    imported_count: int = 0
+class ImportSymbolsResult(BaseResult[int]):
+    pass
 
 
 class ImportSymbols(Command[ImportSymbolsRequest, ImportSymbolsResult]):
@@ -26,15 +26,18 @@ class ImportSymbols(Command[ImportSymbolsRequest, ImportSymbolsResult]):
 
     def execute(self, request: ImportSymbolsRequest) -> ImportSymbolsResult:
         if request.provider.lower() != "alpaca":
-            return ImportSymbolsResult(
-                success=False,
-                errors=["only the 'alpaca' provider is currently supported"],
+            return ImportSymbolsResult.invalid_data(
+                ["only the 'alpaca' provider is currently supported"]
             )
         imported_count = 0
-        for ticker in self.remote.get_tickers():
+        try:
+            remote_tickers = self.remote.get_tickers()
+        except Exception as error:
+            return ImportSymbolsResult.error([str(error)])
+        for ticker in remote_tickers:
             try:
                 self.local.add_ticker(ticker)
             except Duplicate:
                 continue
             imported_count += 1
-        return ImportSymbolsResult(success=True, imported_count=imported_count)
+        return ImportSymbolsResult.success(imported_count)

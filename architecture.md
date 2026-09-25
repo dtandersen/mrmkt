@@ -77,6 +77,18 @@ Commands accept collaborators, such as repositories, via constructor arguments.
 
 Commands perform validation and return their status, result, and a list of errors.
 
+
+```python
+# example command
+class ImportSymbols(Command[ImportSymbolsRequest, ImportSymbolsResult]):
+    def __init__(self, remote: ReadOnlyTickerRepository, local: TickerRepository):
+      ...
+
+    def execute(self, request: ImportSymbolsRequest) -> ImportSymbolsResult:
+      ...
+      return result
+```
+
 # CLI Commands
 
 CLI commands are thin wrappers around commands.
@@ -86,6 +98,24 @@ CLI commands do not use repositories.
 CLI commands do not perform validation.
 
 Create commands using the command factory in Typer ctx.
+
+```python
+# Example CLI command
+@symbols_app.command("import")
+def import_symbols(
+   ctx: typer.Context,
+   provider: str = typer.Option(..., "--provider", help="Symbol source (currently: alpaca)"),
+) -> None:
+   env: AppContext = resolve_cli_dependencies(ctx)
+
+   import_command = env.command_factory.import_symbols()
+   result = import_command.execute(ImportSymbolsRequest(provider=provider))
+   if result.success:
+      count = result.imported_count
+      typer.echo(f"Imported {count} newly imported symbol{'s' if count != 1 else ''}.")
+   else:
+      # print errors
+```
 
 ## Verbs
 
