@@ -225,7 +225,7 @@ def run_web(
         False, "--reload", help="Restart on code changes (development only)"
     ),
 ) -> None:
-    """Serve the read-only web view."""
+    """Serve the web view and JSON API."""
     import uvicorn
 
     if reload:
@@ -234,7 +234,12 @@ def run_web(
         uvicorn.run("mrmkt.web.server:app", host=host, port=port, reload=True)
         return
 
+    from mrmkt.web.api.auth import api_token_from_env
     from mrmkt.web.app import create_web_app
 
     env = resolve_cli_dependencies(ctx)
-    uvicorn.run(create_web_app(lambda: env), host=host, port=port)
+    uvicorn.run(
+        create_web_app(lambda: env, api_token=api_token_from_env()),
+        host=host,
+        port=port,
+    )

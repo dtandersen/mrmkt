@@ -52,6 +52,7 @@ from mrmkt.command.prices_freshness import CheckFreshness
 from mrmkt.command.ranges import ListRanges
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
 from mrmkt.command.screen import ScreenSymbols
+from mrmkt.command.set_trigger_enabled import SetTriggerEnabled
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
 from mrmkt.command.symbols_label import LabelSymbols
@@ -63,6 +64,7 @@ from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
+from mrmkt.provider import resolve_trigger_provider
 
 
 class CommandFactory:
@@ -98,6 +100,10 @@ class CommandFactory:
     def delete_trigger(self) -> DeleteTrigger:
         """Build a ready DeleteTrigger from the app-scoped environment."""
         return DeleteTrigger(self._env.triggers)
+
+    def set_trigger_enabled(self) -> SetTriggerEnabled:
+        """Build a ready SetTriggerEnabled from the app-scoped environment."""
+        return SetTriggerEnabled(self._env.triggers)
 
     def create_trigger_set(self) -> CreateTriggerSet:
         """Build a ready CreateTriggerSet from the app-scoped environment."""
@@ -247,6 +253,34 @@ def _run_live_stream(symbols: list[str], engine, feed: str) -> None:
     )
 
 
+def api_triggers_from_env():
+    """Build an HTTP trigger repository when MRMKT_API_URL is set, else None.
+
+    Lets the CLI manage remote triggers (e.g. a cluster-hosted watcher)
+    without direct Postgres access. Commands execute locally and unchanged;
+    only the repository behind them talks HTTP. The bearer token comes
+    from MRMKT_API_TOKEN and is never logged.
+    """
+    import os
+
+    from mrmkt.ext.api_triggers import ApiTriggerRepository
+
+    base_url = os.environ.get("MRMKT_API_URL", "").strip()
+    if not base_url:
+        return None
+    return ApiTriggerRepository(
+        base_url, token=os.environ.get("MRMKT_API_TOKEN") or None
+    )
+
+
+def _close_all(trigger_provider, release) -> None:
+    """Release the trigger backend, then the shared local resources."""
+    try:
+        trigger_provider.close()
+    finally:
+        release()
+
+
 def create_app_context() -> AppContext:
     """Production wiring installed by the CLI root callback.
 
@@ -257,12 +291,13 @@ def create_app_context() -> AppContext:
     clock = _shared.create_clock()
     alpaca_client = _shared.create_alpaca_client()
     alpaca_data_client = _shared.create_alpaca_data_client()
+    trigger_provider = resolve_trigger_provider(api_triggers_from_env(), repository)
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,
         tickers=repository,
         tags=repository,
-        triggers=repository,
+        triggers=trigger_provider.triggers(),
         trigger_sets=repository,
         clock=clock,
         alpaca_client=alpaca_client,
@@ -271,7 +306,9 @@ def create_app_context() -> AppContext:
         triggerset_name_generator=_default_set_name,
     )
     factory = CommandFactory(env)
-    return AppContext(command_factory=factory, close=release)
+    return AppContext(
+        command_factory=factory, close=lambda: _close_all(trigger_provider, release)
+    )
 
 
 def resolve_cli_dependencies(ctx: typer.Context | None) -> AppContext:
@@ -292,6 +329,7 @@ def cli_dependencies_for_testing(
     trigger_name_generator: Callable[[], str] | None = None,
     triggerset_name_generator: Callable[[], str] | None = None,
     tick_source=None,
+    triggers: Any | None = None,
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
@@ -305,7 +343,7 @@ def cli_dependencies_for_testing(
         prices=repository,
         tickers=repository,
         tags=repository,
-        triggers=repository,
+        triggers=(triggers if triggers is not None else repository),
         trigger_sets=repository,
         clock=clock if clock is not None else _shared.create_clock(),
         alpaca_client=alpaca_client

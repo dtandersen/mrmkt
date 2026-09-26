@@ -8,8 +8,9 @@ non-reload path in ``mrmkt.cli.main`` keeps using the CLI-owned context.
 """
 
 from mrmkt.composition import create_app_context
+from mrmkt.web.api.auth import api_token_from_env
 from mrmkt.web.app import create_web_app
 
 _env = create_app_context()
-app = create_web_app(lambda: _env)
+app = create_web_app(lambda: _env, api_token=api_token_from_env())
 app.on_shutdown.append(_env.close)
