@@ -4,9 +4,10 @@ from collections.abc import Callable
 
 from litestar import Litestar
 from litestar.di import Provide
+from litestar.openapi.config import OpenAPIConfig
 
 from mrmkt.composition import AppContext
-from mrmkt.web.api import ApiTriggersController
+from mrmkt.web.api import API_CONTROLLERS
 from mrmkt.web.pages import PagesController
 from mrmkt.web.prices import PricesController
 from mrmkt.web.symbols import SymbolsController
@@ -28,11 +29,12 @@ def create_web_app(
             SymbolsController,
             PricesController,
             TriggersController,
-            ApiTriggersController,
+            *API_CONTROLLERS,
         ],
         dependencies={
             "app_context": Provide(app_context_provider, sync_to_thread=False)
         },
+        openapi_config=OpenAPIConfig(title="mrmkt", version="1.0.0"),
     )
     app.state.api_token = api_token
     return app

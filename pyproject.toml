@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alpaca-py>=0.44.0",
+    "attrs>=26.1.0",
     "backtrader",
     "dbschema",
+    "httpx>=0.28.1",
     "jinja2>=3.1.6",
     "litestar>=2.24.0",
     "numpy",
@@ -18,6 +20,7 @@ dependencies = [
     "requests",
     "tiingo",
     "typer>=0.27.2",
+    "typing-extensions>=4.16.0",
     "uvicorn>=0.54.0",
     "websocket-client",
 ]
@@ -42,6 +45,7 @@ testpaths = ["tests"]
 line-length = 88
 target-version = "py313"
 src = ["src"]
+exclude = ["src/mrmkt/ext/api_gen"]
 
 [tool.ruff.lint]
 # Same rule set as pi-lens's bundled fallback (config/ruff/core.toml), so
@@ -69,6 +73,9 @@ ignore = [
   "S607",
 ]
 
+[tool.pyright]
+exclude = ["src/mrmkt/ext/api_gen"]
+
 [tool.hatch.build]
 dev-mode-dirs = [".", "src"]
 
@@ -78,3 +85,12 @@ packages = ["src/mrmkt"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.mrmkt.api-codegen]
+# Regenerating the API client (see docs/api.md "Generated Python client"):
+# 1. re-export api/openapi.json from the app (tests/test_api_spec.py enforces parity)
+# 2. uvx openapi-python-client@0.29.1 generate --path api/openapi.json --output-path src/mrmkt/ext/api_gen --meta none --overwrite
+spec = "api/openapi.json"
+output = "src/mrmkt/ext/api_gen"
+generator = "openapi-python-client==0.29.1"
+command = "uvx openapi-python-client generate --path api/openapi.json --output-path src/mrmkt/ext/api_gen --meta none --overwrite"

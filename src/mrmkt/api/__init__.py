@@ -2,6 +2,7 @@
 
 from mrmkt.api.trigger_dtos import (
     CreateTriggerDto,
+    ErrorDto,
     SetEnabledDto,
     TriggerDto,
     create_request_from_dto,
@@ -11,6 +12,7 @@ from mrmkt.api.trigger_dtos import (
 
 __all__ = [
     "CreateTriggerDto",
+    "ErrorDto",
     "SetEnabledDto",
     "TriggerDto",
     "create_request_from_dto",

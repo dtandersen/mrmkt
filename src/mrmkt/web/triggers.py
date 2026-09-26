@@ -10,7 +10,7 @@ from mrmkt.web.results import respond
 class TriggersController(Controller):
     path = "/fragments/triggers"
 
-    @get(sync_to_thread=True)
+    @get(sync_to_thread=True, include_in_schema=False)
     def triggers(
         self, app_context: AppContext, enabled_only: bool = False
     ) -> Response[str]:

@@ -16,7 +16,7 @@ from mrmkt.web.results import respond, status_code_of
 class PricesController(Controller):
     path = "/fragments/prices"
 
-    @get(sync_to_thread=True)
+    @get(sync_to_thread=True, include_in_schema=False)
     def prices(
         self,
         app_context: AppContext,
@@ -41,7 +41,7 @@ class PricesController(Controller):
             result, "fragments/prices.html", lambda prices: {"prices": prices}
         )
 
-    @get("/chart", sync_to_thread=True)
+    @get("/chart", sync_to_thread=True, include_in_schema=False)
     def chart_data(
         self,
         app_context: AppContext,
@@ -82,7 +82,7 @@ class PricesController(Controller):
             status_code=status_code_of(result),
         )
 
-    @get("/live", sync_to_thread=False)
+    @get("/live", sync_to_thread=False, include_in_schema=False)
     async def live(
         self, app_context: AppContext, symbol: str = "NVDA"
     ) -> ServerSentEvent | Response[dict]:

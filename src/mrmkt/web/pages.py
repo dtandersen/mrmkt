@@ -8,7 +8,7 @@ from mrmkt.web.results import render
 class PagesController(Controller):
     path = "/"
 
-    @get(sync_to_thread=False)
+    @get(sync_to_thread=False, include_in_schema=False)
     def index(self) -> Response[str]:
         """Render the shell page; sections load via HTMX fragment requests."""
         return Response(render("index.html"), media_type=MediaType.HTML)

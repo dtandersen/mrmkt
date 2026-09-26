@@ -3,6 +3,7 @@ import re
 from contextlib import suppress
 from dataclasses import dataclass
 
+from mrmkt.backend import MrMktBackend
 from mrmkt.common.sql import Duplicate, SqlClient
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -21,21 +22,21 @@ from mrmkt.entity.trigger import (
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
-from mrmkt.repo.triggers import TriggerRepository
 
 
 class SqlFinancialRepository(
+    MrMktBackend,
     FinancialRepository,
     PriceRepository,
-    TickerRepository,
     TickerTagRepository,
-    TriggerRepository,
     TriggerSetRepository,
 ):
     def __init__(self, sql_client: SqlClient):
         self.sql_client = sql_client
+
+    def close(self) -> None:
+        """No-op: the pool lifecycle stays with the composition root."""
 
     def list_balance_sheets(self, symbol: str):
         return self.sql_client.select(

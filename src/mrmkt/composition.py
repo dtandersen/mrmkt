@@ -64,7 +64,7 @@ from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
-from mrmkt.provider import TriggerProviderFactory
+from mrmkt.ext.backend import MrMktBackendFactory
 
 
 class CommandFactory:
@@ -253,36 +253,36 @@ def _run_live_stream(symbols: list[str], engine, feed: str) -> None:
     )
 
 
-def trigger_provider_factory_from_env(
+def mrmkt_backend_factory_from_env(
     local_repository,
-) -> TriggerProviderFactory:
-    """Build the trigger provider factory from environment configuration.
+) -> MrMktBackendFactory:
+    """Build the backend factory from environment configuration.
 
-    ``MRMKT_TRIGGER_PROVIDER`` names the backend (``postgres`` by
-    default, ``api`` for the cluster service); ``MRMKT_API_URL`` and
+    ``MRMKT_BACKEND`` names the backend (``postgres`` by default,
+    ``api`` for the cluster service); ``MRMKT_API_URL`` and
     ``MRMKT_API_TOKEN`` carry the API connection details and are never
-    logged. Call ``create(name)`` on the result to build a provider.
+    logged. Call ``create(name)`` on the result to build a backend.
     """
     import os
 
-    return TriggerProviderFactory(
+    return MrMktBackendFactory(
         local_repository=local_repository,
         api_url=os.environ.get("MRMKT_API_URL") or None,
         api_token=os.environ.get("MRMKT_API_TOKEN") or None,
     )
 
 
-def trigger_provider_name_from_env() -> str:
-    """Read the selected trigger backend name (default ``postgres``)."""
+def mrmkt_backend_name_from_env() -> str:
+    """Read the selected backend name (default ``postgres``)."""
     import os
 
-    return os.environ.get("MRMKT_TRIGGER_PROVIDER", "postgres")
+    return os.environ.get("MRMKT_BACKEND", "postgres")
 
 
-def _close_all(trigger_provider, release) -> None:
-    """Release the trigger backend, then the shared local resources."""
+def _close_all(backend, release) -> None:
+    """Release the backend, then the shared local resources."""
     try:
-        trigger_provider.close()
+        backend.close()
     finally:
         release()
 
@@ -297,15 +297,15 @@ def create_app_context() -> AppContext:
     clock = _shared.create_clock()
     alpaca_client = _shared.create_alpaca_client()
     alpaca_data_client = _shared.create_alpaca_data_client()
-    trigger_provider = trigger_provider_factory_from_env(repository).create(
-        trigger_provider_name_from_env()
+    backend = mrmkt_backend_factory_from_env(repository).create(
+        mrmkt_backend_name_from_env()
     )
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,
         tickers=repository,
         tags=repository,
-        triggers=trigger_provider.triggers(),
+        triggers=backend,
         trigger_sets=repository,
         clock=clock,
         alpaca_client=alpaca_client,
@@ -315,7 +315,7 @@ def create_app_context() -> AppContext:
     )
     factory = CommandFactory(env)
     return AppContext(
-        command_factory=factory, close=lambda: _close_all(trigger_provider, release)
+        command_factory=factory, close=lambda: _close_all(backend, release)
     )
 
 

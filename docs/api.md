@@ -36,7 +36,7 @@ curl -X POST -H "Authorization: Bearer $MRMKT_API_TOKEN" \
 ## CLI against the API
 
 ```shell
-export MRMKT_TRIGGER_PROVIDER=api
+export MRMKT_BACKEND=api
 export MRMKT_API_URL=https://mrmkt.example.com
 export MRMKT_API_TOKEN=...  # same value as the server's
 mrmkt trigger list
@@ -45,11 +45,12 @@ mrmkt trigger show dip-watch
 mrmkt trigger delete dip-watch
 ```
 
-With `MRMKT_TRIGGER_PROVIDER=api`, the composition root asks a
-`TriggerProviderFactory` for the `api` backend instead of `postgres`
+With `MRMKT_BACKEND=api`, the composition root asks a
+`MrMktBackendFactory` for the `api` backend instead of `postgres`
 (extra backends register by name; unknown names fail fast listing
-what's available). Commands execute locally and unchanged, and every
-other command keeps using the local database. `watch` must run
+what's available). The backend IS-A bundle of repository interfaces,
+so commands execute locally and unchanged, and every other command
+keeps using the local database. `watch` must run
 where the database lives (it needs prices, arm state, and the stream),
 so keep `watch --all-triggers` on the cluster.
 
@@ -63,6 +64,29 @@ uv run mrmkt web --host 0.0.0.0 --port 8000
 `MRMKT_API_TOKEN` is read from the environment on both sides and is
 never logged, echoed, or baked into the repo. Without it the API is
 open — fine on localhost, not in a cluster.
+
+## Generated Python client
+
+The CLI's HTTP backend uses code generated from `api/openapi.json`
+(`src/mrmkt/ext/api_gen/`, via `openapi-python-client`) instead of
+hand-written requests: endpoint paths, params, and models derive from
+the spec, while status→domain mapping (404→absent, 400→invalid data)
+stays in `ApiMrMktBackend` where the domain knowledge lives. The
+generated tree is excluded from lint/typecheck; never hand-edit it.
+
+After changing any `/api/*` handler, DTO, or error shape:
+
+```shell
+# 1. re-export the spec (exactly as /schema/openapi.json serves it)
+# 2. regenerate
+uvx openapi-python-client generate --path api/openapi.json \
+  --output-path src/mrmkt/ext/api_gen --meta none --overwrite
+# 3. run the suite (tests/test_api_spec.py fails if step 1 was skipped)
+```
+
+Keep handlers' `operation_id`s stable — they become generated function
+names. Document extra statuses with `responses={...}` + a typed DTO
+so the generator models errors too.
 
 ## Kubernetes sketch
 

@@ -7,9 +7,11 @@ CLI handlers; validation and status mapping stay identical.
 """
 
 from litestar import Controller, Response, delete, get, patch, post
+from litestar.openapi.datastructures import ResponseSpec
 
 from mrmkt.api.trigger_dtos import (
     CreateTriggerDto,
+    ErrorDto,
     SetEnabledDto,
     TriggerDto,
     create_request_from_dto,
@@ -27,48 +29,66 @@ class ApiTriggersController(Controller):
     path = "/api/triggers"
     guards = [require_api_token]
 
-    @get(sync_to_thread=True)
+    @get(
+        sync_to_thread=True,
+        operation_id="listTriggers",
+        responses={500: ResponseSpec(ErrorDto, description="Server error")},
+    )
     def list_triggers(
         self, app_context: AppContext, enabled_only: bool = False
-    ) -> list[TriggerDto] | Response[dict]:
+    ) -> list[TriggerDto] | Response[ErrorDto]:
         """List stored triggers as JSON DTOs."""
         result = app_context.command_factory.list_triggers().execute(
             ListTriggersRequest(enabled_only=enabled_only)
         )
         if not result.is_success():
             return Response(
-                content={"errors": result.errors},
+                content=ErrorDto(errors=result.errors),
                 status_code=status_code_of(result),
             )
         return [trigger_to_dto(trigger) for trigger in result.result or []]
 
-    @post(status_code=201, sync_to_thread=True)
+    @post(
+        status_code=201,
+        sync_to_thread=True,
+        operation_id="createTrigger",
+        responses={400: ResponseSpec(ErrorDto, description="Invalid data")},
+    )
     def create_trigger(
         self, app_context: AppContext, data: CreateTriggerDto
-    ) -> TriggerDto | Response[dict]:
+    ) -> TriggerDto | Response[ErrorDto]:
         """Store a trigger; runs the CreateTrigger command remotely."""
         result = app_context.command_factory.create_trigger().execute(
             create_request_from_dto(data)
         )
         if not result.is_success():
             return Response(
-                content={"errors": result.errors},
+                content=ErrorDto(errors=result.errors),
                 status_code=status_code_of(result),
             )
         assert result.result is not None
         return trigger_to_dto(result.result)
 
-    @delete("/{trigger_id:int}", status_code=200, sync_to_thread=True)
+    @delete(
+        "/{trigger_id:int}",
+        status_code=200,
+        sync_to_thread=True,
+        operation_id="deleteTrigger",
+        responses={
+            400: ResponseSpec(ErrorDto, description="Invalid data"),
+            404: ResponseSpec(ErrorDto, description="Unknown trigger"),
+        },
+    )
     def delete_trigger(
         self, app_context: AppContext, trigger_id: int
-    ) -> TriggerDto | Response[dict]:
+    ) -> TriggerDto | Response[ErrorDto]:
         """Delete a stored trigger by id; 404 when unknown."""
         listed = app_context.command_factory.list_triggers().execute(
             ListTriggersRequest(enabled_only=False)
         )
         if not listed.is_success():
             return Response(
-                content={"errors": listed.errors},
+                content=ErrorDto(errors=listed.errors),
                 status_code=status_code_of(listed),
             )
         match = next(
@@ -76,7 +96,7 @@ class ApiTriggersController(Controller):
         )
         if match is None:
             return Response(
-                content={"errors": [f"no trigger with id {trigger_id}"]},
+                content=ErrorDto(errors=[f"no trigger with id {trigger_id}"]),
                 status_code=404,
             )
         result = app_context.command_factory.delete_trigger().execute(
@@ -84,23 +104,31 @@ class ApiTriggersController(Controller):
         )
         if not result.is_success():
             return Response(
-                content={"errors": result.errors},
+                content=ErrorDto(errors=result.errors),
                 status_code=status_code_of(result),
             )
         assert result.result is not None
         return trigger_to_dto(result.result)
 
-    @patch("/{trigger_id:int}", sync_to_thread=True)
+    @patch(
+        "/{trigger_id:int}",
+        sync_to_thread=True,
+        operation_id="setTriggerEnabled",
+        responses={
+            400: ResponseSpec(ErrorDto, description="Invalid data"),
+            404: ResponseSpec(ErrorDto, description="Unknown trigger"),
+        },
+    )
     def set_trigger_enabled(
         self, app_context: AppContext, trigger_id: int, data: SetEnabledDto
-    ) -> TriggerDto | Response[dict]:
+    ) -> TriggerDto | Response[ErrorDto]:
         """Enable or disable a stored trigger by id; 404 when unknown."""
         result = app_context.command_factory.set_trigger_enabled().execute(
             SetTriggerEnabledRequest(trigger_id=trigger_id, enabled=data.enabled)
         )
         if not result.is_success():
             return Response(
-                content={"errors": result.errors},
+                content=ErrorDto(errors=result.errors),
                 status_code=status_code_of(result),
             )
         assert result.result is not None

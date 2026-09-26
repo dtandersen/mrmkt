@@ -1,6 +1,7 @@
 import datetime
 from dataclasses import dataclass
 
+from mrmkt.backend import MrMktBackend
 from mrmkt.common.sql import Duplicate
 from mrmkt.common.table import Table
 from mrmkt.entity.analysis import Analysis
@@ -19,18 +20,15 @@ from mrmkt.entity.trigger import (
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.tickers import TickerRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
-from mrmkt.repo.triggers import TriggerRepository
 
 
 @dataclass
 class InMemoryFinancialRepository(
+    MrMktBackend,
     FinancialRepository,
     PriceRepository,
-    TickerRepository,
     TickerTagRepository,
-    TriggerRepository,
     TriggerSetRepository,
 ):
     incomes: Table
@@ -57,6 +55,9 @@ class InMemoryFinancialRepository(
         self.triggers = Table(trigger_id_key)
         self.next_trigger_id = 1
         self.trigger_sets = {}
+
+    def close(self) -> None:
+        """No-op: no dedicated resources (shared in-memory store)."""
 
     def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:  # pyright: ignore[reportIncompatibleMethodOverride]  # pre-existing: base declares List[IncomeStatement]
         return self.incomes.get(self.key(symbol, date))

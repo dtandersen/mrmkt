@@ -13,7 +13,7 @@ from mrmkt.web.results import respond, status_code_of
 class SymbolsController(Controller):
     path = "/fragments/symbols"
 
-    @get(sync_to_thread=True)
+    @get(sync_to_thread=True, include_in_schema=False)
     def symbols(self, app_context: AppContext, tag: str | None = None) -> Response[str]:
         """Render stored symbols as an HTML table fragment."""
         result = app_context.command_factory.list_symbols().execute(
@@ -23,7 +23,7 @@ class SymbolsController(Controller):
             result, "fragments/symbols.html", lambda tickers: {"tickers": tickers}
         )
 
-    @get("/lookup", sync_to_thread=True)
+    @get("/lookup", sync_to_thread=True, include_in_schema=False)
     def lookup(self, app_context: AppContext) -> list[dict] | Response[dict]:
         """Return stored symbols as JSON for the chart symbol lookup."""
         result = app_context.command_factory.list_symbols().execute(

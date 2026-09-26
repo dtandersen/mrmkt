@@ -45,6 +45,13 @@ class CreateTriggerDto:
 
 
 @dataclass
+class ErrorDto:
+    """Error body; mirrors the {"errors": [...]} wire convention."""
+
+    errors: list[str]
+
+
+@dataclass
 class SetEnabledDto:
     """Enabled-toggle body for PATCH /api/triggers/{id}."""
 
