@@ -14,9 +14,8 @@ Feature: Trigger web fragment
     Then the web command succeeds
     And the fragment says no triggers were found
 
-  Scenario: Index page opens on the chart with prices and triggers
+  Scenario: Index page opens on the chart with triggers
     When I open "/"
     Then the web command succeeds
     And the index opens on the S&P 500 chart
-    And the index references the prices fragment
     And the index references the triggers fragment

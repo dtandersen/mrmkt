@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MrMkt — Market Overview</title>
+  <title>Mr Market — Market Overview</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='10' fill='%2322c55e'/%3E%3Ctext x='18' y='26' font-size='21' text-anchor='middle' fill='%2306110b' font-weight='bold' font-family='sans-serif'%3E$%3C/text%3E%3C/svg%3E">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <style>
     :root {
       --bg: #0b0f14;
@@ -204,6 +206,26 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    .range-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0 0;
+    }
+    .range-bar button {
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--muted);
+    }
+    .range-bar button:hover { background: rgba(255, 255, 255, 0.05); }
+    .range-bar button.active {
+      background: var(--accent-dim);
+      border-color: rgba(34, 197, 94, 0.4);
+      color: var(--accent-text);
+    }
     ul.errors {
       list-style: none;
       margin: 0;
@@ -222,32 +244,43 @@
       color: var(--muted);
       font-size: 12px;
     }
+    footer a { color: var(--accent-text); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <header class="topbar">
     <div class="logo">$</div>
     <div class="brand">
-      <h1>MrMkt</h1>
+      <h1>Mr Market</h1>
       <p>Read-only market overview</p>
     </div>
     <div class="live"><span class="dot"></span>Live view</div>
   </header>
 
   <main>
-    <section class="card">
+    <section class="card" x-data="mrmktChart()">
       <h2>S&amp;P 500</h2>
       <div class="chart-meta">
         <p class="hint">S&P 500 via the SPY ETF (our price provider doesn't serve index bars).</p>
-        <span id="chart-status" aria-live="polite"></span>
+        <span id="chart-status" aria-live="polite" x-text="status"></span>
       </div>
-      <form class="filter" id="chart-form">
-        <input type="text" id="chart-symbol" value="SPY" placeholder="Symbol (e.g. SPY)" aria-label="Chart symbol" list="symbol-options" autocomplete="off">
-        <datalist id="symbol-options"></datalist>
+      <form class="filter" id="chart-form" @submit.prevent="loadChart(symbol)">
+        <input type="text" id="chart-symbol" value="SPY" placeholder="Symbol (e.g. SPY)" aria-label="Chart symbol" list="symbol-options" autocomplete="off" x-model="symbol" @focus="$event.target.select()">
+        <datalist id="symbol-options">
+          <template x-for="t in tickers" :key="t.ticker">
+            <option :value="t.ticker" x-text="t.ticker + ' · ' + t.exchange"></option>
+          </template>
+        </datalist>
         <button type="submit">Load chart</button>
       </form>
-      <div id="spx-chart"></div>
-      <p class="empty" id="chart-empty" hidden>No prices found for this symbol. Import them with the CLI, e.g. <code>mrmkt prices import SPY --provider alpaca --from 180d</code>.</p>
+      <div id="spx-chart" x-ref="chartBox" x-show="hasData"></div>
+      <div class="range-bar" role="group" aria-label="Chart range">
+        <template x-for="r in ranges" :key="r">
+          <button type="button" @click="setRange(r)" :class="{ 'active': currentRange === r }" x-text="r"></button>
+        </template>
+      </div>
+      <p class="empty" id="chart-empty" x-show="isEmpty">No prices found for this symbol. Import them with the CLI, e.g. <code>mrmkt prices import SPY --provider alpaca --from 180d</code>.</p>
     </section>
 
     <section class="card">
@@ -256,110 +289,132 @@
       <div id="triggers" hx-get="/fragments/triggers" hx-trigger="load"></div>
     </section>
 
-    <section class="card">
-      <h2>Prices</h2>
-      <p class="hint">Stored daily bars for the selected symbols.</p>
-      <form class="filter" hx-get="/fragments/prices" hx-target="#prices" hx-swap="innerHTML">
-        <input type="text" name="symbols" placeholder="Symbols, comma-separated (e.g. AAPL, MSFT)">
-        <button type="submit">Load</button>
-      </form>
-      <div id="prices" hx-get="/fragments/prices" hx-trigger="load"></div>
-    </section>
   </main>
 
-  <footer>MrMkt &mdash; data is read-only here; use the CLI to import or modify.</footer>
+  <footer>MrMkt &mdash; data is read-only here; use the CLI to import or modify. Charting by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView Lightweight Charts</a> (<a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener">license</a>).</footer>
   <script>
-    (function () {
-      var container = document.getElementById("spx-chart");
-      var emptyNote = document.getElementById("chart-empty");
-      var status = document.getElementById("chart-status");
-      var form = document.getElementById("chart-form");
-      var symbolInput = document.getElementById("chart-symbol");
-      var symbolOptions = document.getElementById("symbol-options");
-      var chart = null;
-      var series = null;
-
-      function setStatus(text) { status.textContent = text; }
-
-      function ensureChart() {
-        if (chart) return true;
-        if (typeof LightweightCharts === "undefined") {
-          setStatus("Chart library failed to load.");
-          return false;
-        }
-        chart = LightweightCharts.createChart(container, {
-          layout: { background: { color: "transparent" }, textColor: "#8b98a9" },
-          grid: {
-            vertLines: { color: "rgba(35, 45, 59, 0.6)" },
-            horzLines: { color: "rgba(35, 45, 59, 0.6)" },
-          },
-          timeScale: { borderColor: "#232d3b" },
-          rightPriceScale: { borderColor: "#232d3b" },
-        });
-        series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-          upColor: "#22c55e",
-          downColor: "#f87171",
-          wickUpColor: "#22c55e",
-          wickDownColor: "#f87171",
-          borderVisible: false,
-        });
-        new ResizeObserver(function (entries) {
-          var box = entries[0].contentRect;
-          chart.resize(box.width, box.height);
-        }).observe(container);
-        return true;
-      }
-
-      function loadChart(symbol) {
-        setStatus("Loading " + symbol + "\u2026");
-        fetch("/fragments/prices/chart?symbols=" + encodeURIComponent(symbol))
-          .then(function (response) {
-            if (!response.ok) throw new Error("request failed");
-            return response.json();
-          })
-          .then(function (bars) {
-            var rows = bars.filter(function (bar) { return bar.symbol === symbol; });
-            if (!rows.length) {
-              container.hidden = true;
-              emptyNote.hidden = false;
-              setStatus("");
-              return;
-            }
-            if (!ensureChart()) return;
-            emptyNote.hidden = true;
-            container.hidden = false;
-            series.setData(rows);
+    // NOTE: the Lightweight Charts instance lives outside Alpine's reactive
+    // data on purpose — its methods break when called through Alpine's Proxy.
+    let mrmktChartApi = { chart: null, series: null };
+    function mrmktChart() {
+      return {
+        symbol: "SPY",
+        status: "",
+        hasData: false,
+        isEmpty: false,
+        tickers: [],
+        ranges: ["1M", "3M", "6M", "YTD", "1Y", "5Y", "ALL"],
+        currentRange: "ALL",
+        rows: [],
+        init() {
+          this.loadTickers();
+          this.loadChart(this.symbol);
+        },
+        ensureChart() {
+          if (mrmktChartApi.chart) return true;
+          if (typeof LightweightCharts === "undefined") {
+            this.status = "Chart library failed to load.";
+            return false;
+          }
+          const box = this.$refs.chartBox;
+          const chart = LightweightCharts.createChart(box, {
+            layout: { background: { color: "transparent" }, textColor: "#8b98a9", attributionLogo: false },
+            grid: {
+              vertLines: { color: "rgba(35, 45, 59, 0.6)" },
+              horzLines: { color: "rgba(35, 45, 59, 0.6)" },
+            },
+            timeScale: { borderColor: "#232d3b" },
+            rightPriceScale: { borderColor: "#232d3b" },
+          });
+          const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
+            upColor: "#22c55e",
+            downColor: "#f87171",
+            wickUpColor: "#22c55e",
+            wickDownColor: "#f87171",
+            borderVisible: false,
+          });
+          new ResizeObserver((entries) => {
+            const rect = entries[0].contentRect;
+            chart.resize(rect.width, rect.height);
+          }).observe(box);
+          mrmktChartApi.chart = chart;
+          mrmktChartApi.series = series;
+          return true;
+        },
+        rangeStart(lastTime, range) {
+          const day = new Date(lastTime + "T00:00:00Z");
+          const iso = (date) => date.toISOString().slice(0, 10);
+          switch (range) {
+            case "1M": day.setUTCMonth(day.getUTCMonth() - 1); return iso(day);
+            case "3M": day.setUTCMonth(day.getUTCMonth() - 3); return iso(day);
+            case "6M": day.setUTCMonth(day.getUTCMonth() - 6); return iso(day);
+            case "YTD": return lastTime.slice(0, 4) + "-01-01";
+            case "1Y": day.setUTCFullYear(day.getUTCFullYear() - 1); return iso(day);
+            case "5Y": day.setUTCFullYear(day.getUTCFullYear() - 5); return iso(day);
+            default: return null;
+          }
+        },
+        applyRange() {
+          const chart = mrmktChartApi.chart;
+          if (!chart || !this.rows.length) return;
+          const last = this.rows[this.rows.length - 1].time;
+          const from = this.currentRange === "ALL" ? null : this.rangeStart(last, this.currentRange);
+          if (from === null) {
             chart.timeScale().fitContent();
-            var last = rows[rows.length - 1];
-            setStatus(symbol + " \u00b7 " + rows.length + " bars \u00b7 last " + last.time + " @ " + last.close);
-          })
-          .catch(function () {
-            setStatus("Could not load chart data.");
-          });
-      }
-
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        loadChart(symbolInput.value.trim().toUpperCase() || "SPY");
-      });
-      fetch("/fragments/symbols/lookup")
-        .then(function (response) {
-          if (!response.ok) throw new Error("request failed");
-          return response.json();
-        })
-        .then(function (tickers) {
-          tickers.forEach(function (ticker) {
-            var option = document.createElement("option");
-            option.value = ticker.ticker;
-            option.textContent = ticker.ticker + " \u00b7 " + ticker.exchange;
-            symbolOptions.appendChild(option);
-          });
-        })
-        .catch(function () {
-          setStatus("Symbol lookup unavailable; type a symbol manually.");
-        });
-      loadChart("SPY");
-    })();
+          } else {
+            chart.timeScale().setVisibleRange({ from: from, to: last });
+          }
+        },
+        setRange(range) {
+          this.currentRange = range;
+          this.applyRange();
+        },
+        loadChart(symbol) {
+          const sym = (symbol || "").trim().toUpperCase() || "SPY";
+          this.status = "Loading " + sym + "\u2026";
+          fetch("/fragments/prices/chart?symbols=" + encodeURIComponent(sym))
+            .then((response) => {
+              if (!response.ok) throw new Error("request failed");
+              return response.json();
+            })
+            .then((bars) => {
+              const rows = bars.filter((bar) => bar.symbol === sym);
+              if (!rows.length) {
+                this.hasData = false;
+                this.isEmpty = true;
+                this.status = "";
+                return;
+              }
+              this.rows = rows;
+              this.hasData = true;
+              this.isEmpty = false;
+              this.$nextTick(() => {
+                if (!this.ensureChart()) return;
+                mrmktChartApi.series.setData(rows);
+                this.applyRange();
+                const last = rows[rows.length - 1];
+                this.status = sym + " \u00b7 " + rows.length + " bars \u00b7 last " + last.time + " @ " + last.close;
+              });
+            })
+            .catch(() => {
+              this.status = "Could not load chart data.";
+            });
+        },
+        loadTickers() {
+          fetch("/fragments/symbols/lookup")
+            .then((response) => {
+              if (!response.ok) throw new Error("request failed");
+              return response.json();
+            })
+            .then((tickers) => {
+              this.tickers = tickers;
+            })
+            .catch(() => {
+              this.status = "Symbol lookup unavailable; type a symbol manually.";
+            });
+        },
+      };
+    }
   </script>
 </body>
 </html>
