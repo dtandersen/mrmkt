@@ -14,7 +14,7 @@ from mrmkt.command.signals_current import (
     render_csv,
 )
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
@@ -66,7 +66,7 @@ def _climb(n=300, drift=0.002):
 
 @given("a clean price catalog")
 def clean_catalog(signals_context):
-    signals_context.local = InMemoryFinancialRepository()
+    signals_context.local = InMemoryBackend()
 
 
 @given(parsers.parse('symbol "{symbol}" has a 300-bar climb tagged "{tag}"'))

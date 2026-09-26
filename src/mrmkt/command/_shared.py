@@ -19,8 +19,8 @@ from psycopg2.pool import SimpleConnectionPool
 
 from mrmkt.common.clock import Clock, WallClock
 from mrmkt.common.sql import InsecureSqlGenerator
-from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 from mrmkt.entity.trigger import normalize_trigger_indicator
+from mrmkt.ext.backend import PostgresBackend
 from mrmkt.ext.postgres import PostgresSqlClient
 
 
@@ -103,9 +103,7 @@ def create_alpaca_client() -> TradingClient:
     )
 
 
-def create_local_ticker_repository() -> tuple[
-    SqlFinancialRepository, Callable[[], None]
-]:
+def create_local_ticker_repository() -> tuple[PostgresBackend, Callable[[], None]]:
     config = yaml.safe_load(Path("dbschema.yml").read_text())
     db_config = config["databases"]["db1"]
     pool = SimpleConnectionPool(
@@ -118,7 +116,7 @@ def create_local_ticker_repository() -> tuple[
         database=db_config["db"],
     )
     sql_client = PostgresSqlClient(InsecureSqlGenerator(), pool)
-    return SqlFinancialRepository(sql_client), pool.closeall
+    return PostgresBackend(sql_client), pool.closeall
 
 
 def create_alpaca_data_client() -> StockHistoricalDataClient:

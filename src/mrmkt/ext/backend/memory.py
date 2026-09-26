@@ -24,7 +24,7 @@ from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 
 
 @dataclass
-class InMemoryFinancialRepository(
+class InMemoryBackend(
     MrMktBackend,
     FinancialRepository,
     PriceRepository,
@@ -68,7 +68,7 @@ class InMemoryFinancialRepository(
     def add_income(self, income_statement: IncomeStatement) -> None:
         self.incomes.add(income_statement)
 
-    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:  # pyright: ignore[reportIncompatibleMethodOverride]  # pre-existing: base declares (datetime.date) -> List[BalanceSheet]
+    def get_balance_sheet(self, symbol: str, date: datetime.date) -> BalanceSheet:  # pyright: ignore[reportIncompatibleMethodOverride]  # pre-existing: base declares List[BalanceSheet]
         return self.balances.get(f"{symbol}-{date}")
 
     def list_balance_sheets(self, symbol: str) -> list[BalanceSheet]:

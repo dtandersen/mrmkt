@@ -17,12 +17,12 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command.list_symbols import ListSymbols, ListSymbolsRequest
 from mrmkt.command.base import BaseResult
 from mrmkt.command.import_symbols import ImportSymbols, ImportSymbolsRequest
+from mrmkt.command.list_symbols import ListSymbols, ListSymbolsRequest
 from mrmkt.command.symbols_label import LabelSymbols, LabelSymbolsRequest
 from mrmkt.command.symbols_unlabel import UnlabelSymbols, UnlabelSymbolsRequest
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.ticker import Ticker
 
@@ -53,9 +53,9 @@ def symbol_context():
 
 
 @pytest.fixture
-def remote_repository() -> InMemoryFinancialRepository:
+def remote_repository() -> InMemoryBackend:
     """Provide a fresh in-memory repository acting as the remote symbol catalog."""
-    return InMemoryFinancialRepository()
+    return InMemoryBackend()
 
 
 def _table_rows(datatable):

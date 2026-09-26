@@ -25,7 +25,7 @@ from mrmkt.repo.tags import TickerTagRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
 
 
-class SqlFinancialRepository(
+class PostgresBackend(
     MrMktBackend,
     FinancialRepository,
     PriceRepository,

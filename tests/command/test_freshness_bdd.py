@@ -14,7 +14,7 @@ from mrmkt.command.prices_freshness import (
     render_csv,
 )
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
@@ -55,7 +55,7 @@ def _add_bar(repo, symbol, day, close, high=None, low=None, volume=1000.0):
 
 @given("a clean price catalog")
 def clean_catalog(freshness_context):
-    freshness_context.local = InMemoryFinancialRepository()
+    freshness_context.local = InMemoryBackend()
 
 
 @given(parsers.parse('symbol "{symbol}" has 30 daily bars ending 10 days before today'))

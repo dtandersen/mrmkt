@@ -442,11 +442,11 @@ def compute_levels_twice(engine_context):
     from mrmkt.command.alerts import render_levels_csv
     from mrmkt.command.ranges import ListRanges, ListRangesRequest
     from mrmkt.common.clock import ClockStub
-    from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+    from mrmkt.ext.backend import InMemoryBackend
     from mrmkt.entity.stock_price import StockPrice
     from mrmkt.entity.ticker import Ticker
 
-    repo = InMemoryFinancialRepository()
+    repo = InMemoryBackend()
     repo.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))
     price = 100.0
     day = date(2024, 1, 1)

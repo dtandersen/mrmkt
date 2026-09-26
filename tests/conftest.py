@@ -1,13 +1,13 @@
 import pytest
 from tests.fakes import FakeAlpacaClient, FakeTickSource
 
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 
 
 @pytest.fixture
-def financial_repository() -> InMemoryFinancialRepository:
+def financial_repository() -> InMemoryBackend:
     """Provide a fresh in-memory financial repository for a test."""
-    return InMemoryFinancialRepository()
+    return InMemoryBackend()
 
 
 @pytest.fixture

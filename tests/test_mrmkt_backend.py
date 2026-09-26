@@ -8,21 +8,21 @@ environment mutation.
 from hamcrest import assert_that, contains_string, equal_to, instance_of, is_
 from pytest import raises
 
-from mrmkt.backend import MrMktBackend
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
-from mrmkt.ext.backend import ApiMrMktBackend, MrMktBackendFactory
+from mrmkt.backend import MrMktBackend, MrMktBackendFactory
+from mrmkt.ext.backend import InMemoryBackend
+from mrmkt.ext.backend import ApiMrMktBackend
 
 
 def _factory(local=None, api_url=None, api_token=None):
     return MrMktBackendFactory(
-        local_repository=local if local is not None else InMemoryFinancialRepository(),
+        local_repository=local if local is not None else InMemoryBackend(),
         api_url=api_url,
         api_token=api_token,
     )
 
 
 def test_create_postgres_returns_shared_backend():
-    local = InMemoryFinancialRepository()
+    local = InMemoryBackend()
     backend = MrMktBackendFactory(local_repository=local).create("postgres")
     assert_that(backend, instance_of(MrMktBackend))
     assert_that(backend, is_(local))

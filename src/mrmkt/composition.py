@@ -27,6 +27,7 @@ import typer
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
 
+from mrmkt.backend import MrMktBackendFactory
 from mrmkt.command import _shared
 from mrmkt.command.add_triggerset import AddTriggerToSet
 from mrmkt.command.backtest_run import RunBacktest
@@ -64,7 +65,6 @@ from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
-from mrmkt.ext.backend import MrMktBackendFactory
 
 
 class CommandFactory:

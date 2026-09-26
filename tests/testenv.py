@@ -1,39 +1,21 @@
 from mrmkt.common.clock import ClockStub
 from mrmkt.common.environment import MrMktEnvironment
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
-from mrmkt.common.testfinrepo import FinancialTestRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.repo.provider import MarketDataProvider
 
 
 class TestMarketDataProvider(MarketDataProvider):
-    def __init__(self, repo: FinancialTestRepository):
+    def __init__(self, repo: InMemoryBackend):
         super().__init__(repo, repo, repo)
         self.repo = repo
-
-    def add_nvidia_financials(self):
-        self.repo.add_nvidia_financials()
-
-    def add_apple_financials(self):
-        self.repo.add_apple_financials()
-
-    def add_google_financials(self):
-        self.repo.add_google_financials()
-
-    def with_spy(self):
-        self.repo.with_spy()
-
-    def add_netflix_financials(self):
-        self.repo.add_netflix_financials()
 
 
 class TestEnvironment(MrMktEnvironment):
     def __init__(self):
-        # td = FinancialTestRepository()
-        local = FinancialTestRepository()
-        remote = FinancialTestRepository()
+        local = InMemoryBackend()
+        remote = InMemoryBackend()
         self._local = TestMarketDataProvider(local)
         self._remote = TestMarketDataProvider(remote)
-        # self._test_data = TestMarketDataProvider(td)
         self._clock = ClockStub()
 
     @property

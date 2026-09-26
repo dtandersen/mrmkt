@@ -39,23 +39,34 @@ CLI Commands invoke Commands; dependency construction belongs in the composition
 # Project Layout
 
 |- src
-|  |- command - commands (called by cli/future rest api)
+|  |- command - commands (called by cli + web api)
 |  |  |- verb_noun.py
 |  |  |- create_trigger.py
 |  |  |- show_trigger.py
 |  |  |- etc
-|  |- cli
+|  |- cli - thin typer wrappers over commands
+|  |  |- main.py - mrmkt cli wiring
 |  |  |- trigger.py
 |  |  |- triggerset.py
 |  |  |- etc
+|  |- composition.py - composition root (wiring + backend selection)
+|  |- backend.py - MrMktBackend interface + backend factory
 |  |- entity - entities (returned by repositories and gateways)
 |  |- repo - repository interfaces
+|  |- api - wire DTOs (never entities)
+|  |- web - website + JSON api
+|  |  |- api - ApiControllers (DTOs in/out)
 |  |- ext - repository/gateway implementations
-|  |- common - shared impl (sql repo, clocks, config)
+|  |  |- api_gen - generated openapi client
+|  |  |- backend
+|  |  |  |- api - mrmkt rest api backend
+|  |  |  |- memory - in-memory backend
+|  |  |  |- postgres - postgres backend
+|  |  |- repo - repository implementation
+|  |- common - shared impl (clocks, config, sql plumbing)
 |  |- indicator - built-in indicators
 |  |- backtest - strategies + portfolio simulation
 |  |- models - research models
-|  |- cli.py - mrmkt cli (typer)
 |- tests
    |- features - BDD features
       |- cli - mrmkt cli BDD features (thin tests)

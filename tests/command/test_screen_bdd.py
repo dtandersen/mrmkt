@@ -16,7 +16,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 from mrmkt.command.screen import ScreenSymbols, ScreenSymbolsRequest, render_csv
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 
@@ -45,7 +45,7 @@ def _business_days(start: date, n: int) -> list:
 
 @given("a clean price catalog")
 def clean_catalog(screen_context):
-    screen_context.local = InMemoryFinancialRepository()
+    screen_context.local = InMemoryBackend()
 
 
 @given(parsers.parse('symbol "{symbol}" is also tagged "{tag}"'))

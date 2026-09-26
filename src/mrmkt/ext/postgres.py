@@ -8,7 +8,7 @@ import psycopg2.extras
 from psycopg2.pool import AbstractConnectionPool, SimpleConnectionPool
 
 from mrmkt.common.sql import Duplicate, InsecureSqlGenerator, SqlClient, SqlGenerator
-from mrmkt.common.sqlfinrepo import SqlFinancialRepository
+from mrmkt.ext.backend import PostgresBackend
 
 
 class PostgresSqlClient(SqlClient):
@@ -64,7 +64,7 @@ class PostgresSqlClient(SqlClient):
             self.pool.putconn(conn)
 
 
-def postgresx() -> SqlFinancialRepository:
+def postgresx() -> PostgresBackend:
     cnv = InsecureSqlGenerator()
     pool = SimpleConnectionPool(
         1,
@@ -76,5 +76,5 @@ def postgresx() -> SqlFinancialRepository:
         database="mrmkt",
     )
     sql = PostgresSqlClient(cnv, pool)
-    repo = SqlFinancialRepository(sql)
+    repo = PostgresBackend(sql)
     return repo

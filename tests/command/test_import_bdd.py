@@ -11,7 +11,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from mrmkt.command.import_prices import ImportPrices, ImportPricesRequest
 from mrmkt.command.import_symbols import ImportSymbols, ImportSymbolsRequest
 from mrmkt.common.clock import ClockStub
-from mrmkt.common.inmemfinrepo import InMemoryFinancialRepository
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.repo.tickers import ReadOnlyTickerRepository
@@ -105,12 +105,12 @@ def _price_source(import_context):
 
 @given("a clean price store")
 def clean_price_store(import_context):
-    import_context.local = InMemoryFinancialRepository()
+    import_context.local = InMemoryBackend()
 
 
 @given("a clean ticker store")
 def clean_ticker_store(import_context):
-    import_context.local = InMemoryFinancialRepository()
+    import_context.local = InMemoryBackend()
 
 
 @given(parsers.parse('a fake price source serving 5 bars for "{symbol}"'))
