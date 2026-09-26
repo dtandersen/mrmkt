@@ -1,10 +1,15 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import List
-
-from backtrader import Order
 
 from mrmkt.entity.candle import Candle
+
+
+@dataclass
+class Order:
+    type: str
+    quantity: int
+    symbol: str | None
+    status: str
 
 
 class OrderListener(metaclass=ABCMeta):
@@ -19,11 +24,11 @@ class Broker(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def buy(self, quantity: int = 0, symbol: str = None):
+    def buy(self, quantity: int = 0, symbol: str | None = None):
         pass
 
     @abstractmethod
-    def sell(self, quantity: int = 0, symbol: str = None):
+    def sell(self, quantity: int = 0, symbol: str | None = None):
         pass
 
     @abstractmethod
@@ -38,17 +43,19 @@ class Broker(metaclass=ABCMeta):
 class MockBroker(Broker):
     def __init__(self):
         self.orders = []
-        self.listeners: List[OrderListener] = []
+        self.listeners: list[OrderListener] = []
 
-    def buy(self, quantity: int = 0, symbol: str = None):
+    def buy(self, quantity: int = 0, symbol: str | None = None):
         order = Order(type="buy", quantity=quantity, symbol=symbol, status="PENDING")
         self.orders.append(order)
 
         for listener in self.listeners:
             listener.on_order(order)
 
-    def sell(self, quantity: int = 0, symbol: str = None):
-        self.orders.append(Order(type="sell", quantity=quantity, symbol=symbol, status="PENDING"))
+    def sell(self, quantity: int = 0, symbol: str | None = None):
+        self.orders.append(
+            Order(type="sell", quantity=quantity, symbol=symbol, status="PENDING")
+        )
 
     def process(self, candle: Candle):
         for order in self.orders:
@@ -58,17 +65,8 @@ class MockBroker(Broker):
             for listener in self.listeners:
                 listener.on_order(order)
 
-
     def ema15min8(self):
         pass
 
     def add_listener(self, listener: OrderListener):
         self.listeners.append(listener)
-
-
-@dataclass
-class Order:
-    type: str
-    quantity: int
-    symbol: str
-    status: str

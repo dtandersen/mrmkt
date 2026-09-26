@@ -34,6 +34,37 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+# Same rule set as pi-lens's bundled fallback (config/ruff/core.toml), so
+# local `ruff check` reproduces what pi-lens reports. A project-local config
+# overrides that fallback outright, hence the explicit mirror.
+select = [
+  "E",
+  "W",
+  "F",
+  "I",
+  "B",
+  "UP",
+  "SIM",
+  "C4",
+  "PIE",
+  "S",
+]
+ignore = [
+  "E501",
+  "B008",
+  "SIM108",
+  "S101",
+  "S311",
+  "S603",
+  "S607",
+]
+
 [tool.hatch.build]
 dev-mode-dirs = [".", "src"]
 

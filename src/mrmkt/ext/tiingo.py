@@ -1,5 +1,4 @@
 import datetime
-from typing import List
 
 from tiingo import TiingoClient
 from tiingo.restclient import RestClientError
@@ -18,7 +17,12 @@ class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
         raise NotImplementedError
 
-    def list_prices(self, ticker: str, start: datetime.date = None, end: datetime.date = None) -> List[StockPrice]:
+    def list_prices(
+        self,
+        ticker: str,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
         start_iso = None
         end_iso = None
 
@@ -30,7 +34,9 @@ class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
 
         try:
             prices = self.tiingo.get_ticker_price(ticker, start_iso, end_iso)
-            return list(map(lambda x: TiingoPriceRepository.map_price(x, ticker), prices))
+            return list(
+                map(lambda x: TiingoPriceRepository.map_price(x, ticker), prices)
+            )
         except RestClientError:
             return []
 
@@ -38,15 +44,15 @@ class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
     def map_price(json, ticker):
         return StockPrice(
             symbol=ticker,
-            date=to_date(json['date'][0:10]),
-            open=json['adjOpen'],
-            high=json['adjHigh'],
-            low=json['adjLow'],
-            close=json['adjClose'],
-            volume=json['volume']
+            date=to_date(json["date"][0:10]),
+            open=json["adjOpen"],
+            high=json["adjHigh"],
+            low=json["adjLow"],
+            close=json["adjClose"],
+            volume=json["volume"],
         )
 
-    def get_tickers(self) -> List[Ticker]:
+    def get_tickers(self) -> list[Ticker]:
         tickers = []
 
         for ticker in self.tiingo.list_stock_tickers():
@@ -62,10 +68,10 @@ class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
 
     def map_ticker(self, ticker: dict) -> Ticker:
         return Ticker(
-            ticker=ticker['ticker'],
-            exchange=ticker['exchange'],
-            type=ticker['assetType']
+            ticker=ticker["ticker"],
+            exchange=ticker["exchange"],
+            type=ticker["assetType"],
         )
 
-    def get_symbols(self) -> List[str]:
+    def get_symbols(self) -> list[str]:
         raise NotImplementedError

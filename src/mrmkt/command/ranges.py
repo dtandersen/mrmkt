@@ -65,17 +65,15 @@ class ListRanges(Command[ListRangesRequest, ListRangesResult]):
             return ListRangesResult.invalid_data([str(error)])
         if not request.symbols and not request.tags:
             return ListRangesResult.invalid_data(["provide symbols or --tag"])
-        today = self.clock.today()
-        try:
-            as_of_date = (
-                parse_cli_date(request.as_of, today)
-                if request.as_of is not None
-                else None
-            )
-        except ValueError:
-            return ListRangesResult.invalid_data(
-                ["dates must be ISO dates, now, or durations such as 180d"]
-            )
+        as_of_date = None
+        if request.as_of is not None:
+            today = self.clock.today()
+            try:
+                as_of_date = parse_cli_date(request.as_of, today)
+            except ValueError:
+                return ListRangesResult.invalid_data(
+                    ["dates must be ISO dates, now, or durations such as 180d"]
+                )
         try:
             include_tags = [normalize_tag(tag) for tag in (request.tags or [])]
             normalized_symbols = [

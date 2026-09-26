@@ -1,11 +1,13 @@
 import logging
-from typing import Callable
+import os
+from collections.abc import Callable
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
-from psycopg2.pool import AbstractConnectionPool
+from psycopg2.pool import AbstractConnectionPool, SimpleConnectionPool
 
-from mrmkt.common.sql import SqlClient, SqlGenerator, Duplicate, InsecureSqlGenerator
+from mrmkt.common.sql import Duplicate, InsecureSqlGenerator, SqlClient, SqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
 
 
@@ -17,55 +19,62 @@ class PostgresSqlClient(SqlClient):
     def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()):
         conn = self.pool.getconn()
         try:
-            with conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                    sql = query
-                    cur.execute(sql, params)
-                    rows = cur.fetchall()
-                    # rows = list(map(lambda x: x[0], cur.description))
-                    logging.debug(f"{sql} => {rows}")
-                    # x = [mapper(row) for row in rows]
-                    # logging.debug(f"{sql} => {x}")
-                    # z= psycopg2.RealDictRow()
-                    r2 = [mapper(dict(row)) for row in rows]
-                    # logging.debug(f"{sql} => {r2}")
-                    return r2
+            with (
+                conn,
+                conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur,
+            ):
+                sql = query
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                # rows = list(map(lambda x: x[0], cur.description))
+                logging.debug(f"{sql} => {rows}")
+                # x = [mapper(row) for row in rows]
+                # logging.debug(f"{sql} => {x}")
+                # z= psycopg2.RealDictRow()
+                r2 = [mapper(dict(row)) for row in rows]
+                # logging.debug(f"{sql} => {r2}")
+                return r2
         finally:
             self.pool.putconn(conn)
 
-    def insert(self, table: str, values: any):
+    def insert(self, table: str, values: Any):
         conn = self.pool.getconn()
         try:
-            with conn:
-                with conn.cursor() as cur:
-                    sql, params = self.converter.to_insert(table, values)
-                    logging.debug(sql)
-                    try:
-                        cur.execute(sql, params)
-                    except psycopg2.errors.UniqueViolation as err:
-                        raise Duplicate(err)
+            with conn, conn.cursor() as cur:
+                sql, params = self.converter.to_insert(table, values)
+                logging.debug(sql)
+                try:
+                    cur.execute(sql, params)
+                except psycopg2.errors.UniqueViolation as err:
+                    raise Duplicate(err) from err
         finally:
             self.pool.putconn(conn)
 
     def delete(self, query: str, params: tuple = ()) -> bool:
         conn = self.pool.getconn()
         try:
-            with conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                    sql = query
-                    cur.execute(sql, params)
-                    return cur.rowcount > 0
+            with (
+                conn,
+                conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur,
+            ):
+                sql = query
+                cur.execute(sql, params)
+                return cur.rowcount > 0
         finally:
             self.pool.putconn(conn)
 
 
 def postgresx() -> SqlFinancialRepository:
     cnv = InsecureSqlGenerator()
-    pool = psycopg2.pool.SimpleConnectionPool(1, 20, user="postgres",
-                                              password="local",
-                                              host="127.0.0.1",
-                                              port="5432",
-                                              database="mrmkt")
+    pool = SimpleConnectionPool(
+        1,
+        20,
+        user="postgres",
+        password=os.environ.get("POSTGRES_PASSWORD", "local"),
+        host="127.0.0.1",
+        port="5432",
+        database="mrmkt",
+    )
     sql = PostgresSqlClient(cnv, pool)
     repo = SqlFinancialRepository(sql)
     return repo

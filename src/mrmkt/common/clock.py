@@ -39,4 +39,5 @@ class ClockStub(Clock):
         self.time = time
 
     def today(self) -> datetime.date:
+        assert self.time is not None, "ClockStub time was never set"
         return self.time
