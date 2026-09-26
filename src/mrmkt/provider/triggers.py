@@ -13,6 +13,7 @@ explicit ``release`` only when the provider owns a dedicated backend.
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
+from mrmkt.ext.api_triggers import ApiTriggerRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 
@@ -59,17 +60,63 @@ class ApiTriggerProvider(TriggerRepositoryProvider):
         pass
 
 
-def resolve_trigger_provider(
-    api: TriggerRepository | None,
-    local_repository: TriggerRepository,
-    local_release: Callable[[], None] = lambda: None,
-) -> TriggerRepositoryProvider:
-    """Select the API backend when provided, else the local Postgres one.
+class TriggerProviderFactory:
+    """Build trigger providers by name.
 
-    Takes explicit inputs (no environment reads) so selection stays a
-    pure, directly testable decision; composition reads the environment
-    and passes the values in.
+    ``create("postgres")`` vends the local database backend,
+    ``create("api")`` the HTTP backend (needs ``api_url``). Extra
+    backends register via :meth:`register`. Names normalize to
+    lowercase; unknown names raise ``ValueError`` listing available
+    backends. Takes explicit inputs (no environment reads) so selection
+    stays directly testable; composition reads the environment.
     """
-    if api is not None:
-        return ApiTriggerProvider(api)
-    return PostgresTriggerProvider(local_repository, local_release)
+
+    def __init__(
+        self,
+        local_repository: TriggerRepository,
+        local_release: Callable[[], None] = lambda: None,
+        api_url: str | None = None,
+        api_token: str | None = None,
+    ):
+        self._local_repository = local_repository
+        self._local_release = local_release
+        self._api_url = (api_url or "").strip() or None
+        self._api_token = api_token or None
+        self._builders: dict[str, Callable[[], TriggerRepositoryProvider]] = {
+            "postgres": lambda: PostgresTriggerProvider(
+                local_repository, local_release
+            ),
+            "api": self._build_api_provider,
+        }
+
+    def register(
+        self, name: str, builder: Callable[[], TriggerRepositoryProvider]
+    ) -> None:
+        """Register an additional backend under ``name``."""
+        self._builders[name.strip().lower()] = builder
+
+    def available(self) -> list[str]:
+        """Backend names this factory can build, sorted."""
+        return sorted(self._builders)
+
+    def create(self, name: str) -> TriggerRepositoryProvider:
+        """Build the named backend; ValueError lists available names."""
+        normalized = (name or "").strip().lower()
+        try:
+            builder = self._builders[normalized]
+        except KeyError:
+            raise ValueError(
+                f"unknown trigger provider {name!r} "
+                f"(available: {', '.join(self.available())})"
+            ) from None
+        return builder()
+
+    def _build_api_provider(self) -> ApiTriggerProvider:
+        if self._api_url is None:
+            raise ValueError(
+                "trigger provider 'api' needs MRMKT_API_URL "
+                f"(available: {', '.join(self.available())})"
+            )
+        return ApiTriggerProvider(
+            ApiTriggerRepository(self._api_url, token=self._api_token)
+        )

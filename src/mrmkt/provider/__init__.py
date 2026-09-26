@@ -3,13 +3,13 @@
 from mrmkt.provider.triggers import (
     ApiTriggerProvider,
     PostgresTriggerProvider,
+    TriggerProviderFactory,
     TriggerRepositoryProvider,
-    resolve_trigger_provider,
 )
 
 __all__ = [
     "ApiTriggerProvider",
     "PostgresTriggerProvider",
+    "TriggerProviderFactory",
     "TriggerRepositoryProvider",
-    "resolve_trigger_provider",
 ]

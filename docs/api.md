@@ -36,6 +36,7 @@ curl -X POST -H "Authorization: Bearer $MRMKT_API_TOKEN" \
 ## CLI against the API
 
 ```shell
+export MRMKT_TRIGGER_PROVIDER=api
 export MRMKT_API_URL=https://mrmkt.example.com
 export MRMKT_API_TOKEN=...  # same value as the server's
 mrmkt trigger list
@@ -44,9 +45,11 @@ mrmkt trigger show dip-watch
 mrmkt trigger delete dip-watch
 ```
 
-With `MRMKT_API_URL` set, the composition root swaps only the trigger
-repository for an HTTP one; commands execute locally and unchanged, and
-every other command keeps using the local database. `watch` must run
+With `MRMKT_TRIGGER_PROVIDER=api`, the composition root asks a
+`TriggerProviderFactory` for the `api` backend instead of `postgres`
+(extra backends register by name; unknown names fail fast listing
+what's available). Commands execute locally and unchanged, and every
+other command keeps using the local database. `watch` must run
 where the database lives (it needs prices, arm state, and the stream),
 so keep `watch --all-triggers` on the cluster.
 

@@ -64,7 +64,7 @@ from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
-from mrmkt.provider import resolve_trigger_provider
+from mrmkt.provider import TriggerProviderFactory
 
 
 class CommandFactory:
@@ -253,24 +253,30 @@ def _run_live_stream(symbols: list[str], engine, feed: str) -> None:
     )
 
 
-def api_triggers_from_env():
-    """Build an HTTP trigger repository when MRMKT_API_URL is set, else None.
+def trigger_provider_factory_from_env(
+    local_repository,
+) -> TriggerProviderFactory:
+    """Build the trigger provider factory from environment configuration.
 
-    Lets the CLI manage remote triggers (e.g. a cluster-hosted watcher)
-    without direct Postgres access. Commands execute locally and unchanged;
-    only the repository behind them talks HTTP. The bearer token comes
-    from MRMKT_API_TOKEN and is never logged.
+    ``MRMKT_TRIGGER_PROVIDER`` names the backend (``postgres`` by
+    default, ``api`` for the cluster service); ``MRMKT_API_URL`` and
+    ``MRMKT_API_TOKEN`` carry the API connection details and are never
+    logged. Call ``create(name)`` on the result to build a provider.
     """
     import os
 
-    from mrmkt.ext.api_triggers import ApiTriggerRepository
-
-    base_url = os.environ.get("MRMKT_API_URL", "").strip()
-    if not base_url:
-        return None
-    return ApiTriggerRepository(
-        base_url, token=os.environ.get("MRMKT_API_TOKEN") or None
+    return TriggerProviderFactory(
+        local_repository=local_repository,
+        api_url=os.environ.get("MRMKT_API_URL") or None,
+        api_token=os.environ.get("MRMKT_API_TOKEN") or None,
     )
+
+
+def trigger_provider_name_from_env() -> str:
+    """Read the selected trigger backend name (default ``postgres``)."""
+    import os
+
+    return os.environ.get("MRMKT_TRIGGER_PROVIDER", "postgres")
 
 
 def _close_all(trigger_provider, release) -> None:
@@ -291,7 +297,9 @@ def create_app_context() -> AppContext:
     clock = _shared.create_clock()
     alpaca_client = _shared.create_alpaca_client()
     alpaca_data_client = _shared.create_alpaca_data_client()
-    trigger_provider = resolve_trigger_provider(api_triggers_from_env(), repository)
+    trigger_provider = trigger_provider_factory_from_env(repository).create(
+        trigger_provider_name_from_env()
+    )
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,
