@@ -5,7 +5,7 @@ import logging
 import socket
 import threading
 import time
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +16,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from tests.web_pages import (
     ChartDataPage,
     IndexPage,
+    LivePricesPage,
     PricesPage,
     SymbolLookupPage,
     SymbolsPage,
@@ -32,6 +33,7 @@ scenarios(
     "features/web/symbols.feature",
     "features/web/prices.feature",
     "features/web/prices_chart.feature",
+    "features/web/live_prices.feature",
     "features/web/triggers.feature",
 )
 
@@ -70,8 +72,10 @@ def web_browser():
 
 
 @pytest.fixture
-def web_context(web_browser, financial_repository):
-    deps = cli_dependencies_for_testing(repository=financial_repository)
+def web_context(web_browser, financial_repository, tick_source):
+    deps = cli_dependencies_for_testing(
+        repository=financial_repository, tick_source=tick_source
+    )
     port = _free_port()
     server = uvicorn.Server(
         uvicorn.Config(
@@ -94,6 +98,7 @@ def web_context(web_browser, financial_repository):
         prices=PricesPage(page, base_url),
         chart=ChartDataPage(page, base_url),
         lookup=SymbolLookupPage(page, base_url),
+        live=LivePricesPage(base_url),
         triggers=TriggersPage(page, base_url),
         index=IndexPage(page, base_url),
     )
@@ -171,6 +176,9 @@ def open_path(web_context, path):
     elif path.startswith("/fragments/symbols"):
         web_context.symbols.open(path[len("/fragments/symbols") :])
         web_context.status = web_context.symbols.status()
+    elif path.startswith("/fragments/prices/live"):
+        web_context.live.open(path[len("/fragments/prices/live") :])
+        web_context.status = web_context.live.status()
     elif path.startswith("/fragments/prices/chart"):
         web_context.chart.open(path[len("/fragments/prices/chart") :])
         web_context.status = web_context.chart.status()
@@ -264,6 +272,31 @@ def chart_data_lists_bars(web_context, datatable):
 @then("the chart data is empty")
 def chart_data_is_empty(web_context):
     assert_that(web_context.chart.bars(), equal_to([]))
+
+
+@given("live ticks for these prints:")
+def live_ticks_for_prints(web_context, datatable, tick_source):
+    for row in _table_rows(datatable):
+        tick_source.add_tick(
+            symbol=row["symbol"],
+            price=float(row["price"]),
+            at=datetime.fromisoformat(row["at"]),
+        )
+
+
+@then("the live stream is an event stream")
+def live_stream_is_event_stream(web_context):
+    assert_that(web_context.live.content_type(), contains_string("text/event-stream"))
+
+
+@then("the live stream emits a tick")
+def live_stream_emits_tick(web_context):
+    assert_that(web_context.live.events_text(), contains_string("event: tick"))
+
+
+@then(parsers.parse('the live tick shows "{text}"'))
+def live_tick_shows(web_context, text):
+    assert_that(web_context.live.events_text(), contains_string(text))
 
 
 @then("the symbol lookup lists these tickers in order:")

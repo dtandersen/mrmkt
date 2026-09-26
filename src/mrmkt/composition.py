@@ -24,7 +24,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import typer
-
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
 
@@ -34,6 +33,8 @@ from mrmkt.command.backtest_run import RunBacktest
 from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.create_triggerset import CreateTriggerSet
 from mrmkt.command.delete_trigger import DeleteTrigger
+from mrmkt.command.import_prices import ImportPrices
+from mrmkt.command.import_symbols import ImportSymbols
 from mrmkt.command.indicators_risk_range import CalculateRiskRange
 from mrmkt.command.indicators_sma import CalculateSma
 from mrmkt.command.indicators_vol_of_vol import CalculateVolOfVol
@@ -48,13 +49,11 @@ from mrmkt.command.list_prices import ListPrices
 from mrmkt.command.list_symbols import ListSymbols
 from mrmkt.command.list_trigger import ListTriggers
 from mrmkt.command.prices_freshness import CheckFreshness
-from mrmkt.command.import_prices import ImportPrices
 from mrmkt.command.ranges import ListRanges
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
 from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
-from mrmkt.command.import_symbols import ImportSymbols
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
@@ -197,6 +196,18 @@ class CommandFactory:
             self._env.triggers, self._env.clock, _run_live_stream, _emit_watch_line
         )
 
+    async def live_ticks(self, symbol):
+        """Yield live trade ticks; real Alpaca stream unless tests inject a fake."""
+        from mrmkt.ext.alpaca_ticks import AlpacaTickSource
+
+        source = (
+            self._env.tick_source
+            if self._env.tick_source is not None
+            else AlpacaTickSource.from_config()
+        )
+        async for tick in source.subscribe(symbol):
+            yield tick
+
 
 @dataclass(frozen=True)
 class AppContext:
@@ -280,6 +291,7 @@ def cli_dependencies_for_testing(
     alpaca_data_client: StockHistoricalDataClient | None = None,
     trigger_name_generator: Callable[[], str] | None = None,
     triggerset_name_generator: Callable[[], str] | None = None,
+    tick_source=None,
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
@@ -304,6 +316,7 @@ def cli_dependencies_for_testing(
         else _shared.create_alpaca_data_client(),
         trigger_name_generator=trigger_name_generator or _default_trigger_name,
         triggerset_name_generator=triggerset_name_generator or _default_set_name,
+        tick_source=tick_source,
     )
     factory = CommandFactory(env)
     return AppContext(command_factory=factory, close=release)

@@ -260,9 +260,9 @@
 
   <main>
     <section class="card" x-data="mrmktChart()">
-      <h2>S&amp;P 500</h2>
+      <h2 x-text="loadedSymbol">SPY</h2>
       <div class="chart-meta">
-        <p class="hint">S&P 500 via the SPY ETF (our price provider doesn't serve index bars).</p>
+        <p class="hint">Daily candles from stored prices.</p>
         <span id="chart-status" aria-live="polite" x-text="status"></span>
       </div>
       <form class="filter" id="chart-form" @submit.prevent="loadChart(symbol)">
@@ -296,9 +296,11 @@
     // NOTE: the Lightweight Charts instance lives outside Alpine's reactive
     // data on purpose — its methods break when called through Alpine's Proxy.
     let mrmktChartApi = { chart: null, series: null };
+    let mrmktTickStream = null;
     function mrmktChart() {
       return {
         symbol: "SPY",
+        loadedSymbol: "SPY",
         status: "",
         hasData: false,
         isEmpty: false,
@@ -365,6 +367,34 @@
             chart.timeScale().setVisibleRange({ from: from, to: last });
           }
         },
+        openTicks(sym) {
+          if (typeof EventSource === "undefined") return;
+          if (mrmktTickStream) { mrmktTickStream.close(); }
+          const stream = new EventSource("/fragments/prices/live?symbol=" + encodeURIComponent(sym));
+          stream.addEventListener("tick", (event) => {
+            let tick = null;
+            try { tick = JSON.parse(event.data); } catch { tick = null; }
+            this.applyTick(tick);
+          });
+          mrmktTickStream = stream;
+        },
+        applyTick(tick) {
+          if (!tick || tick.live !== true || typeof tick.price !== "number") return;
+          if (!this.rows.length || !mrmktChartApi.series || !tick.date) return;
+          const rows = this.rows;
+          const last = rows[rows.length - 1];
+          if (tick.date < last.time) return;
+          if (tick.date === last.time) {
+            last.high = Math.max(last.high, tick.price);
+            last.low = Math.min(last.low, tick.price);
+            last.close = tick.price;
+          } else {
+            rows.push({ time: tick.date, open: tick.price, high: tick.price, low: tick.price, close: tick.price });
+          }
+          const bar = rows[rows.length - 1];
+          mrmktChartApi.series.update({ time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+          this.status = tick.symbol + " · " + rows.length + " bars · LIVE @ " + tick.price;
+        },
         setRange(range) {
           this.currentRange = range;
           this.applyRange();
@@ -393,7 +423,9 @@
                 mrmktChartApi.series.setData(rows);
                 this.applyRange();
                 const last = rows[rows.length - 1];
+                this.loadedSymbol = sym;
                 this.status = sym + " \u00b7 " + rows.length + " bars \u00b7 last " + last.time + " @ " + last.close;
+                this.openTicks(sym);
               });
             })
             .catch(() => {

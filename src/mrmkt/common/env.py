@@ -12,6 +12,7 @@ from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
 from mrmkt.repo.tickers import TickerRepository
+from mrmkt.repo.ticks import LiveTickSource
 from mrmkt.repo.trigger_sets import TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
@@ -32,5 +33,6 @@ class MrMktEnvironment2:
     alpaca_data_client: StockHistoricalDataClient
     trigger_name_generator: Callable[[], str]
     triggerset_name_generator: Callable[[], str]
+    tick_source: LiveTickSource | None = None
     # Wired by the composition root right after the factory is built; never None.
     command_factory: CommandFactory = field(init=False)

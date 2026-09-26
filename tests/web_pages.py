@@ -1,11 +1,29 @@
 """Page objects for the read-only web view (Playwright)."""
 
+import http.client
 import json
 import re
+from urllib.parse import urlsplit
 
 
 def _cells(html):
     return re.findall(r"<td>(.*?)</td>", html)
+
+
+def _events_complete(lines, want=2):
+    """True once raw lines hold ``want`` full SSE events."""
+    count = 0
+    seen_data = False
+    for line in lines:
+        text = line.strip()
+        if text.startswith(b"data:"):
+            seen_data = True
+        elif not text and seen_data:
+            count += 1
+            seen_data = False
+            if count >= want:
+                return True
+    return False
 
 
 class SymbolsPage:
@@ -143,3 +161,53 @@ class IndexPage:
 
     def chart_symbol_default(self):
         return self._page.get_attribute("#chart-symbol", "value")
+
+
+class LivePricesPage:
+    """The ``/fragments/prices/live`` event stream over raw HTTP.
+
+    The stream never settles, so Playwright navigation cannot be used;
+    instead the first bytes are read with a short timeout and the
+    connection is closed.
+    """
+
+    def __init__(self, base_url):
+        self._base_url = base_url
+        self._status = None
+        self._content_type = None
+        self._events_text = ""
+
+    def open(self, query=""):
+        parts = urlsplit(self._base_url)
+        assert parts.hostname is not None and parts.port is not None
+        connection = http.client.HTTPConnection(parts.hostname, parts.port, timeout=3)
+        try:
+            connection.request("GET", f"/fragments/prices/live{query}")
+            response = connection.getresponse()
+            self._status = response.status
+            self._content_type = response.getheader("Content-Type")
+            self._events_text = self._read_available(response)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _read_available(response):
+        chunks = []
+        try:
+            while not _events_complete(chunks):
+                line = response.fp.readline(65537)
+                if not line:
+                    break
+                chunks.append(line)
+        except TimeoutError:
+            pass  # noqa: S110 -- stream stays open; we only need the first events
+        return b"".join(chunks).decode("utf-8", errors="replace")
+
+    def status(self):
+        return self._status
+
+    def content_type(self):
+        return self._content_type
+
+    def events_text(self):
+        return self._events_text

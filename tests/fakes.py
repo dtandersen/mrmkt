@@ -1,8 +1,12 @@
 """Shared test doubles."""
 
+import asyncio
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 
 from alpaca.trading.enums import AssetClass, AssetStatus
+
+from mrmkt.repo.ticks import LiveTickSource, Tick
 
 
 class FakeAlpacaClient:
@@ -27,3 +31,18 @@ class FakeAlpacaClient:
             )
             for row in rows
         ]
+
+
+class FakeTickSource(LiveTickSource):
+    """Scripted live ticks; holds the stream open after scripts run dry."""
+
+    def __init__(self):
+        self._ticks = []
+
+    def add_tick(self, symbol, price, at):
+        self._ticks.append(Tick(symbol=symbol, price=price, at=at))
+
+    async def subscribe(self, symbol: str) -> AsyncIterator[Tick]:
+        for tick in [tick for tick in self._ticks if tick.symbol == symbol]:
+            yield tick
+        await asyncio.Event().wait()
