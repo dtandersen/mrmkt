@@ -13,7 +13,14 @@ import uvicorn
 from hamcrest import assert_that, contains_string, equal_to
 from playwright.sync_api import sync_playwright
 from pytest_bdd import given, parsers, scenarios, then, when
-from tests.web_pages import IndexPage, PricesPage, SymbolsPage, TriggersPage
+from tests.web_pages import (
+    ChartDataPage,
+    IndexPage,
+    PricesPage,
+    SymbolLookupPage,
+    SymbolsPage,
+    TriggersPage,
+)
 
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
@@ -24,6 +31,7 @@ from mrmkt.web.app import create_web_app
 scenarios(
     "features/web/symbols.feature",
     "features/web/prices.feature",
+    "features/web/prices_chart.feature",
     "features/web/triggers.feature",
 )
 
@@ -84,6 +92,8 @@ def web_context(web_browser, financial_repository):
         base_url=base_url,
         symbols=SymbolsPage(page, base_url),
         prices=PricesPage(page, base_url),
+        chart=ChartDataPage(page, base_url),
+        lookup=SymbolLookupPage(page, base_url),
         triggers=TriggersPage(page, base_url),
         index=IndexPage(page, base_url),
     )
@@ -155,9 +165,15 @@ def open_path(web_context, path):
     if path == "/":
         web_context.index.open()
         web_context.status = web_context.index.status()
+    elif path.startswith("/fragments/symbols/lookup"):
+        web_context.lookup.open(path[len("/fragments/symbols/lookup") :])
+        web_context.status = web_context.lookup.status()
     elif path.startswith("/fragments/symbols"):
         web_context.symbols.open(path[len("/fragments/symbols") :])
         web_context.status = web_context.symbols.status()
+    elif path.startswith("/fragments/prices/chart"):
+        web_context.chart.open(path[len("/fragments/prices/chart") :])
+        web_context.status = web_context.chart.status()
     elif path.startswith("/fragments/prices"):
         web_context.prices.open(path[len("/fragments/prices") :])
         web_context.status = web_context.prices.status()
@@ -223,6 +239,58 @@ def price_fragment_lists_rows(web_context, datatable):
 @then("the fragment says no prices were found")
 def fragment_says_no_prices(web_context):
     assert_that(web_context.prices.empty_text(), contains_string("No prices found."))
+
+
+@then("the chart data lists these bars in order:")
+def chart_data_lists_bars(web_context, datatable):
+    assert_that(
+        [
+            f"{bar['time']} | {float(bar['open']):g} | "
+            f"{float(bar['high']):g} | {float(bar['low']):g} | "
+            f"{float(bar['close']):g}"
+            for bar in web_context.chart.bars()
+        ],
+        equal_to(
+            [
+                f"{row['time']} | {float(row['open']):g} | "
+                f"{float(row['high']):g} | {float(row['low']):g} | "
+                f"{float(row['close']):g}"
+                for row in _table_rows(datatable)
+            ]
+        ),
+    )
+
+
+@then("the chart data is empty")
+def chart_data_is_empty(web_context):
+    assert_that(web_context.chart.bars(), equal_to([]))
+
+
+@then("the symbol lookup lists these tickers in order:")
+def symbol_lookup_lists_tickers(web_context, datatable):
+    assert_that(
+        [
+            f"{row['ticker']} | {row['exchange']} | {row['type']}"
+            for row in web_context.lookup.tickers()
+        ],
+        equal_to(
+            [
+                f"{row['ticker']} | {row['exchange']} | {row['type']}"
+                for row in _table_rows(datatable)
+            ]
+        ),
+    )
+
+
+@then("the symbol lookup is empty")
+def symbol_lookup_is_empty(web_context):
+    assert_that(web_context.lookup.tickers(), equal_to([]))
+
+
+@then("the index opens on the S&P 500 chart")
+def index_opens_on_chart(web_context):
+    assert_that(web_context.index.has_chart(), equal_to(True))
+    assert_that(web_context.index.chart_symbol_default(), equal_to("SPY"))
 
 
 @then(parsers.parse('the trigger fragment lists "{name}"'))

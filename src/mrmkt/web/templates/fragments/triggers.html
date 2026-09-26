@@ -1,12 +1,14 @@
 {% if triggers %}
-<table>
+<div class="table-wrap">
+<table class="tbl tbl-triggers">
   <thead><tr><th>Name</th><th>Symbol</th><th>Signal</th><th>Operator</th><th>Enabled</th></tr></thead>
   <tbody>
   {% for trigger in triggers %}
-    <tr><td>{{ trigger.name }}</td><td>{{ trigger.symbol }}</td><td>{{ trigger.signal }}</td><td>{{ trigger.operator }}</td><td>{{ trigger.enabled }}</td></tr>
+    <tr><td>{{ trigger.name }}</td><td>{{ trigger.symbol }}</td><td>{{ trigger.signal }}</td><td>{{ trigger.operator }}</td><td>{% if trigger.enabled %}Enabled{% else %}Disabled{% endif %}</td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
-<p>No triggers found.</p>
+<p class="empty">No triggers found.</p>
 {% endif %}

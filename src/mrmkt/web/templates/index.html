@@ -2,33 +2,364 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>MrMkt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MrMkt — Market Overview</title>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --bg-soft: #11161d;
+      --card: #151c26;
+      --card-border: #232d3b;
+      --text: #e8edf3;
+      --muted: #8b98a9;
+      --accent: #22c55e;
+      --accent-dim: rgba(34, 197, 94, 0.12);
+      --accent-text: #4ade80;
+      --warn: #f59e0b;
+      --danger: #f87171;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 400px at 50% -100px, rgba(34, 197, 94, 0.08), transparent),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header.topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 28px 0;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #22c55e, #0ea5e9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #06110b;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .live {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--bg-soft);
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 6px 14px;
+    }
+    .live .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 50% { opacity: 0.4; } }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 28px 40px;
+      display: grid;
+      gap: 20px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+    section.card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    section.card h2 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    section.card h2::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+    section.card .hint {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    form.filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    form.filter input[type="text"] {
+      flex: 1;
+      background: var(--bg-soft);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    form.filter input[type="text"]:focus { border-color: var(--accent); }
+    form.filter input[type="text"]::placeholder { color: var(--muted); }
+    button {
+      background: var(--accent-dim);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: var(--accent-text);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button:hover { background: rgba(34, 197, 94, 0.22); }
+    .table-wrap { overflow-x: auto; border-radius: 8px; }
+    table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+    table.tbl thead th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-border);
+      white-space: nowrap;
+    }
+    table.tbl tbody td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(35, 45, 59, 0.6);
+      white-space: nowrap;
+    }
+    table.tbl tbody tr:last-child td { border-bottom: none; }
+    table.tbl tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+    table.tbl tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
+    table.tbl td:first-child { font-weight: 700; color: var(--accent-text); }
+    table.tbl-prices td:nth-child(n+3),
+    table.tbl-prices th:nth-child(n+3) { font-variant-numeric: tabular-nums; text-align: right; }
+    p.empty {
+      color: var(--muted);
+      background: var(--bg-soft);
+      border: 1px dashed var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      margin: 0;
+      font-size: 14px;
+    }
+    p.empty[hidden] { display: none; }
+    #spx-chart { height: 360px; }
+    #spx-chart[hidden] { display: none; }
+    .chart-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+    .chart-meta .hint { margin: 0; }
+    #chart-status {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    ul.errors {
+      list-style: none;
+      margin: 0;
+      padding: 12px 16px;
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      border-radius: 8px;
+      color: var(--danger);
+      font-size: 14px;
+    }
+    .htmx-request { opacity: 0.6; transition: opacity 0.2s; }
+    footer {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 28px 28px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
 </head>
 <body>
-  <h1>MrMkt</h1>
+  <header class="topbar">
+    <div class="logo">$</div>
+    <div class="brand">
+      <h1>MrMkt</h1>
+      <p>Read-only market overview</p>
+    </div>
+    <div class="live"><span class="dot"></span>Live view</div>
+  </header>
 
-  <section>
-    <h2>Symbols</h2>
-    <form hx-get="/fragments/symbols" hx-target="#symbols" hx-swap="innerHTML">
-      <label>Tag: <input type="text" name="tag" placeholder="optional"></label>
-      <button type="submit">Filter</button>
-    </form>
-    <div id="symbols" hx-get="/fragments/symbols" hx-trigger="load"></div>
-  </section>
+  <main>
+    <section class="card">
+      <h2>S&amp;P 500</h2>
+      <div class="chart-meta">
+        <p class="hint">S&P 500 via the SPY ETF (our price provider doesn't serve index bars).</p>
+        <span id="chart-status" aria-live="polite"></span>
+      </div>
+      <form class="filter" id="chart-form">
+        <input type="text" id="chart-symbol" value="SPY" placeholder="Symbol (e.g. SPY)" aria-label="Chart symbol" list="symbol-options" autocomplete="off">
+        <datalist id="symbol-options"></datalist>
+        <button type="submit">Load chart</button>
+      </form>
+      <div id="spx-chart"></div>
+      <p class="empty" id="chart-empty" hidden>No prices found for this symbol. Import them with the CLI, e.g. <code>mrmkt prices import SPY --provider alpaca --from 180d</code>.</p>
+    </section>
 
-  <section>
-    <h2>Prices</h2>
-    <form hx-get="/fragments/prices" hx-target="#prices" hx-swap="innerHTML">
-      <label>Symbols (comma-separated): <input type="text" name="symbols"></label>
-      <button type="submit">Load</button>
-    </form>
-    <div id="prices" hx-get="/fragments/prices" hx-trigger="load"></div>
-  </section>
+    <section class="card">
+      <h2>Triggers</h2>
+      <p class="hint">Alert triggers currently stored in the catalog.</p>
+      <div id="triggers" hx-get="/fragments/triggers" hx-trigger="load"></div>
+    </section>
 
-  <section>
-    <h2>Triggers</h2>
-    <div id="triggers" hx-get="/fragments/triggers" hx-trigger="load"></div>
-  </section>
+    <section class="card">
+      <h2>Prices</h2>
+      <p class="hint">Stored daily bars for the selected symbols.</p>
+      <form class="filter" hx-get="/fragments/prices" hx-target="#prices" hx-swap="innerHTML">
+        <input type="text" name="symbols" placeholder="Symbols, comma-separated (e.g. AAPL, MSFT)">
+        <button type="submit">Load</button>
+      </form>
+      <div id="prices" hx-get="/fragments/prices" hx-trigger="load"></div>
+    </section>
+  </main>
+
+  <footer>MrMkt &mdash; data is read-only here; use the CLI to import or modify.</footer>
+  <script>
+    (function () {
+      var container = document.getElementById("spx-chart");
+      var emptyNote = document.getElementById("chart-empty");
+      var status = document.getElementById("chart-status");
+      var form = document.getElementById("chart-form");
+      var symbolInput = document.getElementById("chart-symbol");
+      var symbolOptions = document.getElementById("symbol-options");
+      var chart = null;
+      var series = null;
+
+      function setStatus(text) { status.textContent = text; }
+
+      function ensureChart() {
+        if (chart) return true;
+        if (typeof LightweightCharts === "undefined") {
+          setStatus("Chart library failed to load.");
+          return false;
+        }
+        chart = LightweightCharts.createChart(container, {
+          layout: { background: { color: "transparent" }, textColor: "#8b98a9" },
+          grid: {
+            vertLines: { color: "rgba(35, 45, 59, 0.6)" },
+            horzLines: { color: "rgba(35, 45, 59, 0.6)" },
+          },
+          timeScale: { borderColor: "#232d3b" },
+          rightPriceScale: { borderColor: "#232d3b" },
+        });
+        series = chart.addSeries(LightweightCharts.CandlestickSeries, {
+          upColor: "#22c55e",
+          downColor: "#f87171",
+          wickUpColor: "#22c55e",
+          wickDownColor: "#f87171",
+          borderVisible: false,
+        });
+        new ResizeObserver(function (entries) {
+          var box = entries[0].contentRect;
+          chart.resize(box.width, box.height);
+        }).observe(container);
+        return true;
+      }
+
+      function loadChart(symbol) {
+        setStatus("Loading " + symbol + "\u2026");
+        fetch("/fragments/prices/chart?symbols=" + encodeURIComponent(symbol))
+          .then(function (response) {
+            if (!response.ok) throw new Error("request failed");
+            return response.json();
+          })
+          .then(function (bars) {
+            var rows = bars.filter(function (bar) { return bar.symbol === symbol; });
+            if (!rows.length) {
+              container.hidden = true;
+              emptyNote.hidden = false;
+              setStatus("");
+              return;
+            }
+            if (!ensureChart()) return;
+            emptyNote.hidden = true;
+            container.hidden = false;
+            series.setData(rows);
+            chart.timeScale().fitContent();
+            var last = rows[rows.length - 1];
+            setStatus(symbol + " \u00b7 " + rows.length + " bars \u00b7 last " + last.time + " @ " + last.close);
+          })
+          .catch(function () {
+            setStatus("Could not load chart data.");
+          });
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        loadChart(symbolInput.value.trim().toUpperCase() || "SPY");
+      });
+      fetch("/fragments/symbols/lookup")
+        .then(function (response) {
+          if (!response.ok) throw new Error("request failed");
+          return response.json();
+        })
+        .then(function (tickers) {
+          tickers.forEach(function (ticker) {
+            var option = document.createElement("option");
+            option.value = ticker.ticker;
+            option.textContent = ticker.ticker + " \u00b7 " + ticker.exchange;
+            symbolOptions.appendChild(option);
+          });
+        })
+        .catch(function () {
+          setStatus("Symbol lookup unavailable; type a symbol manually.");
+        });
+      loadChart("SPY");
+    })();
+  </script>
 </body>
 </html>

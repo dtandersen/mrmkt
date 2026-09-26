@@ -221,9 +221,18 @@ def run_web(
     ctx: typer.Context,
     host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind"),
     port: int = typer.Option(8000, "--port", help="Port to listen on"),
+    reload: bool = typer.Option(
+        False, "--reload", help="Restart on code changes (development only)"
+    ),
 ) -> None:
     """Serve the read-only web view."""
     import uvicorn
+
+    if reload:
+        # Import string: uvicorn re-imports the app in a fresh child on
+        # every change, so it cannot reuse the CLI's in-memory dependencies.
+        uvicorn.run("mrmkt.web.server:app", host=host, port=port, reload=True)
+        return
 
     from mrmkt.web.app import create_web_app
 

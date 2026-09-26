@@ -37,3 +37,21 @@ Feature: Symbol web fragment
     When I open "/fragments/symbols?tag=bad%20tag"
     Then the web command fails with status 400
     And the fragment reports an error
+
+  Scenario: Lookup lists stored symbols as JSON
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | MSFT   | NASDAQ   | us_equity |
+      | AAPL   | NASDAQ   | us_equity |
+    When I open "/fragments/symbols/lookup"
+    Then the web command succeeds
+    And the symbol lookup lists these tickers in order:
+      | ticker | exchange | type      |
+      | AAPL   | NASDAQ   | us_equity |
+      | MSFT   | NASDAQ   | us_equity |
+
+  Scenario: Lookup is empty for an empty ticker catalog
+    Given the local ticker catalog is empty
+    When I open "/fragments/symbols/lookup"
+    Then the web command succeeds
+    And the symbol lookup is empty

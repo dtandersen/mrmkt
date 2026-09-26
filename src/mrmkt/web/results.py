@@ -26,6 +26,13 @@ _STATUS_CODES = {
 }
 
 
+def status_code_of(result: BaseResult) -> int:
+    """Map a command result to its HTTP status code."""
+    if result.is_success():
+        return 200
+    return _STATUS_CODES.get(result.status, 500)
+
+
 def respond[T](
     result: BaseResult[T], template: str, context_of: Callable[[T], dict]
 ) -> Response[str]:

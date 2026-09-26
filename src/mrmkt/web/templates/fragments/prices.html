@@ -1,5 +1,6 @@
 {% if prices %}
-<table>
+<div class="table-wrap">
+<table class="tbl tbl-prices">
   <thead><tr><th>Symbol</th><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
   <tbody>
   {% for price in prices %}
@@ -7,6 +8,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
-<p>No prices found.</p>
+<p class="empty">No prices found.</p>
 {% endif %}
