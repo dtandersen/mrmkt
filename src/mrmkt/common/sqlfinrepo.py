@@ -12,7 +12,12 @@ from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
-from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
+from mrmkt.entity.trigger import (
+    FREQUENCIES,
+    OPERATORS,
+    Trigger,
+    normalize_trigger_indicator,
+)
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
@@ -33,35 +38,36 @@ class SqlFinancialRepository(
         self.sql_client = sql_client
 
     def list_balance_sheets(self, symbol: str):
-        return self.sql_client.select("select * " +
-                                      "from balance_sheet "
-                                      "where symbol = %s",
-                                      self.to_balance_sheet,
-                                      (symbol,))
+        return self.sql_client.select(
+            "select * " + "from balance_sheet where symbol = %s",
+            self.to_balance_sheet,
+            (symbol,),
+        )
 
     def to_balance_sheet(self, row):
         return BalanceSheet(
             symbol=row["symbol"],
             date=row["date"],
             totalAssets=row["total_assets"],
-            totalLiabilities=row["total_liabilities"])
+            totalLiabilities=row["total_liabilities"],
+        )
 
     def add_balance_sheet(self, balance_sheet: BalanceSheet):
         row = BalanceSheetRow(
             symbol=balance_sheet.symbol,
             date=balance_sheet.date,
             total_assets=balance_sheet.totalAssets,
-            total_liabilities=balance_sheet.totalLiabilities
+            total_liabilities=balance_sheet.totalLiabilities,
         )
 
         self.sql_client.insert("balance_sheet", row)
 
     def get_income_statements(self, symbol: str) -> list[IncomeStatement]:
-        return self.sql_client.select("select * " +
-                                      "from income_stmt "
-                                      "where symbol = %s",
-                                      self.to_income_statement,
-                                      (symbol,))
+        return self.sql_client.select(
+            "select * " + "from income_stmt where symbol = %s",
+            self.to_income_statement,
+            (symbol,),
+        )
 
     def to_income_statement(self, row):
         return IncomeStatement(
@@ -69,7 +75,7 @@ class SqlFinancialRepository(
             date=row["date"],
             netIncome=row["net_income"],
             waso=row["waso"],
-            consolidated_net_income=-1
+            consolidated_net_income=-1,
         )
 
     def add_income(self, income_statement: IncomeStatement):
@@ -77,30 +83,28 @@ class SqlFinancialRepository(
             symbol=income_statement.symbol,
             date=income_statement.date,
             net_income=income_statement.netIncome,
-            waso=income_statement.waso
+            waso=income_statement.waso,
         )
 
         self.sql_client.insert("income_stmt", row)
 
     def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
         row = self.sql_client.select(
-            "select * "
-            "from cash_flow "
-            "where symbol = %s "
-            "and date = %s",
+            "select * from cash_flow where symbol = %s and date = %s",
             self.map_to_cash_flow,
-            (symbol, date))
+            (symbol, date),
+        )
 
         return row[0]
 
     def map_to_cash_flow(self, row) -> CashFlow:
         return CashFlow(
-            symbol=row['symbol'],
-            date=row['date'],
-            operating_cash_flow=row['operating_cash_flow'],
-            capital_expenditure=row['capital_expenditure'],
-            free_cash_flow=row['free_cash_flow'],
-            dividend_payments=row['dividend_payments']
+            symbol=row["symbol"],
+            date=row["date"],
+            operating_cash_flow=row["operating_cash_flow"],
+            capital_expenditure=row["capital_expenditure"],
+            free_cash_flow=row["free_cash_flow"],
+            dividend_payments=row["dividend_payments"],
         )
 
     def add_cash_flow(self, cash_flow: CashFlow):
@@ -110,29 +114,27 @@ class SqlFinancialRepository(
             operating_cash_flow=cash_flow.operating_cash_flow,
             capital_expenditure=cash_flow.capital_expenditure,
             free_cash_flow=cash_flow.free_cash_flow,
-            dividend_payments=cash_flow.dividend_payments
+            dividend_payments=cash_flow.dividend_payments,
         )
 
         self.sql_client.insert("cash_flow", row)
 
     def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
         row = self.sql_client.select(
-            "select * "
-            "from enterprise_value "
-            "where symbol = %s "
-            "and date = %s",
+            "select * from enterprise_value where symbol = %s and date = %s",
             self.map_to_enterprise_value,
-            (symbol, date))
+            (symbol, date),
+        )
 
         return row[0]
 
     def map_to_enterprise_value(self, row) -> EnterpriseValue:
         return EnterpriseValue(
-            symbol=row['symbol'],
-            date=row['date'],
-            stock_price=row['stock_price'],
-            shares_outstanding=row['shares_outstanding'],
-            market_cap=row['market_cap']
+            symbol=row["symbol"],
+            date=row["date"],
+            stock_price=row["stock_price"],
+            shares_outstanding=row["shares_outstanding"],
+            market_cap=row["market_cap"],
         )
 
     def add_enterprise_value(self, enterprise_value: EnterpriseValue):
@@ -141,7 +143,7 @@ class SqlFinancialRepository(
             date=enterprise_value.date,
             stock_price=enterprise_value.stock_price,
             shares_outstanding=enterprise_value.shares_outstanding,
-            market_cap=enterprise_value.market_cap
+            market_cap=enterprise_value.market_cap,
         )
 
         self.sql_client.insert("enterprise_value", row)
@@ -160,17 +162,15 @@ class SqlFinancialRepository(
             book_value=analysis.bookValue,
             eps=analysis.eps,
             equity=analysis.equity,
-            pe=analysis.pe
+            pe=analysis.pe,
         )
 
         self.sql_client.insert("analysis", row)
 
     def delete_analysis(self, symbol: str, date: datetime.date):
         self.sql_client.delete(
-            "delete from analysis "
-            "where symbol = %s "
-            "and date = %s",
-            (symbol, date))
+            "delete from analysis where symbol = %s and date = %s", (symbol, date)
+        )
 
     def add_price(self, price: StockPrice):
         row = PriceRow(
@@ -180,11 +180,17 @@ class SqlFinancialRepository(
             high=price.high,
             low=price.low,
             close=price.close,
-            volume=price.volume)
+            volume=price.volume,
+        )
 
         self.sql_client.insert("daily_price", row)
 
-    def list_prices(self, ticker: str, start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
+    def list_prices(
+        self,
+        ticker: str,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
         start_sql = ""
         end_sql = ""
         params: list = [ticker]
@@ -197,18 +203,24 @@ class SqlFinancialRepository(
             params.append(end.strftime("%Y-%m-%d"))
 
         rows = self.sql_client.select(
-            "select * " +
-            "from daily_price " +
-            "where symbol = %s " +
-            start_sql +
-            end_sql +
-            "order by date asc",
+            "select * "
+            + "from daily_price "
+            + "where symbol = %s "
+            + start_sql
+            + end_sql
+            + "order by date asc",
             self.price_mapper,
-            tuple(params))
+            tuple(params),
+        )
 
         return rows
 
-    def list_prices_for_symbols(self, tickers: list[str], start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
+    def list_prices_for_symbols(
+        self,
+        tickers: list[str],
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
         normalized = []
         for ticker in tickers:
             symbol = ticker.strip().upper()
@@ -227,22 +239,22 @@ class SqlFinancialRepository(
             end_sql = "and date <= %s "
             params.append(end.strftime("%Y-%m-%d"))
         return self.sql_client.select(
-            "select * " +
-            "from daily_price " +
-            "where symbol in %s " +
-            start_sql +
-            end_sql +
-            "order by symbol asc, date asc",
+            "select * "
+            + "from daily_price "
+            + "where symbol in %s "
+            + start_sql
+            + end_sql
+            + "order by symbol asc, date asc",
             self.price_mapper,
-            tuple(params))
+            tuple(params),
+        )
 
     def get_price(self, symbol: str, date: str) -> StockPrice:
-        rows = self.sql_client.select("select * " +
-                                      "from daily_price " +
-                                      "where symbol = %s " +
-                                      "and date = %s",
-                                      self.price_mapper,
-                                      (symbol, date))
+        rows = self.sql_client.select(
+            "select * " + "from daily_price " + "where symbol = %s " + "and date = %s",
+            self.price_mapper,
+            (symbol, date),
+        )
 
         return rows[0]
 
@@ -254,32 +266,26 @@ class SqlFinancialRepository(
             high=row["high"],
             low=row["low"],
             close=row["close"],
-            volume=row["volume"]
+            volume=row["volume"],
         )
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
-        rows = self.sql_client.select("select * " +
-                                      "from daily_price " +
-                                      "where symbol = %s " +
-                                      "and date >= %s",
-                                      self.price_mapper,
-                                      (symbol, date))
+        rows = self.sql_client.select(
+            "select * " + "from daily_price " + "where symbol = %s " + "and date >= %s",
+            self.price_mapper,
+            (symbol, date),
+        )
 
         return rows[0]
 
     def insert_financial(self, rep: FinancialReport):
-        f = FinancialRow(
-            symbol="abc",
-            date=datetime.date(2019, 1, 2),
-            data="{}"
-        )
+        f = FinancialRow(symbol="abc", date=datetime.date(2019, 1, 2), data="{}")
         self.sql_client.insert("financials", f)
 
     def get_symbols(self) -> list[str]:
         rows = self.sql_client.select(
-            "select distinct symbol " +
-            "from daily_price ",
-            self.symbol_mapper)
+            "select distinct symbol " + "from daily_price ", self.symbol_mapper
+        )
 
         return rows
 
@@ -287,25 +293,16 @@ class SqlFinancialRepository(
         return row["symbol"]
 
     def get_tickers(self) -> list[Ticker]:
-        rows = self.sql_client.select(
-            "select * " +
-            "from ticker",
-            self.ticker_mapper)
+        rows = self.sql_client.select("select * " + "from ticker", self.ticker_mapper)
 
         return rows
 
     def ticker_mapper(self, row):
-        return Ticker(
-            ticker=row["ticker"],
-            exchange=row["exchange"],
-            type=row["type"]
-        )
+        return Ticker(ticker=row["ticker"], exchange=row["exchange"], type=row["type"])
 
     def add_ticker(self, ticker: Ticker):
         row = TickerRow(
-            ticker=ticker.ticker,
-            exchange=ticker.exchange,
-            type=ticker.type
+            ticker=ticker.ticker, exchange=ticker.exchange, type=ticker.type
         )
 
         self.sql_client.insert("ticker", row)
@@ -335,13 +332,13 @@ class SqlFinancialRepository(
             "select ticker, exchange, tag from ticker_tag",
             lambda row: row,
         )
-        tagged = {
-            (row["ticker"], row["exchange"])
-            for row in rows
-            if row["tag"] == tag
-        }
+        tagged = {(row["ticker"], row["exchange"]) for row in rows if row["tag"] == tag}
         return sorted(
-            (ticker for ticker in self.get_tickers() if (ticker.ticker, ticker.exchange) in tagged),
+            (
+                ticker
+                for ticker in self.get_tickers()
+                if (ticker.ticker, ticker.exchange) in tagged
+            ),
             key=lambda ticker: (ticker.ticker, ticker.exchange),
         )
 
@@ -356,11 +353,13 @@ class SqlFinancialRepository(
         return self.sql_client.select(query, self.trigger_mapper)
 
     def trigger_mapper(self, row) -> Trigger:
+        # DB column was renamed signal -> indicator in migration13;
+        # accept both for rolling upgrades.
         return Trigger(
             id=row["id"],
             name=row["name"],
             symbol=row["symbol"],
-            signal=row["signal"],
+            indicator=row.get("indicator", row.get("signal")),
             operator=row["operator"],
             value=row["value"],
             frequency=row["frequency"],
@@ -376,7 +375,7 @@ class SqlFinancialRepository(
         row = TriggerRow(
             name=trigger.name.strip(),
             symbol=trigger.symbol,
-            signal=trigger.signal,
+            indicator=trigger.indicator,
             operator=trigger.operator,
             value=trigger.value,
             frequency=trigger.frequency,
@@ -388,12 +387,12 @@ class SqlFinancialRepository(
             self.sql_client.insert("trigger", row)
         except Duplicate as error:
             raise ValueError(
-                f"trigger already exists for {trigger.symbol} {trigger.signal} {trigger.operator}"
+                f"trigger already exists for {trigger.symbol} {trigger.indicator} {trigger.operator}"
             ) from error
         rows = self.sql_client.select(
-            "select * from trigger where symbol = %s and signal = %s and operator = %s",
+            "select * from trigger where symbol = %s and indicator = %s and operator = %s",
             self.trigger_mapper,
-            (trigger.symbol, trigger.signal, trigger.operator),
+            (trigger.symbol, trigger.indicator, trigger.operator),
         )
         return rows[0]
 
@@ -419,7 +418,7 @@ class SqlFinancialRepository(
         updated = TriggerRow(
             name=current.name,
             symbol=current.symbol,
-            signal=current.signal,
+            indicator=current.indicator,
             operator=current.operator,
             value=current.value,
             frequency=current.frequency,
@@ -487,10 +486,11 @@ class SqlFinancialRepository(
             raise ValueError(f"{trigger.operator!r} is an invalid operator")
         if trigger.frequency not in FREQUENCIES:
             raise ValueError(f"{trigger.frequency!r} is an invalid frequency")
-        if trigger.signal not in ("risk-range",):
-            raise ValueError(f"{trigger.signal!r} is an invalid signal")
+        normalize_trigger_indicator(trigger.indicator)
 
-    def get_income_statement(self, symbol: str, date: datetime.date) -> list[IncomeStatement]:
+    def get_income_statement(
+        self, symbol: str, date: datetime.date
+    ) -> list[IncomeStatement]:
         raise NotImplementedError
 
     def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
@@ -599,7 +599,7 @@ class TickerTagRow:
 class TriggerRow:
     name: str
     symbol: str
-    signal: str
+    indicator: str
     operator: str
     value: float | None
     frequency: str

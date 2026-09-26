@@ -12,7 +12,7 @@ uv run mrmkt ranges --tag sp500
 uv run mrmkt watch AAA --dry-run
 uv run mrmkt watch --tag sp500 --sink stdout --sink file --sink-file alerts.log
 uv run mrmkt watch --tag sp500 --sink ntfy --session-policy extended --feed sip
-uv run mrmkt trigger create dip-watch --symbol CPAY --operator crossing-down --frequency once
+uv run mrmkt trigger create dip-watch --symbol CPAY --indicator risk-range --operator crossing-down --frequency once
 uv run mrmkt trigger list
 uv run mrmkt watch --all-triggers --sink ntfy
 ```
@@ -21,7 +21,7 @@ uv run mrmkt watch --all-triggers --sink ntfy
 `range_high,n_bars` with a `# key=value` header) from stored bars using
 the shared `risk_range_series` definition (H=15/V=21/W=0.5/anchor=5,
 minimum 30 bars). `watch` needs symbols or `--tag`. Both accept
-`--signal` (currently only `risk-range`).
+`--indicator` (e.g. `risk-range`).
 
 ## Stored triggers (`mrmkt triggers`, DB-backed)
 
@@ -30,7 +30,7 @@ apply pending migrations), so a symbol is associated with its alert
 configuration and `watch` can monitor a stored set: `trigger create/list/show/delete`, then `watch --trigger-id 1
 --trigger-id 2` or `watch --all-triggers` (enabled, unexpired only).
 
-Each row: `symbol | signal | operator | value | frequency | expires_at |
+Each row: `symbol | indicator | operator | value | frequency | expires_at |
 message | enabled`. `value` empty means the computed risk-range buy level
 (frozen per trigger only when explicitly set); `message` is a template
 with `{symbol}` `{price}` `{level}` `{moment}` `{session}` placeholders

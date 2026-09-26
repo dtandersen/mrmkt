@@ -8,6 +8,7 @@ Feature: Trigger create command
       | field     | value         |
       | name      | dip-watch     |
       | symbol    | AAA           |
+      | indicator | risk-range    |
       | operator  | crossing-down |
       | value     | 95.5          |
       | frequency | once          |
@@ -16,7 +17,7 @@ Feature: Trigger create command
     And the trigger "dip-watch" has:
       | field     | value         |
       | symbol    | AAA           |
-      | signal    | risk-range    |
+      | indicator    | risk-range    |
       | operator  | crossing-down |
       | value     | 95.5          |
       | frequency | once          |
@@ -29,6 +30,7 @@ Feature: Trigger create command
     When I create a trigger with:
       | field  | value         |
       | symbol | AAA           |
+      | indicator | risk-range |
     Then the command succeeds
     And the trigger is named "trigger-123456"
 
@@ -39,13 +41,13 @@ Feature: Trigger create command
       | symbol    | !!!        |
       | operator  | sideways   |
       | frequency | sometimes  |
-      | signal    | sma-cross  |
+      | indicator    | bad!  |
       | expires   | not-a-date |
     Then the command fails with errors:
       | field     | message                                                      |
       | operator  | 'sideways' is an invalid operator                            |
       | frequency | 'sometimes' is an invalid frequency                          |
-      | signal    | unknown signal 'sma-cross' (only 'risk-range' is supported) |
+      | indicator    | 'bad!' is an invalid indicator (use letters, numbers, '-' or '_') |
       | symbol    | invalid stock symbol: !!!                                    |
       | expires   | --expires must be YYYY-MM-DD                                |
 
@@ -54,12 +56,14 @@ Feature: Trigger create command
       | field    | value         |
       | name     | dip-watch     |
       | symbol   | AAA           |
+      | indicator | risk-range   |
       | operator | crossing-down |
     Then the command succeeds
     When I create a trigger with:
       | field    | value       |
       | name     | dip-watch   |
       | symbol   | BBB         |
+      | indicator | risk-range |
       | operator | crossing-up |
     Then the command fails with errors:
       | field | message                               |
@@ -70,25 +74,27 @@ Feature: Trigger create command
       | field    | value         |
       | name     | first         |
       | symbol   | AAA           |
+      | indicator | risk-range   |
       | operator | crossing-down |
     Then the command succeeds
     When I create a trigger with:
       | field    | value         |
       | name     | second        |
       | symbol   | AAA           |
+      | indicator | risk-range   |
       | operator | crossing-down |
     Then the command fails with errors:
       | field   | message                                                   |
       | trigger | trigger already exists for AAA risk-range crossing-down |
 
-  Scenario: Create normalizes signal and symbol
+  Scenario: Create normalizes indicator and symbol
     When I create a trigger with:
       | field  | value      |
       | name   | dip-watch  |
       | symbol | aaa        |
-      | signal | Risk-Range |
+      | indicator | Risk-Range |
     Then the command succeeds
     And the trigger "dip-watch" has:
       | field  | value      |
       | symbol | AAA        |
-      | signal | risk-range |
+      | indicator | risk-range |

@@ -7,12 +7,12 @@ Feature: Trigger list CLI
     Given the trigger catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command succeeds
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       dip-watch,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
     When I execute "mrmkt trigger show dip-watch"
@@ -20,7 +20,7 @@ Feature: Trigger list CLI
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       dip-watch,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
     When I execute "mrmkt trigger list"
@@ -28,7 +28,7 @@ Feature: Trigger list CLI
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       dip-watch,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
     When I execute "mrmkt trigger delete dip-watch"
@@ -42,5 +42,5 @@ Feature: Trigger list CLI
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       """

@@ -5,7 +5,7 @@ from mrmkt.entity.trigger import Trigger
 TRIGGER_COLUMNS = [
     "name",
     "symbol",
-    "signal",
+    "indicator",
     "operator",
     "value",
     "frequency",
@@ -24,7 +24,7 @@ def _render_triggers_csv(triggers: list[Trigger]) -> str:
                 [
                     trigger.name,
                     trigger.symbol,
-                    trigger.signal,
+                    trigger.indicator,
                     trigger.operator,
                     repr(trigger.value) if trigger.value is not None else "",
                     trigger.frequency,
@@ -40,7 +40,9 @@ def _render_triggers_csv(triggers: list[Trigger]) -> str:
 def _default_trigger_name() -> str:
     import secrets
 
-    return f"trigger-{_to_base36(secrets.randbelow(36 ** 5)).rjust(5, _BASE36_ALPHABET[0])}"
+    return (
+        f"trigger-{_to_base36(secrets.randbelow(36**5)).rjust(5, _BASE36_ALPHABET[0])}"
+    )
 
 
 _BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from mrmkt.command._shared import (
-    _resolve_signal,
+    _resolve_indicator,
     normalize_symbol,
     normalize_tag,
     parse_cli_date,
@@ -38,7 +38,7 @@ class LevelsQuery:
 class ListRangesRequest:
     symbols: list[str] | None = None
     tags: list[str] | None = None
-    signal: str = "risk-range"
+    indicator: str | None = None
     as_of: str | None = None
     horizon: int = DEFAULT_HORIZON
     vol_period: int = DEFAULT_VOL_PERIOD
@@ -59,10 +59,11 @@ class ListRanges(Command[ListRangesRequest, ListRangesResult]):
         self.clock = clock
 
     def execute(self, request: ListRangesRequest) -> ListRangesResult:
-        try:
-            _resolve_signal(request.signal)
-        except ValueError as error:
-            return ListRangesResult.invalid_data([str(error)])
+        if request.indicator is not None:
+            try:
+                _resolve_indicator(request.indicator)
+            except ValueError as error:
+                return ListRangesResult.invalid_data([str(error)])
         if not request.symbols and not request.tags:
             return ListRangesResult.invalid_data(["provide symbols or --tag"])
         as_of_date = None

@@ -11,19 +11,25 @@ from datetime import date
 
 from mrmkt.command.base import BaseResult, Command
 from mrmkt.command.triggers_common import _default_trigger_name
-from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
+from mrmkt.entity.trigger import (
+    FREQUENCIES,
+    OPERATORS,
+    Trigger,
+    normalize_trigger_indicator,
+)
 
-_RISK_RANGE_SIGNAL = "risk-range"
+
+def resolve_trigger_indicator(indicator: str | None) -> str:
+    """Normalize the trigger indicator name via the entity validator."""
+    return normalize_trigger_indicator(indicator)
+
 
 _SYMBOL_PATTERN = re.compile(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*")
 
 
 def resolve_trigger_signal(signal: str) -> str:
-    """Normalize the trigger signal source; raise ValueError if unsupported."""
-    normalized = (signal or "").strip().lower()
-    if normalized != _RISK_RANGE_SIGNAL:
-        raise ValueError(f"unknown signal {signal!r} (only 'risk-range' is supported)")
-    return normalized
+    """Deprecated alias for resolve_trigger_indicator."""
+    return resolve_trigger_indicator(signal)
 
 
 def normalize_trigger_symbol(symbol: str) -> str:
@@ -54,7 +60,7 @@ def normalize_trigger_frequency(frequency: str) -> str:
 class CreateTriggerRequest:
     name: str | None
     symbol: str
-    signal: str = "risk-range"
+    indicator: str
     operator: str = "crossing-down"
     value: float | None = None
     frequency: str = "once_per_rearm"
@@ -70,7 +76,7 @@ class CreateTriggerResult(BaseResult[Trigger]):
 class CreateTrigger(Command[CreateTriggerRequest, CreateTriggerResult]):
     """Store a realtime trigger.
 
-    Independent field errors (operator, frequency, signal, symbol, expiry)
+    Independent field errors (operator, frequency, indicator, symbol, expiry)
     are accumulated and reported together in a single result; the
     repository is only called when every field is valid.
     """
@@ -91,7 +97,7 @@ class CreateTrigger(Command[CreateTriggerRequest, CreateTriggerResult]):
 
         _collect("operator", normalize_trigger_operator, request.operator)
         _collect("frequency", normalize_trigger_frequency, request.frequency)
-        _collect("signal", resolve_trigger_signal, request.signal)
+        _collect("indicator", resolve_trigger_indicator, request.indicator)
         _collect("symbol", normalize_trigger_symbol, request.symbol)
 
         expires_at = None
@@ -114,7 +120,7 @@ class CreateTrigger(Command[CreateTriggerRequest, CreateTriggerResult]):
                     id=None,
                     name=trigger_name,
                     symbol=clean["symbol"],
-                    signal=clean["signal"],
+                    indicator=clean["indicator"],
                     operator=clean["operator"],
                     value=request.value,
                     frequency=clean["frequency"],

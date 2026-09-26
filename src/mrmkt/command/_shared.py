@@ -20,6 +20,7 @@ from psycopg2.pool import SimpleConnectionPool
 from mrmkt.common.clock import Clock, WallClock
 from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.common.sqlfinrepo import SqlFinancialRepository
+from mrmkt.entity.trigger import normalize_trigger_indicator
 from mrmkt.ext.postgres import PostgresSqlClient
 
 
@@ -47,7 +48,9 @@ def normalize_tag(tag: str) -> str:
     """Normalize a tag; raises ValueError (mapped to BadParameter by CLI handlers)."""
     normalized = tag.strip().lower()
     if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", normalized) is None:
-        raise ValueError("tags must start with a letter or number and contain only letters, numbers, '_' or '-'")
+        raise ValueError(
+            "tags must start with a letter or number and contain only letters, numbers, '_' or '-'"
+        )
     return normalized
 
 
@@ -100,7 +103,9 @@ def create_alpaca_client() -> TradingClient:
     )
 
 
-def create_local_ticker_repository() -> tuple[SqlFinancialRepository, Callable[[], None]]:
+def create_local_ticker_repository() -> tuple[
+    SqlFinancialRepository, Callable[[], None]
+]:
     config = yaml.safe_load(Path("dbschema.yml").read_text())
     db_config = config["databases"]["db1"]
     pool = SimpleConnectionPool(
@@ -137,14 +142,14 @@ def load_local_config() -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _resolve_indicator(indicator: str | None) -> str:
+    """Validate the indicator name via the entity validator."""
+    return normalize_trigger_indicator(indicator)
+
+
 def _resolve_signal(signal: str) -> str:
-    """Validate the signal name; raises ValueError (mapped to BadParameter by CLI handlers)."""
-    normalized = (signal or "").strip().lower()
-    if normalized != "risk-range":
-        raise ValueError(
-            f"unknown signal {signal!r} (only 'risk-range' is supported)"
-        )
-    return normalized
+    """Deprecated alias for _resolve_indicator."""
+    return _resolve_indicator(signal)
 
 
 MEMBERSHIP_VINTAGE_NOTE = (
@@ -153,7 +158,9 @@ MEMBERSHIP_VINTAGE_NOTE = (
 )
 
 
-def resolve_universe(repository, include_tags: list[str], exclude_tags: list[str]) -> list[str]:
+def resolve_universe(
+    repository, include_tags: list[str], exclude_tags: list[str]
+) -> list[str]:
     """Union of include-tag symbols (or all symbols) minus excluded tags.
 
     Membership comes from current tag assignments: repositories carry no

@@ -7,7 +7,7 @@ Create a trigger. If no trigger name is specified it defaults to `trigger-xxxxx`
 `mrmkt trigger create [<trigger>]`
 
 - --symbol <symbol>
-- --signal <signal>
+- --indicator <indicator>
 - --operator <operator>
 - --value <value>
 - --frequency <frequency>

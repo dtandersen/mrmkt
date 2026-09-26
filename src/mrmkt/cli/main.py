@@ -119,8 +119,8 @@ def run_ranges(
     tags: list[str] | None = typer.Option(
         None, "--tag", help="Include symbols with this tag (repeatable)"
     ),
-    signal: str = typer.Option(
-        "risk-range", "--signal", help="Signal source for ranges (only 'risk-range')"
+    indicator: str | None = typer.Option(
+        None, "--indicator", help="Indicator source (e.g. 'risk-range')"
     ),
     as_of: str | None = typer.Option(
         None, "--as-of", help="Range date (defaults to latest stored bar)"
@@ -143,7 +143,7 @@ def run_ranges(
             ListRangesRequest(
                 symbols=symbols,
                 tags=tags,
-                signal=signal,
+                indicator=indicator,
                 as_of=as_of,
                 horizon=horizon,
                 vol_period=vol_period,
@@ -168,8 +168,8 @@ def run_watch(
     all_triggers: bool = typer.Option(
         False, "--all-triggers", help="Watch every enabled stored trigger"
     ),
-    signal: str = typer.Option(
-        "risk-range", "--signal", help="Signal source to watch (only 'risk-range')"
+    indicator: str | None = typer.Option(
+        None, "--indicator", help="Indicator source (e.g. 'risk-range')"
     ),
     sinks: list[str] | None = typer.Option(
         None, "--sink", help="Alert sink: stdout, file, ntfy (repeatable)"
@@ -200,7 +200,7 @@ def run_watch(
             WatchPricesRequest(
                 symbols=symbols,
                 tags=tags,
-                signal=signal,
+                indicator=indicator,
                 sinks=sinks,
                 sink_file=sink_file,
                 feed=feed,

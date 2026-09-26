@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from mrmkt.command._shared import (
-    _resolve_signal,
+    _resolve_indicator,
     load_local_config,
     normalize_symbol,
     normalize_tag,
@@ -53,7 +53,7 @@ def build_alert_sink(
 class WatchPricesRequest:
     symbols: list[str] | None = None
     tags: list[str] | None = None
-    signal: str = "risk-range"
+    indicator: str | None = None
     sinks: list[str] | None = None
     sink_file: str | None = None
     feed: str = "iex"
@@ -85,10 +85,11 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         self.emit = emit
 
     def execute(self, request: WatchPricesRequest) -> WatchPricesResult:
-        try:
-            _resolve_signal(request.signal)
-        except ValueError as error:
-            return WatchPricesResult.invalid_data([str(error)])
+        if request.indicator is not None:
+            try:
+                _resolve_indicator(request.indicator)
+            except ValueError as error:
+                return WatchPricesResult.invalid_data([str(error)])
         use_store = bool(request.trigger_ids) or request.all_triggers
         if use_store and (request.symbols or request.tags):
             return WatchPricesResult.invalid_data(

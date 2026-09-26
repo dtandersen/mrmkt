@@ -7,12 +7,12 @@ Feature: Trigger create CLI
     Given the trigger catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command succeeds
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       dip-watch,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
 
@@ -21,17 +21,17 @@ Feature: Trigger create CLI
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And the generated trigger name is "trigger-123456"
-    When I execute "mrmkt trigger create --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command succeeds
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       trigger-123456,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
 
   Scenario: Create requires a symbol
-    When I execute "mrmkt trigger create dip-watch --operator crossing-down"
+    When I execute "mrmkt trigger create dip-watch --operator crossing-down --indicator risk-range"
     Then the command fails
     And the console displays:
       """
@@ -46,7 +46,7 @@ Feature: Trigger create CLI
     Given the trigger catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator sideways"
+    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator sideways --indicator risk-range"
     Then the command fails
     And the console displays:
       """
@@ -61,15 +61,15 @@ Feature: Trigger create CLI
     Given the trigger catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
-    When I execute "mrmkt trigger create first --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create first --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command succeeds
     And the console displays:
       """
       # generator=mrmkt trigger list
-      name,symbol,signal,operator,value,frequency,expires_at,message,enabled
+      name,symbol,indicator,operator,value,frequency,expires_at,message,enabled
       first,AAA,risk-range,crossing-down,,once_per_rearm,,,true
       """
-    When I execute "mrmkt trigger create second --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create second --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command fails
     And the console displays:
       """

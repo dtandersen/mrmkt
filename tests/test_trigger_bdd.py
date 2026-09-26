@@ -95,7 +95,7 @@ def trigger_exists(financial_repository, name):
             id=None,
             name=name,
             symbol="AAA",
-            signal="risk-range",
+            indicator="risk-range",
             operator="crossing-down",
             value=None,
             frequency="once_per_rearm",
@@ -179,7 +179,7 @@ def _create_kwargs(options):
     kwargs = {
         "name": options.get("name"),
         "symbol": options["symbol"],
-        "signal": options.get("signal", "risk-range"),
+        "indicator": options["indicator"],
         "operator": options.get("operator", "crossing-down"),
         "value": float(options["value"]) if "value" in options else None,
         "frequency": options.get("frequency", "once_per_rearm"),

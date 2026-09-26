@@ -10,7 +10,12 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
-from mrmkt.entity.trigger import FREQUENCIES, OPERATORS, Trigger
+from mrmkt.entity.trigger import (
+    FREQUENCIES,
+    OPERATORS,
+    Trigger,
+    normalize_trigger_indicator,
+)
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
@@ -53,7 +58,7 @@ class InMemoryFinancialRepository(
         self.next_trigger_id = 1
         self.trigger_sets = {}
 
-    def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:
+    def get_income_statement(self, symbol: str, date: datetime.date) -> IncomeStatement:  # pyright: ignore[reportIncompatibleMethodOverride]  # pre-existing: base declares List[IncomeStatement]
         return self.incomes.get(self.key(symbol, date))
 
     def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
@@ -62,7 +67,7 @@ class InMemoryFinancialRepository(
     def add_income(self, income_statement: IncomeStatement) -> None:
         self.incomes.add(income_statement)
 
-    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:
+    def get_balance_sheet(self, symbol: str, date: str) -> BalanceSheet:  # pyright: ignore[reportIncompatibleMethodOverride]  # pre-existing: base declares (datetime.date) -> List[BalanceSheet]
         return self.balances.get(f"{symbol}-{date}")
 
     def list_balance_sheets(self, symbol: str) -> list[BalanceSheet]:
@@ -90,15 +95,17 @@ class InMemoryFinancialRepository(
         self.enterprises.add(enterprise_value)
 
     def add_close_price(self, symbol: str, date: datetime.date, price_close: float):
-        self.add_price(StockPrice(
-            symbol=symbol,
-            date=date,
-            close=price_close,
-            open=0,
-            high=0,
-            low=0,
-            volume=0
-        ))
+        self.add_price(
+            StockPrice(
+                symbol=symbol,
+                date=date,
+                close=price_close,
+                open=0,
+                high=0,
+                low=0,
+                volume=0,
+            )
+        )
 
     def get_analysis(self, symbol: str) -> list[Analysis]:
         return self.analysis.filter(lambda s: s.symbol == symbol)
@@ -116,7 +123,12 @@ class InMemoryFinancialRepository(
     def get_price(self, symbol, date: datetime.date):
         return self.prices.get(self.key(symbol, date))
 
-    def list_prices(self, ticker: str, start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
+    def list_prices(
+        self,
+        ticker: str,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
         prices = self.prices.filter(lambda p: p.symbol == ticker)
 
         if start is not None:
@@ -127,7 +139,12 @@ class InMemoryFinancialRepository(
 
         return prices
 
-    def list_prices_for_symbols(self, tickers: list[str], start: datetime.date | None = None, end: datetime.date | None = None) -> list[StockPrice]:
+    def list_prices_for_symbols(
+        self,
+        tickers: list[str],
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
         wanted = {ticker.strip().upper() for ticker in tickers}
         prices = self.prices.filter(lambda p: p.symbol in wanted)
 
@@ -140,7 +157,12 @@ class InMemoryFinancialRepository(
         return sorted(prices, key=lambda p: (p.symbol, p.date))
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
-        dates = [price.date for price in self.prices.filter(lambda p: p.symbol == symbol and p.date >= date)]
+        dates = [
+            price.date
+            for price in self.prices.filter(
+                lambda p: p.symbol == symbol and p.date >= date
+            )
+        ]
         earliest_date = dates[0]
         return self.prices.get(self.key(symbol, earliest_date))
 
@@ -183,7 +205,11 @@ class InMemoryFinancialRepository(
             if assigned_tag == tag
         }
         return sorted(
-            (ticker for ticker in self.get_tickers() if (ticker.ticker, ticker.exchange) in tagged),
+            (
+                ticker
+                for ticker in self.get_tickers()
+                if (ticker.ticker, ticker.exchange) in tagged
+            ),
             key=lambda ticker: (ticker.ticker, ticker.exchange),
         )
 
@@ -191,7 +217,7 @@ class InMemoryFinancialRepository(
         return sorted({ticker.ticker for ticker in self.list_tickers_by_tag(tag)})
 
     def add_ticker_only(self, ticker):
-        self.add_ticker(Ticker(ticker=ticker, exchange='', type=''))
+        self.add_ticker(Ticker(ticker=ticker, exchange="", type=""))
 
     def list_triggers(self, enabled_only: bool = False) -> list[Trigger]:
         triggers = sorted(self.triggers.all(), key=lambda t: t.id or 0)
@@ -204,22 +230,24 @@ class InMemoryFinancialRepository(
         for existing in self.triggers.all():
             if (
                 existing.symbol == trigger.symbol
-                and existing.signal == trigger.signal
+                and existing.indicator == trigger.indicator
                 and existing.operator == trigger.operator
             ):
                 raise ValueError(
-                    f"trigger already exists for {trigger.symbol} {trigger.signal} {trigger.operator}"
+                    f"trigger already exists for {trigger.symbol} {trigger.indicator} {trigger.operator}"
                 )
         if not trigger.name or not trigger.name.strip():
             raise ValueError("trigger name must not be blank")
         for existing in self.triggers.all():
             if existing.name == trigger.name.strip():
-                raise ValueError(f"trigger name {trigger.name.strip()!r} already exists")
+                raise ValueError(
+                    f"trigger name {trigger.name.strip()!r} already exists"
+                )
         stored = Trigger(
             id=self.next_trigger_id,
             name=trigger.name.strip(),
             symbol=trigger.symbol,
-            signal=trigger.signal,
+            indicator=trigger.indicator,
             operator=trigger.operator,
             value=trigger.value,
             frequency=trigger.frequency,
@@ -252,7 +280,7 @@ class InMemoryFinancialRepository(
                 id=current.id,
                 name=current.name,
                 symbol=current.symbol,
-                signal=current.signal,
+                indicator=current.indicator,
                 operator=current.operator,
                 value=current.value,
                 frequency=current.frequency,
@@ -269,8 +297,7 @@ class InMemoryFinancialRepository(
             raise ValueError(f"{trigger.operator!r} is an invalid operator")
         if trigger.frequency not in FREQUENCIES:
             raise ValueError(f"{trigger.frequency!r} is an invalid frequency")
-        if trigger.signal not in ("risk-range",):
-            raise ValueError(f"{trigger.signal!r} is an invalid signal")
+        normalize_trigger_indicator(trigger.indicator)
 
     def create_set(self, name: str) -> str:
         if not name or not name.strip():

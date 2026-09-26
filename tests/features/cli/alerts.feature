@@ -32,21 +32,21 @@ Feature: Ranges and watch command paths
     Then the command fails
     And the output mentions "provide symbols or --tag"
 
-  Scenario: Ranges rejects an unknown signal
+  Scenario: Ranges rejects an invalid indicator
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt ranges AAA --signal bogus"
+    When I execute "mrmkt ranges AAA --indicator bogus!"
     Then the command fails
-    And the output mentions "unknown signal"
+    And the output mentions "invalid indicator"
 
   Scenario: Watch dry-run replays stored lows and reports touches
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar climb with a dip tagged universe
-    When I execute "mrmkt watch AAA --dry-run --signal risk-range"
+    When I execute "mrmkt watch AAA --dry-run --indicator risk-range"
     Then the command succeeds
     And the output mentions "# dry-run: replaying stored daily lows"
     And the output mentions "would alert:"
@@ -70,21 +70,21 @@ Feature: Ranges and watch command paths
     Then the command fails
     And the output mentions "unknown sink"
 
-  Scenario: Watch rejects an unknown signal
+  Scenario: Watch rejects an invalid indicator
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar steady climb tagged universe
-    When I execute "mrmkt watch AAA --dry-run --signal bogus"
+    When I execute "mrmkt watch AAA --dry-run --indicator bogus!"
     Then the command fails
-    And the output mentions "unknown signal"
+    And the output mentions "invalid indicator"
 
   Scenario: Watch replays stored triggers without touching sinks
     Given the alerts catalog contains these symbols:
       | symbol | exchange | type      |
       | AAA    | NASDAQ   | us_equity |
     And each alerts symbol has a 60-bar climb with a dip tagged universe
-    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down"
+    When I execute "mrmkt trigger create dip-watch --symbol AAA --operator crossing-down --indicator risk-range"
     Then the command succeeds
     When I execute "mrmkt watch --all-triggers --dry-run"
     Then the command succeeds

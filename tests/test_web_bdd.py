@@ -154,7 +154,7 @@ def trigger_exists(web_context, name, financial_repository):
             id=None,
             name=name,
             symbol="AAA",
-            signal="risk-range",
+            indicator="risk-range",
             operator="crossing-down",
             value=None,
             frequency="once_per_rearm",

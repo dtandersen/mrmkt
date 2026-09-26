@@ -10,7 +10,7 @@ Feature: Trigger list command
     And the trigger "dip-watch" has:
       | field     | value          |
       | symbol    | AAA            |
-      | signal    | risk-range     |
+      | indicator    | risk-range     |
       | operator  | crossing-down  |
       | value     |                |
       | frequency | once_per_rearm |
@@ -29,7 +29,7 @@ Feature: Trigger list command
     And the trigger "dip-watch" has:
       | field     | value          |
       | symbol    | AAA            |
-      | signal    | risk-range     |
+      | indicator    | risk-range     |
       | operator  | crossing-down  |
       | value     |                |
       | frequency | once_per_rearm |

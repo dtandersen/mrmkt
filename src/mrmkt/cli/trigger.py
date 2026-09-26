@@ -21,8 +21,8 @@ def trigger_create(
         None, help="Trigger name (default: trigger-xxxxx)"
     ),
     symbol: str = typer.Option(..., "--symbol", help="Symbol to watch"),
-    signal: str = typer.Option(
-        "risk-range", "--signal", help="Signal source (only 'risk-range')"
+    indicator: str = typer.Option(
+        ..., "--indicator", help="Indicator source (e.g. 'risk-range')"
     ),
     operator: str = typer.Option(
         "crossing-down",
@@ -55,7 +55,7 @@ def trigger_create(
             CreateTriggerRequest(
                 name=name,
                 symbol=symbol,
-                signal=signal,
+                indicator=indicator,
                 operator=operator,
                 value=value,
                 frequency=frequency,
