@@ -1,0 +1,12 @@
+{% if tickers %}
+<table>
+  <thead><tr><th>Symbol</th><th>Exchange</th><th>Type</th></tr></thead>
+  <tbody>
+  {% for ticker in tickers %}
+    <tr><td>{{ ticker.ticker }}</td><td>{{ ticker.exchange }}</td><td>{{ ticker.type }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No symbols found.</p>
+{% endif %}

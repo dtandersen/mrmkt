@@ -1,0 +1,12 @@
+{% if triggers %}
+<table>
+  <thead><tr><th>Name</th><th>Symbol</th><th>Signal</th><th>Operator</th><th>Enabled</th></tr></thead>
+  <tbody>
+  {% for trigger in triggers %}
+    <tr><td>{{ trigger.name }}</td><td>{{ trigger.symbol }}</td><td>{{ trigger.signal }}</td><td>{{ trigger.operator }}</td><td>{{ trigger.enabled }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No triggers found.</p>
+{% endif %}

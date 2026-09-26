@@ -1,0 +1,12 @@
+{% if prices %}
+<table>
+  <thead><tr><th>Symbol</th><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
+  <tbody>
+  {% for price in prices %}
+    <tr><td>{{ price.symbol }}</td><td>{{ price.date.isoformat() }}</td><td>{{ "%g"|format(price.open) }}</td><td>{{ "%g"|format(price.high) }}</td><td>{{ "%g"|format(price.low) }}</td><td>{{ "%g"|format(price.close) }}</td><td>{{ "%g"|format(price.volume) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No prices found.</p>
+{% endif %}

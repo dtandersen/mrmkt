@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MrMkt</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+  <h1>MrMkt</h1>
+
+  <section>
+    <h2>Symbols</h2>
+    <form hx-get="/fragments/symbols" hx-target="#symbols" hx-swap="innerHTML">
+      <label>Tag: <input type="text" name="tag" placeholder="optional"></label>
+      <button type="submit">Filter</button>
+    </form>
+    <div id="symbols" hx-get="/fragments/symbols" hx-trigger="load"></div>
+  </section>
+
+  <section>
+    <h2>Prices</h2>
+    <form hx-get="/fragments/prices" hx-target="#prices" hx-swap="innerHTML">
+      <label>Symbols (comma-separated): <input type="text" name="symbols"></label>
+      <button type="submit">Load</button>
+    </form>
+    <div id="prices" hx-get="/fragments/prices" hx-trigger="load"></div>
+  </section>
+
+  <section>
+    <h2>Triggers</h2>
+    <div id="triggers" hx-get="/fragments/triggers" hx-trigger="load"></div>
+  </section>
+</body>
+</html>

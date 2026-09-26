@@ -22,6 +22,7 @@ from mrmkt.command.watch import WatchPricesRequest
 from mrmkt.composition import (
     AppContext,
     create_app_context,
+    resolve_cli_dependencies,
 )
 
 __all__ = ["app"]
@@ -213,3 +214,18 @@ def run_watch(
         ),
         lambda _: None,
     )
+
+
+@app.command("web")
+def run_web(
+    ctx: typer.Context,
+    host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind"),
+    port: int = typer.Option(8000, "--port", help="Port to listen on"),
+) -> None:
+    """Serve the read-only web view."""
+    import uvicorn
+
+    from mrmkt.web.app import create_web_app
+
+    env = resolve_cli_dependencies(ctx)
+    uvicorn.run(create_web_app(lambda: env), host=host, port=port)

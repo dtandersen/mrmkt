@@ -8,6 +8,8 @@ dependencies = [
     "alpaca-py>=0.44.0",
     "backtrader",
     "dbschema",
+    "jinja2>=3.1.6",
+    "litestar>=2.24.0",
     "numpy",
     "pandas",
     "pandas-datareader",
@@ -16,6 +18,7 @@ dependencies = [
     "requests",
     "tiingo",
     "typer>=0.27.2",
+    "uvicorn>=0.54.0",
     "websocket-client",
 ]
 
@@ -24,6 +27,7 @@ mrmkt = "mrmkt.cli.main:app"
 
 [dependency-groups]
 dev = [
+    "playwright>=1.63.0",
     "plotly==5.24.1",
     "pyhamcrest",
     "pytest-bdd>=8.1.0",
