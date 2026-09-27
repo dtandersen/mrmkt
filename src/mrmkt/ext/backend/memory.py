@@ -17,20 +17,11 @@ from mrmkt.entity.trigger import (
     Trigger,
     normalize_trigger_indicator,
 )
-from mrmkt.repo.financials import FinancialRepository
-from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
+from mrmkt.repo.trigger_sets import TriggerSetNotFound
 
 
 @dataclass
-class InMemoryBackend(
-    MrMktBackend,
-    FinancialRepository,
-    PriceRepository,
-    TickerTagRepository,
-    TriggerSetRepository,
-):
+class InMemoryBackend(MrMktBackend):
     incomes: Table
     balances: Table
     analysis: Table

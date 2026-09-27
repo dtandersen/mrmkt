@@ -1,190 +1,153 @@
+"""Postgres whole-service backend (client + composed repositories)."""
+
 import datetime
-import re
-from contextlib import suppress
-from dataclasses import dataclass
+import logging
+from collections.abc import Callable
+from typing import Any
+
+import psycopg2
+import psycopg2.extras
+from psycopg2.pool import AbstractConnectionPool
 
 from mrmkt.backend import MrMktBackend
-from mrmkt.common.sql import Duplicate, SqlClient
+from mrmkt.common.sql import Duplicate, SqlClient, SqlGenerator
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
-from mrmkt.entity.finrep import FinancialReport
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
-from mrmkt.entity.trigger import (
-    FREQUENCIES,
-    OPERATORS,
-    Trigger,
-    normalize_trigger_indicator,
-)
-from mrmkt.repo.financials import FinancialRepository
-from mrmkt.repo.prices import PriceRepository
-from mrmkt.repo.tags import TickerTagRepository
-from mrmkt.repo.trigger_sets import TriggerSetNotFound, TriggerSetRepository
+from mrmkt.entity.trigger import Trigger
+from mrmkt.ext.repo.postgres.financials import PostgresFinancialRepository
+from mrmkt.ext.repo.postgres.prices import PostgresPriceRepository
+from mrmkt.ext.repo.postgres.tags import PostgresTagRepository
+from mrmkt.ext.repo.postgres.tickers import PostgresTickerRepository
+from mrmkt.ext.repo.postgres.trigger_sets import PostgresTriggerSetRepository
+from mrmkt.ext.repo.postgres.triggers import PostgresTriggerRepository
 
 
-class PostgresBackend(
-    MrMktBackend,
-    FinancialRepository,
-    PriceRepository,
-    TickerTagRepository,
-    TriggerSetRepository,
-):
+class PostgresSqlClient(SqlClient):
+    def __init__(self, converter: SqlGenerator, pool: AbstractConnectionPool):
+        self.converter = converter
+        self.pool = pool
+
+    def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()):
+        conn = self.pool.getconn()
+        try:
+            with (
+                conn,
+                conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur,
+            ):
+                sql = query
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                # rows = list(map(lambda x: x[0], cur.description))
+                logging.debug(f"{sql} => {rows}")
+                # x = [mapper(row) for row in rows]
+                # logging.debug(f"{sql} => {x}")
+                # z= psycopg2.RealDictRow()
+                r2 = [mapper(dict(row)) for row in rows]
+                # logging.debug(f"{sql} => {r2}")
+                return r2
+        finally:
+            self.pool.putconn(conn)
+
+    def insert(self, table: str, values: Any):
+        conn = self.pool.getconn()
+        try:
+            with conn, conn.cursor() as cur:
+                sql, params = self.converter.to_insert(table, values)
+                logging.debug(sql)
+                try:
+                    cur.execute(sql, params)
+                except psycopg2.errors.UniqueViolation as err:
+                    raise Duplicate(err) from err
+        finally:
+            self.pool.putconn(conn)
+
+    def delete(self, query: str, params: tuple = ()) -> bool:
+        conn = self.pool.getconn()
+        try:
+            with (
+                conn,
+                conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur,
+            ):
+                sql = query
+                cur.execute(sql, params)
+                return cur.rowcount > 0
+        finally:
+            self.pool.putconn(conn)
+
+
+class PostgresBackend(MrMktBackend):
+    """Whole-service Postgres backend delegating to narrow repositories.
+
+    Composition instead of multiple inheritance: MI of the narrow
+    mixins plus the wide bundle is not C3-linearizable in any order,
+    while forwarding stays trivially correct.
+    """
+
     def __init__(self, sql_client: SqlClient):
-        self.sql_client = sql_client
+        self._financials = PostgresFinancialRepository(sql_client)
+        self._prices = PostgresPriceRepository(sql_client)
+        self._tickers = PostgresTickerRepository(sql_client)
+        self._tags = PostgresTagRepository(sql_client)
+        self._triggers = PostgresTriggerRepository(sql_client)
+        self._sets = PostgresTriggerSetRepository(sql_client)
 
     def close(self) -> None:
         """No-op: the pool lifecycle stays with the composition root."""
 
     def list_balance_sheets(self, symbol: str):
-        return self.sql_client.select(
-            "select * " + "from balance_sheet where symbol = %s",
-            self.to_balance_sheet,
-            (symbol,),
-        )
-
-    def to_balance_sheet(self, row):
-        return BalanceSheet(
-            symbol=row["symbol"],
-            date=row["date"],
-            totalAssets=row["total_assets"],
-            totalLiabilities=row["total_liabilities"],
-        )
+        return self._financials.list_balance_sheets(symbol)
 
     def add_balance_sheet(self, balance_sheet: BalanceSheet):
-        row = BalanceSheetRow(
-            symbol=balance_sheet.symbol,
-            date=balance_sheet.date,
-            total_assets=balance_sheet.totalAssets,
-            total_liabilities=balance_sheet.totalLiabilities,
-        )
-
-        self.sql_client.insert("balance_sheet", row)
+        return self._financials.add_balance_sheet(balance_sheet)
 
     def get_income_statements(self, symbol: str) -> list[IncomeStatement]:
-        return self.sql_client.select(
-            "select * " + "from income_stmt where symbol = %s",
-            self.to_income_statement,
-            (symbol,),
-        )
-
-    def to_income_statement(self, row):
-        return IncomeStatement(
-            symbol=row["symbol"],
-            date=row["date"],
-            netIncome=row["net_income"],
-            waso=row["waso"],
-            consolidated_net_income=-1,
-        )
+        return self._financials.get_income_statements(symbol)
 
     def add_income(self, income_statement: IncomeStatement):
-        row = IncomeStatementRow(
-            symbol=income_statement.symbol,
-            date=income_statement.date,
-            net_income=income_statement.netIncome,
-            waso=income_statement.waso,
-        )
-
-        self.sql_client.insert("income_stmt", row)
+        return self._financials.add_income(income_statement)
 
     def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
-        row = self.sql_client.select(
-            "select * from cash_flow where symbol = %s and date = %s",
-            self.map_to_cash_flow,
-            (symbol, date),
-        )
-
-        return row[0]
-
-    def map_to_cash_flow(self, row) -> CashFlow:
-        return CashFlow(
-            symbol=row["symbol"],
-            date=row["date"],
-            operating_cash_flow=row["operating_cash_flow"],
-            capital_expenditure=row["capital_expenditure"],
-            free_cash_flow=row["free_cash_flow"],
-            dividend_payments=row["dividend_payments"],
-        )
+        return self._financials.get_cash_flow(symbol, date)
 
     def add_cash_flow(self, cash_flow: CashFlow):
-        row = CashFlowRow(
-            symbol=cash_flow.symbol,
-            date=cash_flow.date,
-            operating_cash_flow=cash_flow.operating_cash_flow,
-            capital_expenditure=cash_flow.capital_expenditure,
-            free_cash_flow=cash_flow.free_cash_flow,
-            dividend_payments=cash_flow.dividend_payments,
-        )
-
-        self.sql_client.insert("cash_flow", row)
+        return self._financials.add_cash_flow(cash_flow)
 
     def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
-        row = self.sql_client.select(
-            "select * from enterprise_value where symbol = %s and date = %s",
-            self.map_to_enterprise_value,
-            (symbol, date),
-        )
-
-        return row[0]
-
-    def map_to_enterprise_value(self, row) -> EnterpriseValue:
-        return EnterpriseValue(
-            symbol=row["symbol"],
-            date=row["date"],
-            stock_price=row["stock_price"],
-            shares_outstanding=row["shares_outstanding"],
-            market_cap=row["market_cap"],
-        )
+        return self._financials.get_enterprise_value(symbol, date)
 
     def add_enterprise_value(self, enterprise_value: EnterpriseValue):
-        row = EnterpriseValueRow(
-            symbol=enterprise_value.symbol,
-            date=enterprise_value.date,
-            stock_price=enterprise_value.stock_price,
-            shares_outstanding=enterprise_value.shares_outstanding,
-            market_cap=enterprise_value.market_cap,
-        )
-
-        self.sql_client.insert("enterprise_value", row)
+        return self._financials.add_enterprise_value(enterprise_value)
 
     def add_analysis(self, analysis: Analysis):
-        row = AnalysisRow(
-            symbol=analysis.symbol,
-            date=analysis.date,
-            net_income=analysis.netIncome,
-            buffet_number=analysis.buffetNumber,
-            price_to_book_value=analysis.priceToBookValue,
-            shares_outstanding=analysis.sharesOutstanding,
-            liabilities=analysis.liabilities,
-            assets=analysis.assets,
-            margin_of_safety=analysis.marginOfSafety,
-            book_value=analysis.bookValue,
-            eps=analysis.eps,
-            equity=analysis.equity,
-            pe=analysis.pe,
-        )
-
-        self.sql_client.insert("analysis", row)
+        return self._financials.add_analysis(analysis)
 
     def delete_analysis(self, symbol: str, date: datetime.date):
-        self.sql_client.delete(
-            "delete from analysis where symbol = %s and date = %s", (symbol, date)
-        )
+        return self._financials.delete_analysis(symbol, date)
+
+    def get_income_statement(
+        self, symbol: str, date: datetime.date
+    ) -> list[IncomeStatement]:
+        return self._financials.get_income_statement(symbol, date)
+
+    def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
+        return self._financials.list_income_statements(symbol)
+
+    def get_balance_sheet(self, symbol, date: datetime.date) -> list[BalanceSheet]:
+        return self._financials.get_balance_sheet(symbol, date)
+
+    def list_cash_flows(self, symbol: str) -> list[CashFlow]:
+        return self._financials.list_cash_flows(symbol)
+
+    def list_enterprise_value(self, symbol: str) -> list[EnterpriseValue]:
+        return self._financials.list_enterprise_value(symbol)
 
     def add_price(self, price: StockPrice):
-        row = PriceRow(
-            symbol=price.symbol,
-            date=price.date,
-            open=price.open,
-            high=price.high,
-            low=price.low,
-            close=price.close,
-            volume=price.volume,
-        )
-
-        self.sql_client.insert("daily_price", row)
+        return self._prices.add_price(price)
 
     def list_prices(
         self,
@@ -192,29 +155,7 @@ class PostgresBackend(
         start: datetime.date | None = None,
         end: datetime.date | None = None,
     ) -> list[StockPrice]:
-        start_sql = ""
-        end_sql = ""
-        params: list = [ticker]
-        if start is not None:
-            start_sql = "and date >= %s "
-            params.append(start.strftime("%Y-%m-%d"))
-
-        if end is not None:
-            end_sql = "and date <= %s "
-            params.append(end.strftime("%Y-%m-%d"))
-
-        rows = self.sql_client.select(
-            "select * "
-            + "from daily_price "
-            + "where symbol = %s "
-            + start_sql
-            + end_sql
-            + "order by date asc",
-            self.price_mapper,
-            tuple(params),
-        )
-
-        return rows
+        return self._prices.list_prices(ticker, start, end)
 
     def list_prices_for_symbols(
         self,
@@ -222,399 +163,58 @@ class PostgresBackend(
         start: datetime.date | None = None,
         end: datetime.date | None = None,
     ) -> list[StockPrice]:
-        normalized = []
-        for ticker in tickers:
-            symbol = ticker.strip().upper()
-            if re.fullmatch(r"[A-Z0-9]+(?:[./-][A-Z0-9]+)*", symbol) is None:
-                raise ValueError(f"invalid stock symbol: {ticker}")
-            normalized.append(symbol)
-        if not normalized:
-            return []
-        start_sql = ""
-        end_sql = ""
-        params: list = [tuple(normalized)]
-        if start is not None:
-            start_sql = "and date >= %s "
-            params.append(start.strftime("%Y-%m-%d"))
-        if end is not None:
-            end_sql = "and date <= %s "
-            params.append(end.strftime("%Y-%m-%d"))
-        return self.sql_client.select(
-            "select * "
-            + "from daily_price "
-            + "where symbol in %s "
-            + start_sql
-            + end_sql
-            + "order by symbol asc, date asc",
-            self.price_mapper,
-            tuple(params),
-        )
+        return self._prices.list_prices_for_symbols(tickers, start, end)
 
     def get_price(self, symbol: str, date: str) -> StockPrice:
-        rows = self.sql_client.select(
-            "select * " + "from daily_price " + "where symbol = %s " + "and date = %s",
-            self.price_mapper,
-            (symbol, date),
-        )
-
-        return rows[0]
-
-    def price_mapper(self, row):
-        return StockPrice(
-            symbol=row["symbol"],
-            date=row["date"],
-            open=row["open"],
-            high=row["high"],
-            low=row["low"],
-            close=row["close"],
-            volume=row["volume"],
-        )
+        return self._prices.get_price(symbol, date)
 
     def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
-        rows = self.sql_client.select(
-            "select * " + "from daily_price " + "where symbol = %s " + "and date >= %s",
-            self.price_mapper,
-            (symbol, date),
-        )
-
-        return rows[0]
-
-    def insert_financial(self, rep: FinancialReport):
-        f = FinancialRow(symbol="abc", date=datetime.date(2019, 1, 2), data="{}")
-        self.sql_client.insert("financials", f)
+        return self._prices.get_price_on_or_after(symbol, date)
 
     def get_symbols(self) -> list[str]:
-        rows = self.sql_client.select(
-            "select distinct symbol " + "from daily_price ", self.symbol_mapper
-        )
-
-        return rows
-
-    def symbol_mapper(self, row):
-        return row["symbol"]
+        return self._tickers.get_symbols()
 
     def get_tickers(self) -> list[Ticker]:
-        rows = self.sql_client.select("select * " + "from ticker", self.ticker_mapper)
-
-        return rows
-
-    def ticker_mapper(self, row):
-        return Ticker(ticker=row["ticker"], exchange=row["exchange"], type=row["type"])
+        return self._tickers.get_tickers()
 
     def add_ticker(self, ticker: Ticker):
-        row = TickerRow(
-            ticker=ticker.ticker, exchange=ticker.exchange, type=ticker.type
-        )
-
-        self.sql_client.insert("ticker", row)
+        return self._tickers.add_ticker(ticker)
 
     def add_tag(self, ticker: str, exchange: str, tag: str) -> None:
-        self.sql_client.insert("ticker_tag", TickerTagRow(ticker, exchange, tag))
+        return self._tags.add_tag(ticker, exchange, tag)
 
     def remove_tag(self, ticker: str, exchange: str, tag: str) -> bool:
-        return self.sql_client.delete(
-            "delete from ticker_tag where ticker = %s and exchange = %s and tag = %s",
-            (ticker, exchange, tag),
-        )
+        return self._tags.remove_tag(ticker, exchange, tag)
 
     def get_tags(self, ticker: str, exchange: str) -> list[str]:
-        rows = self.sql_client.select(
-            "select ticker, exchange, tag from ticker_tag",
-            lambda row: row,
-        )
-        return sorted(
-            row["tag"]
-            for row in rows
-            if row["ticker"] == ticker and row["exchange"] == exchange
-        )
+        return self._tags.get_tags(ticker, exchange)
 
     def list_tickers_by_tag(self, tag: str) -> list[Ticker]:
-        rows = self.sql_client.select(
-            "select ticker, exchange, tag from ticker_tag",
-            lambda row: row,
-        )
-        tagged = {(row["ticker"], row["exchange"]) for row in rows if row["tag"] == tag}
-        return sorted(
-            (
-                ticker
-                for ticker in self.get_tickers()
-                if (ticker.ticker, ticker.exchange) in tagged
-            ),
-            key=lambda ticker: (ticker.ticker, ticker.exchange),
-        )
+        return self._tags.list_tickers_by_tag(tag)
 
     def get_symbols_by_tag(self, tag: str) -> list[str]:
-        return sorted({ticker.ticker for ticker in self.list_tickers_by_tag(tag)})
+        return self._tags.get_symbols_by_tag(tag)
 
     def list_triggers(self, enabled_only: bool = False) -> list[Trigger]:
-        query = "select * from trigger order by id asc"
-        if enabled_only:
-            query = "select * from trigger where enabled = %s order by id asc"
-            return self.sql_client.select(query, self.trigger_mapper, (True,))
-        return self.sql_client.select(query, self.trigger_mapper)
-
-    def trigger_mapper(self, row) -> Trigger:
-        # DB column was renamed signal -> indicator in migration13;
-        # accept both for rolling upgrades.
-        return Trigger(
-            id=row["id"],
-            name=row["name"],
-            symbol=row["symbol"],
-            indicator=row.get("indicator", row.get("signal")),
-            operator=row["operator"],
-            value=row["value"],
-            frequency=row["frequency"],
-            expires_at=row["expires_at"],
-            message=row["message"],
-            enabled=row["enabled"],
-        )
+        return self._triggers.list_triggers(enabled_only)
 
     def add_trigger(self, trigger: Trigger) -> Trigger:
-        self._validate_trigger(trigger)
-        if not trigger.name or not trigger.name.strip():
-            raise ValueError("trigger name must not be blank")
-        row = TriggerRow(
-            name=trigger.name.strip(),
-            symbol=trigger.symbol,
-            indicator=trigger.indicator,
-            operator=trigger.operator,
-            value=trigger.value,
-            frequency=trigger.frequency,
-            expires_at=trigger.expires_at,
-            message=trigger.message,
-            enabled=trigger.enabled,
-        )
-        try:
-            self.sql_client.insert("trigger", row)
-        except Duplicate as error:
-            raise ValueError(
-                f"trigger already exists for {trigger.symbol} {trigger.indicator} {trigger.operator}"
-            ) from error
-        rows = self.sql_client.select(
-            "select * from trigger where symbol = %s and indicator = %s and operator = %s",
-            self.trigger_mapper,
-            (trigger.symbol, trigger.indicator, trigger.operator),
-        )
-        return rows[0]
+        return self._triggers.add_trigger(trigger)
 
     def remove_trigger(self, trigger_id: int) -> bool:
-        return self.sql_client.delete(
-            "delete from trigger where id = %s",
-            (trigger_id,),
-        )
+        return self._triggers.remove_trigger(trigger_id)
 
     def set_trigger_enabled(self, trigger_id: int, enabled: bool) -> bool:
-        rows = self.sql_client.select(
-            "select * from trigger where id = %s",
-            self.trigger_mapper,
-            (trigger_id,),
-        )
-        if not rows:
-            return False
-        current = rows[0]
-        self.sql_client.delete(
-            "delete from trigger where id = %s",
-            (trigger_id,),
-        )
-        updated = TriggerRow(
-            name=current.name,
-            symbol=current.symbol,
-            indicator=current.indicator,
-            operator=current.operator,
-            value=current.value,
-            frequency=current.frequency,
-            expires_at=current.expires_at,
-            message=current.message,
-            enabled=enabled,
-        )
-        self.sql_client.insert("trigger", updated)
-        return True
+        return self._triggers.set_trigger_enabled(trigger_id, enabled)
 
     def create_set(self, name: str) -> str:
-        if not name or not name.strip():
-            raise ValueError("trigger set name must not be blank")
-        cleaned = name.strip()
-        try:
-            self.sql_client.insert("trigger_set", TriggerSetRow(cleaned))
-        except Duplicate as error:
-            raise ValueError(f"trigger set {cleaned!r} already exists") from error
-        return cleaned
+        return self._sets.create_set(name)
 
     def add_to_set(self, set_name: str, trigger_name: str) -> None:
-        sets = self.sql_client.select(
-            "select name from trigger_set where name = %s",
-            lambda row: row["name"],
-            (set_name,),
-        )
-        if not sets:
-            raise TriggerSetNotFound(set_name)
-        triggers = self.sql_client.select(
-            "select name from trigger where name = %s",
-            lambda row: row["name"],
-            (trigger_name,),
-        )
-        if not triggers:
-            raise ValueError(f"no trigger with name {trigger_name!r}")
-        with suppress(Duplicate):
-            self.sql_client.insert(
-                "trigger_set_member", TriggerSetMemberRow(set_name, trigger_name)
-            )
+        return self._sets.add_to_set(set_name, trigger_name)
 
     def remove_from_set(self, set_name: str, trigger_name: str) -> bool:
-        return self.sql_client.delete(
-            "delete from trigger_set_member where set_name = %s and trigger_name = %s",
-            (set_name, trigger_name),
-        )
+        return self._sets.remove_from_set(set_name, trigger_name)
 
     def list_set_members(self, set_name: str) -> list[str]:
-        sets = self.sql_client.select(
-            "select name from trigger_set where name = %s",
-            lambda row: row["name"],
-            (set_name,),
-        )
-        if not sets:
-            raise TriggerSetNotFound(set_name)
-        return self.sql_client.select(
-            "select trigger_name from trigger_set_member "
-            "where set_name = %s order by trigger_name asc",
-            lambda row: row["trigger_name"],
-            (set_name,),
-        )
-
-    @staticmethod
-    def _validate_trigger(trigger: Trigger) -> None:
-        if trigger.operator not in OPERATORS:
-            raise ValueError(f"{trigger.operator!r} is an invalid operator")
-        if trigger.frequency not in FREQUENCIES:
-            raise ValueError(f"{trigger.frequency!r} is an invalid frequency")
-        normalize_trigger_indicator(trigger.indicator)
-
-    def get_income_statement(
-        self, symbol: str, date: datetime.date
-    ) -> list[IncomeStatement]:
-        raise NotImplementedError
-
-    def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
-        raise NotImplementedError
-
-    def get_balance_sheet(self, symbol, date: datetime.date) -> list[BalanceSheet]:
-        raise NotImplementedError
-
-    def list_cash_flows(self, symbol: str) -> list[CashFlow]:
-        raise NotImplementedError
-
-    def list_enterprise_value(self, symbol: str) -> list[EnterpriseValue]:
-        raise NotImplementedError
-
-
-@dataclass
-class BalanceSheetRow:
-    symbol: str
-    date: datetime.date
-    total_assets: float
-    total_liabilities: float
-
-
-@dataclass
-class IncomeStatementRow:
-    symbol: str
-    date: datetime.date
-    net_income: float
-    waso: int
-
-
-@dataclass
-class CashFlowRow:
-    symbol: str
-    date: datetime.date
-    operating_cash_flow: float
-    capital_expenditure: float
-    free_cash_flow: float
-    dividend_payments: float
-
-
-@dataclass
-class EnterpriseValueRow:
-    symbol: str
-    date: datetime.date
-    stock_price: float
-    shares_outstanding: float
-    market_cap: float
-
-
-@dataclass
-class AnalysisRow:
-    symbol: str
-    date: datetime.date
-    net_income: float
-    buffet_number: float
-    price_to_book_value: float
-    shares_outstanding: float
-    liabilities: float
-    assets: float
-    margin_of_safety: float
-    book_value: float
-    eps: float
-    equity: float
-    pe: float
-
-
-@dataclass
-class PriceRow:
-    symbol: str
-    date: datetime.date
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-
-
-@dataclass
-class FinancialRow:
-    symbol: str
-    date: datetime.date
-    data: str
-
-
-@dataclass
-class SymbolRow:
-    symbol: str
-
-
-@dataclass
-class TickerRow:
-    ticker: str
-    exchange: str
-    type: str
-
-
-@dataclass
-class TickerTagRow:
-    ticker: str
-    exchange: str
-    tag: str
-
-
-@dataclass
-class TriggerRow:
-    name: str
-    symbol: str
-    indicator: str
-    operator: str
-    value: float | None
-    frequency: str
-    expires_at: datetime.date | None
-    message: str
-    enabled: bool
-
-
-@dataclass
-class TriggerSetRow:
-    name: str
-
-
-@dataclass
-class TriggerSetMemberRow:
-    set_name: str
-    trigger_name: str
+        return self._sets.list_set_members(set_name)

@@ -21,7 +21,7 @@ from mrmkt.common.clock import Clock, WallClock
 from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.entity.trigger import normalize_trigger_indicator
 from mrmkt.ext.backend import PostgresBackend
-from mrmkt.ext.postgres import PostgresSqlClient
+from mrmkt.ext.backend.postgres import PostgresSqlClient
 
 
 def create_clock() -> Clock:

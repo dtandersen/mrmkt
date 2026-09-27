@@ -6,8 +6,16 @@ data (``ValueError``), 5xx mean failure. Symbol methods raise until the
 symbol endpoints exist (tracked as next slice).
 """
 
+import datetime
+
 from mrmkt.api.trigger_dtos import trigger_from_dto
 from mrmkt.backend import MrMktBackend
+from mrmkt.entity.analysis import Analysis
+from mrmkt.entity.balance_sheet import BalanceSheet
+from mrmkt.entity.cash_flow import CashFlow
+from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.income_statement import IncomeStatement
+from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import Trigger
 from mrmkt.ext.api_gen.api.default import (
@@ -114,6 +122,91 @@ class ApiMrMktBackend(MrMktBackend):
 
     def add_ticker(self, ticker: Ticker):
         raise NotImplementedError("symbol API not yet available")
+
+    def get_income_statement(
+        self, symbol: str, date: datetime.date
+    ) -> list[IncomeStatement]:
+        raise NotImplementedError("financial API not yet available")
+
+    def list_income_statements(self, symbol: str) -> list[IncomeStatement]:
+        raise NotImplementedError("financial API not yet available")
+
+    def get_balance_sheet(self, symbol: str, date: datetime.date) -> list[BalanceSheet]:
+        raise NotImplementedError("financial API not yet available")
+
+    def list_balance_sheets(self, symbol: str) -> list[BalanceSheet]:
+        raise NotImplementedError("financial API not yet available")
+
+    def get_cash_flow(self, symbol: str, date: datetime.date) -> CashFlow:
+        raise NotImplementedError("financial API not yet available")
+
+    def list_cash_flows(self, symbol: str) -> list[CashFlow]:
+        raise NotImplementedError("financial API not yet available")
+
+    def get_enterprise_value(self, symbol: str, date: datetime.date) -> EnterpriseValue:
+        raise NotImplementedError("financial API not yet available")
+
+    def list_enterprise_value(self, symbol: str) -> list[EnterpriseValue]:
+        raise NotImplementedError("financial API not yet available")
+
+    def add_income(self, income_statement: IncomeStatement) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def add_balance_sheet(self, balance_sheet: BalanceSheet) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def add_cash_flow(self, cash_flow: CashFlow) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def add_enterprise_value(self, enterprise_value: EnterpriseValue) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def add_analysis(self, analysis: Analysis) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def delete_analysis(self, symbol: str, date: datetime.date) -> None:
+        raise NotImplementedError("financial API not yet available")
+
+    def get_price_on_or_after(self, symbol: str, date: datetime.date) -> StockPrice:
+        raise NotImplementedError("price API not yet available")
+
+    def list_prices(
+        self,
+        ticker: str,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> list[StockPrice]:
+        raise NotImplementedError("price API not yet available")
+
+    def add_price(self, price: StockPrice) -> None:
+        raise NotImplementedError("price API not yet available")
+
+    def add_tag(self, ticker: str, exchange: str, tag: str) -> None:
+        raise NotImplementedError("tag API not yet available")
+
+    def remove_tag(self, ticker: str, exchange: str, tag: str) -> bool:
+        raise NotImplementedError("tag API not yet available")
+
+    def get_tags(self, ticker: str, exchange: str) -> list[str]:
+        raise NotImplementedError("tag API not yet available")
+
+    def list_tickers_by_tag(self, tag: str) -> list[Ticker]:
+        raise NotImplementedError("tag API not yet available")
+
+    def get_symbols_by_tag(self, tag: str) -> list[str]:
+        raise NotImplementedError("tag API not yet available")
+
+    def create_set(self, name: str) -> str:
+        raise NotImplementedError("trigger-set API not yet available")
+
+    def add_to_set(self, set_name: str, trigger_name: str) -> None:
+        raise NotImplementedError("trigger-set API not yet available")
+
+    def remove_from_set(self, set_name: str, trigger_name: str) -> bool:
+        raise NotImplementedError("trigger-set API not yet available")
+
+    def list_set_members(self, set_name: str) -> list[str]:
+        raise NotImplementedError("trigger-set API not yet available")
 
     def close(self) -> None:
         """Close the generated client's cached sync session, if built."""

@@ -14,16 +14,15 @@ from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.ext.backend import PostgresBackend
-from mrmkt.ext.backend.postgres import (
+from mrmkt.ext.repo.postgres.financials import (
     AnalysisRow,
     BalanceSheetRow,
     CashFlowRow,
     EnterpriseValueRow,
     IncomeStatementRow,
-    PriceRow,
-    SymbolRow,
-    TickerRow,
 )
+from mrmkt.ext.repo.postgres.prices import PriceRow, SymbolRow
+from mrmkt.ext.repo.postgres.tickers import TickerRow
 
 
 class TestStringMethods(unittest.TestCase):

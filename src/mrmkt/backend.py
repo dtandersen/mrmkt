@@ -11,14 +11,26 @@ from collections.abc import Callable
 
 from httpx import Timeout
 
+from mrmkt.repo.financials import FinancialRepository
+from mrmkt.repo.prices import PriceRepository
+from mrmkt.repo.tags import TickerTagRepository
 from mrmkt.repo.tickers import TickerRepository
+from mrmkt.repo.trigger_sets import TriggerSetRepository
 from mrmkt.repo.triggers import TriggerRepository
 
 __all__ = ["MrMktBackend", "MrMktBackendFactory"]
 
 
-class MrMktBackend(TriggerRepository, TickerRepository, ABC):
-    """Trigger plus symbol catalogs with an explicit release."""
+class MrMktBackend(
+    TriggerRepository,
+    TickerRepository,
+    FinancialRepository,
+    PriceRepository,
+    TickerTagRepository,
+    TriggerSetRepository,
+    ABC,
+):
+    """Whole-service backend: every repository interface plus release."""
 
     @abstractmethod
     def close(self) -> None:
