@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Protocol
 
 from mrmkt.command._shared import normalize_symbol
-from mrmkt.command.alerts import Alert, AlertEngine, TriggerRule, format_alert
+from mrmkt.command.alerts import Alert, AlertEngine, TriggerRule
 from mrmkt.command.base import BaseResult, Command
 from mrmkt.command.ranges import ListRanges, ListRangesRequest
 from mrmkt.entity.trigger import Trigger
@@ -139,10 +139,14 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
 
     def _stream(self, request: WatchPricesRequest, levels, trigger_by_symbol) -> None:
         """Configure the analyzer, subscribe the source, and print each hit."""
+        latest_bid: dict[str, float] = {}
 
         def consume_signal(alert: Alert) -> None:
-            self.emit(format_alert(alert))
             trigger = trigger_by_symbol.get(alert.symbol)
+            name = trigger.name if trigger is not None else alert.symbol
+            bid = latest_bid.get(alert.symbol, alert.price)
+            self.emit(f"Trigger fired: {name}")
+            self.emit(f"symbol: {alert.symbol}, bid: {bid:g}, ask: {alert.price:g}")
             if (
                 trigger is not None
                 and trigger.frequency == "once"
@@ -178,6 +182,7 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
 
         def handle_quote(quote: Quote) -> None:
             # For a long entry, the ask is the displayed price to buy at.
+            latest_bid[quote.symbol] = quote.bid
             engine.on_tick(quote.symbol, quote.ask, quote.timestamp)
 
         self.price_source.subscribe(

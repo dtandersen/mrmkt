@@ -16,7 +16,7 @@ from mrmkt.entity.ticker import Ticker
 from mrmkt.ext.backend import InMemoryBackend
 
 START = date(2022, 1, 3)
-N_BARS = 60
+N_BARS = 31
 
 
 class BlockingPriceSource:
@@ -32,7 +32,7 @@ class BlockingPriceSource:
 def main() -> None:
     repository = InMemoryBackend()
     repository.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))
-    closes = [100.0 * (1.002**i) for i in range(N_BARS)]
+    closes = [round(100.0 + 0.2 * i, 2) for i in range(N_BARS)]
     day = START
     added = 0
     while added < N_BARS:

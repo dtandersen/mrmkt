@@ -9,7 +9,6 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from shlex import split
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import pytest
 from hamcrest import assert_that, equal_to
@@ -23,7 +22,7 @@ from mrmkt.common.clock import ClockStub
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
-from mrmkt.entity.trigger import Trigger
+from mrmkt.entity.trigger import DEFAULT_MESSAGE_TEMPLATE, Trigger
 
 scenarios(
     "features/cli/watch.feature",
@@ -32,9 +31,6 @@ scenarios(
 
 ROOT = Path(__file__).parent.parent
 DRIVER = Path(__file__).parent / "watch_blocking_driver.py"
-
-START = date(2022, 1, 3)
-N_BARS = 60
 
 
 @pytest.fixture
@@ -45,14 +41,14 @@ def watch_context(financial_repository):
     context.cli_result = None
     context.clock = clock
     context.emitted = []
-    context.streamed = None
     context.trigger_id = None
     context.proc = None
     context.child_output = ""
+    context.quotes = None
 
     class CliPriceSource:
         def subscribe(self, symbols, feed, *, on_quote) -> None:
-            context.streamed = (list(symbols), feed)
+            pass
 
     context.price_source = CliPriceSource()
     context.deps = cli_dependencies_for_testing(
@@ -72,112 +68,112 @@ def _table_rows(datatable):
     return [dict(zip(headers, row, strict=True)) for row in datatable[1:]]
 
 
-def _business_days(start: date, n: int) -> list[date]:
-    days = []
-    current = start
-    while len(days) < n:
-        if current.weekday() < 5:
-            days.append(current)
-        current += timedelta(days=1)
-    return days
-
-
 def _ensure_ticker(local, symbol, exchange="NASDAQ") -> None:
     if symbol not in {ticker.ticker for ticker in local.get_tickers()}:
         local.add_ticker(Ticker(ticker=symbol, exchange=exchange, type="us_equity"))
 
 
-def _add_climb(local, symbol, dip: bool) -> None:
-    _ensure_ticker(local, symbol)
-    closes = [100.0 * (1.002**i) for i in range(N_BARS)]
-    if dip:
-        for pos, factor in ((45, 0.90), (46, 0.93), (47, 0.97)):
-            closes[pos] *= factor
-    for day, close in zip(_business_days(START, N_BARS), closes, strict=True):
-        low = close * (0.99 if dip else 0.995)
-        local.add_price(
-            StockPrice(
-                symbol=symbol,
-                date=day,
-                open=close,
-                high=close * 1.005,
-                low=low,
-                close=close,
-                volume=1000.0,
-            )
-        )
-
-
-def _add_short_climb(local, symbol) -> None:
-    _ensure_ticker(local, symbol)
-    price = 100.0
-    for day in _business_days(START, 5):
-        local.add_price(
-            StockPrice(
-                symbol=symbol,
-                date=day,
-                open=price,
-                high=price * 1.005,
-                low=price * 0.995,
-                close=price,
-                volume=1000.0,
-            )
-        )
-        price *= 1.002
-
-
-def _add_trigger(repository, name: str, symbol: str, frequency: str = "once_per_rearm"):
+def _add_trigger(
+    repository,
+    name: str,
+    symbol: str,
+    frequency: str = "once_per_rearm",
+    operator: str = "crossing-down",
+    value: float | None = None,
+    indicator: str = "risk-range",
+    expires_at: date | None = None,
+    message: str = DEFAULT_MESSAGE_TEMPLATE,
+    enabled: bool = True,
+):
     return repository.add_trigger(
         Trigger(
             id=None,
             name=name,
             symbol=symbol,
-            indicator="risk-range",
-            operator="crossing-down",
+            indicator=indicator,
+            operator=operator,
             frequency=frequency,
+            value=value,
+            expires_at=expires_at,
+            message=message,
+            enabled=enabled,
         )
     )
 
 
 @given("the alerts catalog contains these symbols:")
 def alerts_catalog_contains_symbols(watch_context, datatable, financial_repository):
+    import contextlib
+
+    from mrmkt.common.sql import Duplicate
+
     for row in _table_rows(datatable):
-        financial_repository.add_ticker(
-            Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
+        with contextlib.suppress(Duplicate):
+            financial_repository.add_ticker(
+                Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
+            )
+
+
+@given(
+    parsers.parse(
+        "the daily price history of {symbol} from {start} to {end} rising {drift} per day"
+    )
+)
+def daily_price_history(financial_repository, symbol, start, end, drift):
+    drift = float(drift)
+    day = date.fromisoformat(start)
+    last = date.fromisoformat(end)
+    bars = 0
+    while day <= last:
+        if day.weekday() < 5:
+            close = round(100.0 + drift * bars, 2)
+            _ensure_ticker(financial_repository, symbol)
+            financial_repository.add_price(
+                StockPrice(
+                    symbol=symbol,
+                    date=day,
+                    open=close,
+                    high=close,
+                    low=close,
+                    close=close,
+                    volume=1000.0,
+                )
+            )
+            bars += 1
+        day += timedelta(days=1)
+
+
+@given("the stored triggers:")
+def stored_triggers(watch_context, financial_repository, datatable):
+    for row in _table_rows(datatable):
+        trigger = _add_trigger(
+            financial_repository,
+            row["name"],
+            row["symbol"],
+            frequency=row.get("frequency") or "once_per_rearm",
+            operator=row.get("operator") or "crossing-down",
+            value=float(row["value"]) if row.get("value") else None,
+            indicator=row.get("indicator") or "risk-range",
+            expires_at=date.fromisoformat(row["expires_at"])
+            if row.get("expires_at")
+            else None,
+            message=row.get("message") or DEFAULT_MESSAGE_TEMPLATE,
+            enabled=(row.get("enabled") or "true").strip().lower() != "false",
         )
+        watch_context.trigger_id = trigger.id
 
 
-@given(parsers.parse("{symbol} has a 60-bar climb with a dip"))
-def symbol_has_dip(financial_repository, symbol):
-    _add_climb(financial_repository, symbol, dip=True)
-
-
-@given(parsers.parse("{symbol} has a 60-bar steady climb"))
-def symbol_has_steady_climb(financial_repository, symbol):
-    _add_climb(financial_repository, symbol, dip=False)
-
-
-@given(parsers.parse("{symbol} has a 5-bar climb"))
-def symbol_has_short_climb(financial_repository, symbol):
-    _add_short_climb(financial_repository, symbol)
-
-
-def _given_trigger(watch_context, financial_repository, name, symbol, frequency):
-    trigger = _add_trigger(financial_repository, name, symbol, frequency)
-    assert trigger.frequency == frequency
-    watch_context.trigger_id = trigger.id
-
-
-@given(parsers.parse('stored trigger "{name}" watches "{symbol}" crossing down'))
-def stored_trigger_watches_symbol(watch_context, financial_repository, name, symbol):
-    _given_trigger(watch_context, financial_repository, name, symbol, "once_per_rearm")
-
-
-@given(parsers.parse('stored trigger "{name}" watches "{symbol}" crossing down once'))
-def stored_once_trigger_watches_symbol(
-    watch_context, financial_repository, name, symbol
-):
-    _given_trigger(watch_context, financial_repository, name, symbol, "once")
+@given("the real time quotes:")
+def realtime_quotes(watch_context, datatable):
+    watch_context.quotes = [
+        (
+            row["symbol"],
+            float(row["bid"]),
+            float(row["ask"]),
+            datetime.fromisoformat(row["timestamp"]),
+        )
+        for row in _table_rows(datatable)
+    ]
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -195,11 +191,13 @@ def _watch(
     scripted_quotes=None,
     **kwargs,
 ):
+    if scripted_quotes is None:
+        scripted_quotes = watch_context.quotes or []
+
     class FakePriceSource:
-        """Test source that records subscriptions and emits scripted prices."""
+        """Test source that emits scripted quotes."""
 
         def subscribe(self, symbols, feed, *, on_quote) -> None:
-            watch_context.streamed = (list(symbols), feed)
             if interrupt_stream:
                 raise KeyboardInterrupt
             for symbol, bid, ask, timestamp in scripted_quotes or []:
@@ -247,13 +245,16 @@ def watch_unknown_trigger(watch_context, financial_repository, trigger_id):
     )
 
 
-@when("I stream an above-level quote then a below-level quote")
-def stream_crossing_quotes(watch_context, financial_repository):
-    et = ZoneInfo("America/New_York")
+@when("I stream these quotes:")
+def stream_quotes(watch_context, financial_repository, datatable):
     quotes = [
-        ("AAA", 110.0, 111.0, datetime(2022, 4, 4, 10, 0, tzinfo=et)),
-        ("AAA", 105.0, 107.0, datetime(2022, 4, 4, 10, 1, tzinfo=et)),
-        ("AAA", 104.0, 105.0, datetime(2022, 4, 4, 10, 2, tzinfo=et)),
+        (
+            row["symbol"],
+            float(row["bid"]),
+            float(row["ask"]),
+            datetime.fromisoformat(row["timestamp"]),
+        )
+        for row in _table_rows(datatable)
     ]
     if watch_context.trigger_id is not None:
         watch_context.result = _watch(
@@ -263,11 +264,12 @@ def stream_crossing_quotes(watch_context, financial_repository):
             trigger_ids=[watch_context.trigger_id],
         )
     else:
+        symbols = sorted({symbol for symbol, _bid, _ask, _ts in quotes})
         watch_context.result = _watch(
             watch_context,
             financial_repository,
             scripted_quotes=quotes,
-            symbols=["AAA"],
+            symbols=symbols,
         )
 
 
@@ -302,13 +304,6 @@ def watch_errors_are_exactly(watch_context, docstring):
 @then("the emitted lines are:")
 def emitted_lines_are_exactly(watch_context, docstring):
     assert_that(watch_context.emitted, equal_to(docstring.splitlines()))
-
-
-@then(parsers.parse('the price source receives symbols "{symbols}"'))
-def price_source_receives_symbols(watch_context, symbols):
-    assert watch_context.streamed is not None
-    actual_symbols, _feed = watch_context.streamed
-    assert_that(actual_symbols, equal_to(symbols.split()))
 
 
 @then("the stored trigger is disabled")
