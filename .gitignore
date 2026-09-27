@@ -7,3 +7,5 @@ __pycache__
 /alpaca.yaml
 /notes
 config.yaml
+/mrmkt.log
+/.coverage
