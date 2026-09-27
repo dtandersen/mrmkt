@@ -159,54 +159,24 @@ def run_ranges(
 def run_watch(
     ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to include"),
-    tags: list[str] | None = typer.Option(
-        None, "--tag", help="Include symbols with this tag (repeatable)"
-    ),
     trigger_ids: list[int] | None = typer.Option(
-        None, "--trigger-id", help="Stored trigger id to watch (repeatable)"
+        None, "--trigger", help="Stored trigger id to watch (repeatable)"
     ),
     all_triggers: bool = typer.Option(
         False, "--all-triggers", help="Watch every enabled stored trigger"
     ),
-    indicator: str | None = typer.Option(
-        None, "--indicator", help="Indicator source (e.g. 'risk-range')"
-    ),
-    sinks: list[str] | None = typer.Option(
-        None, "--sink", help="Alert sink: stdout, ntfy (repeatable)"
-    ),
     feed: str = typer.Option("iex", "--feed", help="Alpaca data feed: iex or sip"),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Replay stored daily lows as ticks; no network"
-    ),
-    session_policy: str = typer.Option(
-        "regular",
-        "--session-policy",
-        help="Sessions that may fire: regular or extended",
-    ),
-    as_of: str | None = typer.Option(
-        None, "--as-of", help="Levels date (defaults to latest stored bar)"
-    ),
-    verbose: bool = typer.Option(
-        False, "--verbose", help="Also print ignored non-trigger ticks"
-    ),
 ) -> None:
     """Watch live prices and alert once per buy-level touch (deduped to re-arm).
 
-    With no symbols, --tag, --trigger-id, or --all-triggers, watches every
+    With no symbols, --trigger, or --all-triggers, watches every
     enabled stored trigger."""
     handle(
         ctx,
         lambda factory: factory.watch_prices().execute(
             WatchPricesRequest(
                 symbols=symbols,
-                tags=tags,
-                indicator=indicator,
-                sinks=sinks,
                 feed=feed,
-                dry_run=dry_run,
-                session_policy=session_policy,
-                as_of=as_of,
-                verbose=verbose,
                 trigger_ids=trigger_ids,
                 all_triggers=all_triggers,
             )

@@ -60,7 +60,7 @@ from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
 from mrmkt.command.triggersets_common import _default_set_name
-from mrmkt.command.watch import WatchPrices
+from mrmkt.command.watch import PriceSource, Quote, WatchPrices
 from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
@@ -80,8 +80,13 @@ class CommandFactory:
     invocation; its release runs once at teardown.
     """
 
-    def __init__(self, env: MrMktEnvironment2) -> None:
+    def __init__(
+        self,
+        env: MrMktEnvironment2,
+        watch_price_source: PriceSource | None = None,
+    ) -> None:
         self._env = env
+        self._watch_price_source = watch_price_source
 
     def create_trigger(self) -> CreateTrigger:
         """Build a ready CreateTrigger from the app-scoped environment."""
@@ -198,13 +203,16 @@ class CommandFactory:
 
     def watch_prices(self) -> WatchPrices:
         """Build a ready WatchPrices from the app-scoped environment."""
+        price_source = (
+            self._watch_price_source
+            if self._watch_price_source is not None
+            else AlpacaLivePriceSource()
+        )
         return WatchPrices(
             self._env.triggers,
-            self._env.clock,
-            AlpacaLivePriceSource(),
+            price_source,
             _emit_watch_line,
             ranges=ListRanges(self._env.triggers, self._env.clock),
-            sink_factory=build_watch_sinks,
         )
 
     async def live_ticks(self, symbol):
@@ -237,10 +245,16 @@ class AlpacaLivePriceSource:
 
     Built per subscription so the requested feed (iex/sip) applies to the
     stream. Transport details stay here in the composition root; the
-    command only sees PriceTick/BarUpdate callbacks.
+    command only sees normalized quote callbacks.
     """
 
-    def subscribe(self, symbols: list[str], feed: str, *, on_trade, on_bar) -> None:
+    def subscribe(
+        self,
+        symbols: list[str],
+        feed: str,
+        *,
+        on_quote: Callable[[Quote], None],
+    ) -> None:
         import datetime
         from pathlib import Path
 
@@ -258,49 +272,12 @@ class AlpacaLivePriceSource:
             feed=DataFeed(feed),
         )
         AlpacaStreamSource(stream, lambda: datetime.datetime.now(tz=ET)).subscribe(
-            symbols, on_trade, on_bar
+            symbols, on_quote
         )
 
 
 def _emit_watch_line(line: str, err: bool = False) -> None:
     typer.echo(line, err=err)
-
-
-def build_alert_sink(name: str, local_config: dict | None = None):
-    """Build a named alert sink; secrets come from env/config, never the repo."""
-    import os
-
-    from mrmkt.command.alerts import (
-        NTFY_ENV_VAR,
-        NtfySink,
-        StdoutSink,
-        resolve_ntfy_url,
-    )
-
-    if name == "stdout":
-        return StdoutSink()
-    if name == "ntfy":
-        url = resolve_ntfy_url(os.environ.get(NTFY_ENV_VAR, ""), local_config or {})
-        if not url:
-            raise ValueError(
-                f"set {NTFY_ENV_VAR} or the ntfy topic in local config.yaml"
-            )
-        return NtfySink(url)
-    raise ValueError(f"unknown sink {name!r} (choose stdout, ntfy)")
-
-
-def build_watch_sinks(sink_names: list[str]):
-    """Composition-root sink wiring for one watch run.
-
-    Reads env/local config and constructs the fanout consumer the
-    analyzer delivers fired alerts to. The command only calls this
-    factory with request values; all construction lives here.
-    """
-    from mrmkt.command._shared import load_local_config
-    from mrmkt.command.alerts import FanoutSink
-
-    local_config = load_local_config()
-    return FanoutSink([build_alert_sink(name, local_config) for name in sink_names])
 
 
 def mrmkt_backend_factory_from_env(
@@ -388,6 +365,7 @@ def cli_dependencies_for_testing(
     triggerset_name_generator: Callable[[], str] | None = None,
     tick_source=None,
     triggers: Any | None = None,
+    watch_price_source: PriceSource | None = None,
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
@@ -414,5 +392,5 @@ def cli_dependencies_for_testing(
         triggerset_name_generator=triggerset_name_generator or _default_set_name,
         tick_source=tick_source,
     )
-    factory = CommandFactory(env)
+    factory = CommandFactory(env, watch_price_source=watch_price_source)
     return AppContext(command_factory=factory, close=release)

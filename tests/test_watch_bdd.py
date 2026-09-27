@@ -1,4 +1,4 @@
-"""BDD coverage for watch CLI commands and the WatchPrices command."""
+"""BDD coverage for the live WatchPrices command and CLI entrypoint."""
 
 import os
 import select
@@ -17,12 +17,13 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
-from mrmkt.command.create_trigger import CreateTrigger, CreateTriggerRequest
-from mrmkt.command.watch import WatchPrices, WatchPricesRequest
+from mrmkt.command.ranges import ListRanges
+from mrmkt.command.watch import Quote, WatchPrices, WatchPricesRequest
 from mrmkt.common.clock import ClockStub
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
+from mrmkt.entity.trigger import Trigger
 
 scenarios(
     "features/cli/watch.feature",
@@ -48,8 +49,16 @@ def watch_context(financial_repository):
     context.trigger_id = None
     context.proc = None
     context.child_output = ""
+
+    class CliPriceSource:
+        def subscribe(self, symbols, feed, *, on_quote) -> None:
+            context.streamed = (list(symbols), feed)
+
+    context.price_source = CliPriceSource()
     context.deps = cli_dependencies_for_testing(
         repository=financial_repository,
+        clock=clock,
+        watch_price_source=context.price_source,
     )
     yield context
     proc = context.proc
@@ -63,7 +72,7 @@ def _table_rows(datatable):
     return [dict(zip(headers, row, strict=True)) for row in datatable[1:]]
 
 
-def _business_days(start: date, n: int) -> list:
+def _business_days(start: date, n: int) -> list[date]:
     days = []
     current = start
     while len(days) < n:
@@ -78,7 +87,7 @@ def _ensure_ticker(local, symbol, exchange="NASDAQ") -> None:
         local.add_ticker(Ticker(ticker=symbol, exchange=exchange, type="us_equity"))
 
 
-def _add_climb(local, symbol, dip: bool, tag: str | None = None) -> None:
+def _add_climb(local, symbol, dip: bool) -> None:
     _ensure_ticker(local, symbol)
     closes = [100.0 * (1.002**i) for i in range(N_BARS)]
     if dip:
@@ -97,8 +106,6 @@ def _add_climb(local, symbol, dip: bool, tag: str | None = None) -> None:
                 volume=1000.0,
             )
         )
-    if tag is not None:
-        local.add_tag(symbol, "NASDAQ", tag)
 
 
 def _add_short_climb(local, symbol) -> None:
@@ -119,7 +126,17 @@ def _add_short_climb(local, symbol) -> None:
         price *= 1.002
 
 
-# Shared catalog givens (CLI level).
+def _add_trigger(repository, name: str, symbol: str, frequency: str = "once_per_rearm"):
+    return repository.add_trigger(
+        Trigger(
+            id=None,
+            name=name,
+            symbol=symbol,
+            indicator="risk-range",
+            operator="crossing-down",
+            frequency=frequency,
+        )
+    )
 
 
 @given("the alerts catalog contains these symbols:")
@@ -130,40 +147,37 @@ def alerts_catalog_contains_symbols(watch_context, datatable, financial_reposito
         )
 
 
-@given(parsers.parse("each alerts symbol has a 60-bar climb with a dip tagged {tag}"))
-def alerts_symbols_have_climb_with_dip(watch_context, tag, financial_repository):
-    for ticker in financial_repository.get_tickers():
-        _add_climb(financial_repository, ticker.ticker, dip=True, tag=tag)
-
-
 @given(parsers.parse("{symbol} has a 60-bar climb with a dip"))
-def symbol_has_dip(watch_context, symbol, financial_repository):
+def symbol_has_dip(financial_repository, symbol):
     _add_climb(financial_repository, symbol, dip=True)
 
 
 @given(parsers.parse("{symbol} has a 60-bar steady climb"))
-def symbol_has_steady_climb(watch_context, symbol, financial_repository):
+def symbol_has_steady_climb(financial_repository, symbol):
     _add_climb(financial_repository, symbol, dip=False)
 
 
 @given(parsers.parse("{symbol} has a 5-bar climb"))
-def symbol_has_short_climb(watch_context, symbol, financial_repository):
+def symbol_has_short_climb(financial_repository, symbol):
     _add_short_climb(financial_repository, symbol)
 
 
+def _given_trigger(watch_context, financial_repository, name, symbol, frequency):
+    trigger = _add_trigger(financial_repository, name, symbol, frequency)
+    assert trigger.frequency == frequency
+    watch_context.trigger_id = trigger.id
+
+
 @given(parsers.parse('stored trigger "{name}" watches "{symbol}" crossing down'))
-def stored_trigger_watches_symbol(watch_context, name, symbol, financial_repository):
-    result = CreateTrigger(financial_repository).execute(
-        CreateTriggerRequest(
-            name=name, symbol=symbol, indicator="risk-range", operator="crossing-down"
-        )
-    )
-    assert_that(result.is_success(), equal_to(True))
-    assert result.result is not None
-    watch_context.trigger_id = result.result.id
+def stored_trigger_watches_symbol(watch_context, financial_repository, name, symbol):
+    _given_trigger(watch_context, financial_repository, name, symbol, "once_per_rearm")
 
 
-# CLI level.
+@given(parsers.parse('stored trigger "{name}" watches "{symbol}" crossing down once'))
+def stored_once_trigger_watches_symbol(
+    watch_context, financial_repository, name, symbol
+):
+    _given_trigger(watch_context, financial_repository, name, symbol, "once")
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -174,162 +188,99 @@ def execute_watch_command(watch_context, command):
     )
 
 
-# Command level.
-
-
 def _watch(
     watch_context,
     financial_repository,
     interrupt_stream=False,
-    scripted_ticks=None,
-    sink_factory=None,
+    scripted_quotes=None,
     **kwargs,
 ):
-    from mrmkt.command.ranges import ListRanges
-    from mrmkt.command.watch import PriceTick
-    from mrmkt.composition import build_watch_sinks
-
-    def emit(line: str, err: bool = False) -> None:
-        watch_context.emitted.append(line)
-
     class FakePriceSource:
-        """Test PriceSource: records subscriptions, replays scripted ticks."""
+        """Test source that records subscriptions and emits scripted prices."""
 
-        def subscribe(self, symbols, feed, *, on_trade, on_bar) -> None:
+        def subscribe(self, symbols, feed, *, on_quote) -> None:
+            watch_context.streamed = (list(symbols), feed)
             if interrupt_stream:
                 raise KeyboardInterrupt
-            if scripted_ticks is not None:
-                for symbol, price, moment in scripted_ticks:
-                    on_trade(PriceTick(symbol=symbol, price=price, moment=moment))
-            else:
-                watch_context.streamed = (list(symbols), feed)
+            for symbol, bid, ask, timestamp in scripted_quotes or []:
+                on_quote(Quote(symbol=symbol, bid=bid, ask=ask, timestamp=timestamp))
+
+    def emit(line: str) -> None:
+        watch_context.emitted.append(line)
 
     command = WatchPrices(
         financial_repository,
-        watch_context.clock,
         FakePriceSource(),
         emit,
         ranges=ListRanges(financial_repository, watch_context.clock),
-        sink_factory=sink_factory or build_watch_sinks,
     )
-    return command.execute(WatchPricesRequest(**kwargs))
-
-
-@when("I watch with no selection in dry-run mode")
-def watch_bare_dry_run(watch_context, financial_repository):
-    watch_context.result = _watch(watch_context, financial_repository, dry_run=True)
+    execute_watch = command.execute
+    return execute_watch(WatchPricesRequest(**kwargs))
 
 
 @when("I watch with no selection in live mode")
-def watch_bare_live(watch_context, financial_repository):
-    watch_context.result = _watch(watch_context, financial_repository, dry_run=False)
+def watch_bare(watch_context, financial_repository):
+    watch_context.result = _watch(watch_context, financial_repository)
 
 
-@when("I watch with no selection and interrupt the stream")
-def watch_bare_interrupted(watch_context, financial_repository):
+@when(parsers.parse('I watch symbols "{first}" and "{second}" in live mode'))
+def watch_two_symbols(watch_context, financial_repository, first, second):
     watch_context.result = _watch(
-        watch_context, financial_repository, dry_run=False, interrupt_stream=True
+        watch_context, financial_repository, symbols=[first, second]
     )
 
 
-@when("I stream an above-level tick then a below-level tick in live mode")
-def stream_crossing_ticks(watch_context, financial_repository):
-    from mrmkt.command.alerts import ListSink
-
-    et = ZoneInfo("America/New_York")
-    ticks = [
-        ("AAA", 1e6, datetime(2022, 4, 4, 10, 0, tzinfo=et)),
-        ("AAA", 1e-6, datetime(2022, 4, 4, 10, 1, tzinfo=et)),
-    ]
-    recorder = ListSink()
-    watch_context.recorded = recorder
-    watch_context.result = _watch(
-        watch_context,
-        financial_repository,
-        symbols=["AAA"],
-        dry_run=False,
-        scripted_ticks=ticks,
-        sink_factory=lambda names: recorder,
-    )
-
-
-@when(parsers.parse('I watch symbols "{first}" and "{second}" in dry-run mode'))
-def watch_two_symbols_dry_run(watch_context, first, second, financial_repository):
-    watch_context.result = _watch(
-        watch_context, financial_repository, symbols=[first, second], dry_run=True
-    )
-
-
-@when(
-    parsers.parse('I watch symbol "{symbol}" plus its stored trigger in dry-run mode')
-)
-def watch_symbol_plus_trigger_dry_run(watch_context, symbol, financial_repository):
+@when(parsers.parse('I watch symbol "{symbol}" plus its stored trigger'))
+def watch_symbol_and_trigger(watch_context, financial_repository, symbol):
     watch_context.result = _watch(
         watch_context,
         financial_repository,
         symbols=[symbol],
         trigger_ids=[watch_context.trigger_id],
-        dry_run=True,
     )
 
 
-@when(parsers.parse("I watch trigger id {trigger_id:d} in dry-run mode"))
-def watch_unknown_trigger_dry_run(watch_context, trigger_id, financial_repository):
+@when(parsers.parse("I watch trigger id {trigger_id:d}"))
+def watch_unknown_trigger(watch_context, financial_repository, trigger_id):
     watch_context.result = _watch(
-        watch_context, financial_repository, trigger_ids=[trigger_id], dry_run=True
+        watch_context, financial_repository, trigger_ids=[trigger_id]
     )
 
 
-@when(
-    parsers.parse(
-        'I watch symbol "{symbol}" with session policy "{policy}" in dry-run mode'
-    )
-)
-def watch_bad_session_policy(watch_context, symbol, policy, financial_repository):
+@when("I stream an above-level quote then a below-level quote")
+def stream_crossing_quotes(watch_context, financial_repository):
+    et = ZoneInfo("America/New_York")
+    quotes = [
+        ("AAA", 110.0, 111.0, datetime(2022, 4, 4, 10, 0, tzinfo=et)),
+        ("AAA", 105.0, 107.0, datetime(2022, 4, 4, 10, 1, tzinfo=et)),
+        ("AAA", 104.0, 105.0, datetime(2022, 4, 4, 10, 2, tzinfo=et)),
+    ]
+    if watch_context.trigger_id is not None:
+        watch_context.result = _watch(
+            watch_context,
+            financial_repository,
+            scripted_quotes=quotes,
+            trigger_ids=[watch_context.trigger_id],
+        )
+    else:
+        watch_context.result = _watch(
+            watch_context,
+            financial_repository,
+            scripted_quotes=quotes,
+            symbols=["AAA"],
+        )
+
+
+@when("I watch with no selection and interrupt the stream")
+def watch_interrupted(watch_context, financial_repository):
     watch_context.result = _watch(
-        watch_context,
-        financial_repository,
-        symbols=[symbol],
-        session_policy=policy,
-        dry_run=True,
+        watch_context, financial_repository, interrupt_stream=True
     )
-
-
-@when(parsers.parse('I watch symbol "{symbol}" with sink "{sink}" in dry-run mode'))
-def watch_bad_sink(watch_context, symbol, sink, financial_repository):
-    watch_context.result = _watch(
-        watch_context,
-        financial_repository,
-        symbols=[symbol],
-        sinks=[sink],
-        dry_run=True,
-    )
-
-
-@when(
-    parsers.parse(
-        'I watch symbol "{symbol}" with indicator "{indicator}" in dry-run mode'
-    )
-)
-def watch_bad_indicator(watch_context, symbol, indicator, financial_repository):
-    watch_context.result = _watch(
-        watch_context,
-        financial_repository,
-        symbols=[symbol],
-        indicator=indicator,
-        dry_run=True,
-    )
-
-
-# Shared outcomes.
 
 
 @then("the command succeeds")
 def command_succeeds(watch_context):
-    if watch_context.cli_result is not None:
-        assert_that(watch_context.cli_result.exit_code, equal_to(0))
-    else:
-        assert_that(watch_context.result.is_success(), equal_to(True))
+    assert_that(watch_context.cli_result.exit_code, equal_to(0))
 
 
 @then("the output is:")
@@ -353,11 +304,19 @@ def emitted_lines_are_exactly(watch_context, docstring):
     assert_that(watch_context.emitted, equal_to(docstring.splitlines()))
 
 
-@then(parsers.parse('the stream runner receives symbols "{symbol}"'))
-def stream_runner_receives_symbols(watch_context, symbol):
+@then(parsers.parse('the price source receives symbols "{symbols}"'))
+def price_source_receives_symbols(watch_context, symbols):
     assert watch_context.streamed is not None
-    symbols, _feed = watch_context.streamed
-    assert_that(symbols, equal_to([symbol]))
+    actual_symbols, _feed = watch_context.streamed
+    assert_that(actual_symbols, equal_to(symbols.split()))
+
+
+@then("the stored trigger is disabled")
+def stored_trigger_is_disabled(watch_context, financial_repository):
+    enabled_ids = {
+        trigger.id for trigger in financial_repository.list_triggers(enabled_only=True)
+    }
+    assert watch_context.trigger_id not in enabled_ids, watch_context.emitted
 
 
 # Signal handling (blocking child process, real SIGINT).
@@ -404,11 +363,3 @@ def child_exits_with_code(watch_context, code):
 @then("the child output is:")
 def child_output_is_exactly(watch_context, docstring):
     assert_that(watch_context.child_output, equal_to(f"{docstring}\n"))
-
-
-@then("the recorded alert lines are:")
-def recorded_alert_lines_are_exactly(watch_context, docstring):
-    from mrmkt.command.alerts import format_alert
-
-    lines = [format_alert(alert) for alert in watch_context.recorded.alerts]
-    assert_that(lines, equal_to(docstring.splitlines()))

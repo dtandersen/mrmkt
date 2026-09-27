@@ -25,7 +25,7 @@ class BlockingPriceSource:
     def __init__(self, gate: threading.Event):
         self._gate = gate
 
-    def subscribe(self, symbols, feed, *, on_trade, on_bar) -> None:
+    def subscribe(self, symbols, feed, *, on_quote) -> None:
         self._gate.wait()
 
 
@@ -58,15 +58,11 @@ def main() -> None:
     def emit(line: str, err: bool = False) -> None:
         print(line, flush=True)
 
-    from mrmkt.composition import build_watch_sinks
-
     command = WatchPrices(
         repository,
-        clock,
         BlockingPriceSource(gate),
         emit,
         ranges=ListRanges(repository, clock),
-        sink_factory=build_watch_sinks,
     )
     command.execute(WatchPricesRequest(symbols=["AAA"]))
 

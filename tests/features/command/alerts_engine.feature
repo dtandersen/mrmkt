@@ -73,13 +73,13 @@ Feature: Alert engine use case
 
   Scenario: The exchange timestamp drives the session, not receipt time
     Given an engine watching "AAA" at level 100.0 seeded above
-    When a trade prints 99.0 stamped pre-market but received mid-session
+    When a quote has an ask of 99.0 stamped pre-market but received mid-session
     Then 0 alerts fire
     And 1 tick is recorded ignored in the pre session
 
   Scenario: A missing trade timestamp falls back to the clock
     Given an engine watching "AAA" at level 100.0 seeded above
-    When a trade prints 99.0 with no timestamp at mid-session receipt
+    When a quote has an ask of 99.0 with no timestamp at mid-session receipt
     Then 1 alert fires
 
   Scenario: Ntfy posts raw text with title and priority

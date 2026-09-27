@@ -278,20 +278,16 @@ def symbol_armed(engine_context):
     assert engine_context.engine.armed[engine_context.symbol] is True
 
 
-@when("a trade prints 99.0 stamped pre-market but received mid-session")
-def trade_stamped_pre(engine_context):
+@when("a quote has an ask of 99.0 stamped pre-market but received mid-session")
+def quote_stamped_pre(engine_context):
+    import asyncio
     from types import SimpleNamespace
 
     from mrmkt.ext.alpaca_stream import AlpacaStreamSource
 
-    received = []
-
     class StubStream:
-        def subscribe_trades(self, handler, *symbols):
-            self.trade_handler = handler
-
-        def subscribe_daily_bars(self, handler, *symbols):
-            pass
+        def subscribe_quotes(self, handler, *symbols):
+            self.quote_handler = handler
 
         def run(self):
             pass
@@ -299,31 +295,32 @@ def trade_stamped_pre(engine_context):
     stream = StubStream()
     AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
         ["AAA"],
-        on_trade=lambda tick: engine_context.engine.on_tick(
-            tick.symbol, tick.price, tick.moment
+        on_quote=lambda quote: engine_context.engine.on_tick(
+            quote.symbol, quote.ask, quote.timestamp
         ),
-        on_bar=lambda bar: None,
     )
-    stream.trade_handler(
-        SimpleNamespace(
-            symbol="AAA", price=99.0, timestamp=_moment(engine_context, "pre")
+    asyncio.run(
+        stream.quote_handler(
+            SimpleNamespace(
+                symbol="AAA",
+                bid_price=98.9,
+                ask_price=99.0,
+                timestamp=_moment(engine_context, "pre"),
+            )
         )
     )
-    received.append(True)
 
 
-@when("a trade prints 99.0 with no timestamp at mid-session receipt")
-def trade_no_timestamp(engine_context):
+@when("a quote has an ask of 99.0 with no timestamp at mid-session receipt")
+def quote_no_timestamp(engine_context):
+    import asyncio
     from types import SimpleNamespace
 
     from mrmkt.ext.alpaca_stream import AlpacaStreamSource
 
     class StubStream:
-        def subscribe_trades(self, handler, *symbols):
-            self.trade_handler = handler
-
-        def subscribe_daily_bars(self, handler, *symbols):
-            pass
+        def subscribe_quotes(self, handler, *symbols):
+            self.quote_handler = handler
 
         def run(self):
             pass
@@ -331,12 +328,17 @@ def trade_no_timestamp(engine_context):
     stream = StubStream()
     AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
         ["AAA"],
-        on_trade=lambda tick: engine_context.engine.on_tick(
-            tick.symbol, tick.price, tick.moment
+        on_quote=lambda quote: engine_context.engine.on_tick(
+            quote.symbol, quote.ask, quote.timestamp
         ),
-        on_bar=lambda bar: None,
     )
-    stream.trade_handler(SimpleNamespace(symbol="AAA", price=99.0, timestamp=None))
+    asyncio.run(
+        stream.quote_handler(
+            SimpleNamespace(
+                symbol="AAA", bid_price=98.9, ask_price=99.0, timestamp=None
+            )
+        )
+    )
 
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the regular session to ntfy'))
