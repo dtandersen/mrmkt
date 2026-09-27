@@ -193,7 +193,10 @@ def run_watch(
         False, "--verbose", help="Also print ignored non-trigger ticks"
     ),
 ) -> None:
-    """Watch live prices and alert once per buy-level touch (deduped to re-arm)."""
+    """Watch live prices and alert once per buy-level touch (deduped to re-arm).
+
+    With no symbols, --tag, --trigger-id, or --all-triggers, watches every
+    enabled stored trigger."""
     handle(
         ctx,
         lambda factory: factory.watch_prices().execute(

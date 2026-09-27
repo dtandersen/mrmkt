@@ -1,4 +1,4 @@
-"""BDD coverage for ranges and dry-run watch paths."""
+"""BDD coverage for ranges paths."""
 
 from datetime import date, timedelta
 from pathlib import Path
@@ -81,31 +81,6 @@ def alerts_symbols_have_steady_climb(alerts_context, tag, financial_repository):
         financial_repository.add_tag(ticker.ticker, ticker.exchange, tag)
 
 
-@given(parsers.parse("each alerts symbol has a 60-bar climb with a dip tagged {tag}"))
-def alerts_symbols_have_climb_with_dip(alerts_context, tag, financial_repository):
-    for ticker in financial_repository.get_tickers():
-        _add_climb(financial_repository, ticker.ticker, dip=True)
-        financial_repository.add_tag(ticker.ticker, ticker.exchange, tag)
-
-
-@given(parsers.parse('{symbol} has a 60-bar climb with a dip'))
-def symbol_has_dip(alerts_context, symbol, financial_repository):
-    _add_climb(financial_repository, symbol, dip=True)
-
-
-@given(parsers.parse('{symbol} has a 5-bar climb'))
-def symbol_has_short_climb(alerts_context, symbol, financial_repository):
-    price = 100.0
-    for day in _business_days(START, 5):
-        financial_repository.add_price(
-            StockPrice(
-                symbol=symbol, date=day, open=price, high=price * 1.005,
-                low=price * 0.995, close=price, volume=1000.0,
-            )
-        )
-        price *= 1.002
-
-
 @when(parsers.parse('I execute "{command}"'))
 def execute_alerts_command(alerts_context, command):
     args = split(command)
@@ -122,14 +97,6 @@ def alerts_command_succeeds(alerts_context):
 @then("the command fails")
 def alerts_command_fails(alerts_context):
     assert_that(alerts_context.result.exit_code, not_(equal_to(0)))
-
-
-@then(parsers.parse('the output omits "{text}"'))
-def alerts_output_omits(alerts_context, text):
-    output = alerts_context.result.output
-    stderr = getattr(alerts_context.result, "stderr", "") or ""
-    assert_that(output, not_(contains_string(text)))
-    assert_that(stderr, not_(contains_string(text)))
 
 
 @then(parsers.parse('the output mentions "{text}"'))

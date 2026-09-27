@@ -20,7 +20,8 @@ uv run mrmkt watch --all-triggers --sink ntfy
 `ranges` prints deterministic CSV (`symbol,as_of,close,range_low,`
 `range_high,n_bars` with a `# key=value` header) from stored bars using
 the shared `risk_range_series` definition (H=15/V=21/W=0.5/anchor=5,
-minimum 30 bars). `watch` needs symbols or `--tag`. Both accept
+minimum 30 bars). Bare `watch` streams every enabled stored trigger;
+pass symbols or `--tag` to watch ad-hoc symbols instead. Both accept
 `--indicator` (e.g. `risk-range`).
 
 ## Stored triggers (`mrmkt triggers`, DB-backed)
@@ -91,6 +92,7 @@ timestamp for session classification (receipt clock is fallback only).
 - Live watching reads Alpaca keys from git-ignored `alpaca.yaml`; the
   default feed is IEX (free-plan SIP is delayed — triggers evaluate on
   the configured feed's prints).
+- Ctrl+C stops the watch cleanly: it prints `Stopped watching.` and exits 0.
 
 ## Data caveats
 

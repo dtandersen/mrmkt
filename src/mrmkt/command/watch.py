@@ -1,7 +1,7 @@
 """Live price watcher with transition-only risk-range alerts."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 from mrmkt.command._shared import (
@@ -90,14 +90,18 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
                 _resolve_indicator(request.indicator)
             except ValueError as error:
                 return WatchPricesResult.invalid_data([str(error)])
+        if (
+            not request.symbols
+            and not request.tags
+            and not request.trigger_ids
+            and not request.all_triggers
+        ):
+            # Bare `mrmkt watch` streams every enabled stored trigger.
+            request = replace(request, all_triggers=True)
         use_store = bool(request.trigger_ids) or request.all_triggers
         if use_store and (request.symbols or request.tags):
             return WatchPricesResult.invalid_data(
                 ["use either symbols/--tag or stored triggers, not both"]
-            )
-        if not use_store and not request.symbols and not request.tags:
-            return WatchPricesResult.invalid_data(
-                ["provide symbols, --tag, --trigger-id, or --all-triggers"]
             )
         if request.session_policy not in ("regular", "extended"):
             return WatchPricesResult.invalid_data(
@@ -129,6 +133,9 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
             )
         try:
             self._run(request, fanout, as_of_date)
+        except KeyboardInterrupt:
+            # Ctrl+C is the watcher's stop button: a clean stop, not a failure.
+            self.emit("Stopped watching.")
         except ValueError as error:
             return WatchPricesResult.invalid_data([str(error)])
         except Exception as error:
