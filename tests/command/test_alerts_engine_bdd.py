@@ -297,9 +297,13 @@ def trade_stamped_pre(engine_context):
             pass
 
     stream = StubStream()
-    AlpacaStreamSource(
-        stream, engine_context.engine, lambda: _moment(engine_context, "regular")
-    ).start(["AAA"])
+    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
+        ["AAA"],
+        on_trade=lambda tick: engine_context.engine.on_tick(
+            tick.symbol, tick.price, tick.moment
+        ),
+        on_bar=lambda bar: None,
+    )
     stream.trade_handler(
         SimpleNamespace(
             symbol="AAA", price=99.0, timestamp=_moment(engine_context, "pre")
@@ -325,34 +329,14 @@ def trade_no_timestamp(engine_context):
             pass
 
     stream = StubStream()
-    AlpacaStreamSource(
-        stream, engine_context.engine, lambda: _moment(engine_context, "regular")
-    ).start(["AAA"])
-    stream.trade_handler(SimpleNamespace(symbol="AAA", price=99.0, timestamp=None))
-
-
-@when(
-    parsers.parse('"{symbol}" prints {price:f} in the regular session into a temp file')
-)
-def print_to_file(engine_context, symbol, price):
-    import tempfile
-
-    from mrmkt.command.alerts import FanoutSink, FileSink
-
-    with tempfile.NamedTemporaryFile("r", suffix=".log", delete=False) as tmp:
-        engine_context.tmpfile = tmp.name
-    engine_context.engine.on_alert = FanoutSink(
-        [engine_context.alerts, FileSink(tmp.name)]
+    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
+        ["AAA"],
+        on_trade=lambda tick: engine_context.engine.on_tick(
+            tick.symbol, tick.price, tick.moment
+        ),
+        on_bar=lambda bar: None,
     )
-    print_tick(engine_context, symbol, price, "regular")
-
-
-@then(parsers.parse('the temp file holds a TRIGGER line for "{symbol}"'))
-def file_holds_trigger(engine_context, symbol):
-    with open(engine_context.tmpfile) as handle:
-        content = handle.read()
-    assert "TRIGGER" in content
-    assert symbol in content
+    stream.trade_handler(SimpleNamespace(symbol="AAA", price=99.0, timestamp=None))
 
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the regular session to ntfy'))
@@ -442,9 +426,9 @@ def compute_levels_twice(engine_context):
     from mrmkt.command.alerts import render_levels_csv
     from mrmkt.command.ranges import ListRanges, ListRangesRequest
     from mrmkt.common.clock import ClockStub
-    from mrmkt.ext.backend import InMemoryBackend
     from mrmkt.entity.stock_price import StockPrice
     from mrmkt.entity.ticker import Ticker
+    from mrmkt.ext.backend import InMemoryBackend
 
     repo = InMemoryBackend()
     repo.add_ticker(Ticker(ticker="AAA", exchange="NASDAQ", type="us_equity"))

@@ -82,11 +82,6 @@ Feature: Alert engine use case
     When a trade prints 99.0 with no timestamp at mid-session receipt
     Then 1 alert fires
 
-  Scenario: File sink appends trigger lines
-    Given an engine watching "AAA" at level 100.0 seeded above
-    When "AAA" prints 99.0 in the regular session into a temp file
-    Then the temp file holds a TRIGGER line for "AAA"
-
   Scenario: Ntfy posts raw text with title and priority
     Given an engine watching "CPAY" at level 390.07 seeded above
     When "CPAY" prints 390.0 in the regular session to ntfy

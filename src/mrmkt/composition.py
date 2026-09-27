@@ -199,7 +199,12 @@ class CommandFactory:
     def watch_prices(self) -> WatchPrices:
         """Build a ready WatchPrices from the app-scoped environment."""
         return WatchPrices(
-            self._env.triggers, self._env.clock, _run_live_stream, _emit_watch_line
+            self._env.triggers,
+            self._env.clock,
+            AlpacaLivePriceSource(),
+            _emit_watch_line,
+            ranges=ListRanges(self._env.triggers, self._env.clock),
+            sink_factory=build_watch_sinks,
         )
 
     async def live_ticks(self, symbol):
@@ -227,30 +232,75 @@ def _report_price_import_progress(done: int, total: int) -> None:
     typer.echo(f"Imported prices for {done}/{total} symbols...", err=True)
 
 
+class AlpacaLivePriceSource:
+    """Production PriceSource: Alpaca websocket -> normalized updates.
+
+    Built per subscription so the requested feed (iex/sip) applies to the
+    stream. Transport details stay here in the composition root; the
+    command only sees PriceTick/BarUpdate callbacks.
+    """
+
+    def subscribe(self, symbols: list[str], feed: str, *, on_trade, on_bar) -> None:
+        import datetime
+        from pathlib import Path
+
+        import yaml
+        from alpaca.data.enums import DataFeed
+        from alpaca.data.live import StockDataStream
+
+        from mrmkt.common.clock import ET
+        from mrmkt.ext.alpaca_stream import AlpacaStreamSource
+
+        config = yaml.safe_load(Path("alpaca.yaml").read_text())
+        stream = StockDataStream(
+            api_key=config["key"],
+            secret_key=config["secret"],
+            feed=DataFeed(feed),
+        )
+        AlpacaStreamSource(stream, lambda: datetime.datetime.now(tz=ET)).subscribe(
+            symbols, on_trade, on_bar
+        )
+
+
 def _emit_watch_line(line: str, err: bool = False) -> None:
     typer.echo(line, err=err)
 
 
-def _run_live_stream(symbols: list[str], engine, feed: str) -> None:
-    import datetime
-    from pathlib import Path
+def build_alert_sink(name: str, local_config: dict | None = None):
+    """Build a named alert sink; secrets come from env/config, never the repo."""
+    import os
 
-    import yaml
-    from alpaca.data.enums import DataFeed
-    from alpaca.data.live import StockDataStream
-
-    from mrmkt.common.clock import ET
-    from mrmkt.ext.alpaca_stream import AlpacaStreamSource
-
-    config = yaml.safe_load(Path("alpaca.yaml").read_text())
-    stream = StockDataStream(
-        api_key=config["key"],
-        secret_key=config["secret"],
-        feed=DataFeed(feed),
+    from mrmkt.command.alerts import (
+        NTFY_ENV_VAR,
+        NtfySink,
+        StdoutSink,
+        resolve_ntfy_url,
     )
-    AlpacaStreamSource(stream, engine, lambda: datetime.datetime.now(tz=ET)).start(
-        symbols
-    )
+
+    if name == "stdout":
+        return StdoutSink()
+    if name == "ntfy":
+        url = resolve_ntfy_url(os.environ.get(NTFY_ENV_VAR, ""), local_config or {})
+        if not url:
+            raise ValueError(
+                f"set {NTFY_ENV_VAR} or the ntfy topic in local config.yaml"
+            )
+        return NtfySink(url)
+    raise ValueError(f"unknown sink {name!r} (choose stdout, ntfy)")
+
+
+def build_watch_sinks(sink_names: list[str]):
+    """Composition-root sink wiring for one watch run.
+
+    Reads env/local config and constructs the fanout consumer the
+    analyzer delivers fired alerts to. The command only calls this
+    factory with request values; all construction lives here.
+    """
+    from mrmkt.command._shared import load_local_config
+    from mrmkt.command.alerts import FanoutSink
+
+    local_config = load_local_config()
+    return FanoutSink([build_alert_sink(name, local_config) for name in sink_names])
 
 
 def mrmkt_backend_factory_from_env(

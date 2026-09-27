@@ -436,22 +436,6 @@ class StdoutSink:
         print(format_alert(alert), flush=True)
 
 
-class FileSink:
-    """Append trigger lines to a file; I/O errors go to stderr."""
-
-    def __init__(self, path: str):
-        self.path = path
-
-    def __call__(self, alert: Alert) -> None:
-        import sys
-
-        try:
-            with open(self.path, "a", encoding="utf-8") as handle:
-                handle.write(format_alert(alert) + "\n")
-        except OSError as error:
-            print(f"alert file sink failed: {error}", file=sys.stderr, flush=True)
-
-
 def resolve_ntfy_url(env_value: str | None, config: dict | None = None) -> str:
     """Resolve the ntfy topic URL without ever logging it.
 

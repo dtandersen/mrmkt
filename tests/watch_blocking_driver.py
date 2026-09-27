@@ -1,13 +1,14 @@
 """Blocking watch driver for the SIGINT test (no network).
 
 Reads nothing, connects nowhere: price history is canned in-memory and the
-stream runner blocks on an event forever, so the parent test can deliver a
+price source blocks on an event forever, so the parent test can deliver a
 real SIGINT mid-watch and assert graceful shutdown.
 """
 
 import threading
 from datetime import date, timedelta
 
+from mrmkt.command.ranges import ListRanges
 from mrmkt.command.watch import WatchPrices, WatchPricesRequest
 from mrmkt.common.clock import ClockStub
 from mrmkt.entity.stock_price import StockPrice
@@ -16,6 +17,16 @@ from mrmkt.ext.backend import InMemoryBackend
 
 START = date(2022, 1, 3)
 N_BARS = 60
+
+
+class BlockingPriceSource:
+    """Test PriceSource that blocks until SIGINT (KeyboardInterrupt)."""
+
+    def __init__(self, gate: threading.Event):
+        self._gate = gate
+
+    def subscribe(self, symbols, feed, *, on_trade, on_bar) -> None:
+        self._gate.wait()
 
 
 def main() -> None:
@@ -47,7 +58,16 @@ def main() -> None:
     def emit(line: str, err: bool = False) -> None:
         print(line, flush=True)
 
-    command = WatchPrices(repository, clock, lambda s, e, f: gate.wait(), emit)
+    from mrmkt.composition import build_watch_sinks
+
+    command = WatchPrices(
+        repository,
+        clock,
+        BlockingPriceSource(gate),
+        emit,
+        ranges=ListRanges(repository, clock),
+        sink_factory=build_watch_sinks,
+    )
     command.execute(WatchPricesRequest(symbols=["AAA"]))
 
 

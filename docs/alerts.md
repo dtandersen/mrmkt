@@ -10,7 +10,7 @@ stored daily bar close is history, a live tick is now.
 uv run mrmkt ranges AAA --as-of 2026-09-22
 uv run mrmkt ranges --tag sp500
 uv run mrmkt watch AAA --dry-run
-uv run mrmkt watch --tag sp500 --sink stdout --sink file --sink-file alerts.log
+uv run mrmkt watch --tag sp500 --sink stdout
 uv run mrmkt watch --tag sp500 --sink ntfy --session-policy extended --feed sip
 uv run mrmkt trigger create dip-watch --symbol CPAY --indicator risk-range --operator crossing-down --frequency once
 uv run mrmkt trigger list
@@ -80,9 +80,9 @@ newer bar date rolls its close into history and recomputes the level
 the new close vs the new level. Trade ticks prefer the exchange print
 timestamp for session classification (receipt clock is fallback only).
 
-## Sinks (`--sink stdout|file|ntfy`, repeatable)
+## Sinks (`--sink stdout|ntfy`, repeatable)
 
-- `stdout` prints trigger lines; `file` appends them (`--sink-file`).
+- `stdout` (default) prints trigger lines to the console.
 - `ntfy` POSTs the raw-text trigger line with `Title: {SYM} below
   risk-range buy {level}` and `Priority: 4`. The topic URL comes only
   from the `MRMKT_ALERTS_NTFY_URL` environment variable, falling back

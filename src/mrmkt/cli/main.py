@@ -172,10 +172,7 @@ def run_watch(
         None, "--indicator", help="Indicator source (e.g. 'risk-range')"
     ),
     sinks: list[str] | None = typer.Option(
-        None, "--sink", help="Alert sink: stdout, file, ntfy (repeatable)"
-    ),
-    sink_file: str | None = typer.Option(
-        None, "--sink-file", help="Append path for the file sink"
+        None, "--sink", help="Alert sink: stdout, ntfy (repeatable)"
     ),
     feed: str = typer.Option("iex", "--feed", help="Alpaca data feed: iex or sip"),
     dry_run: bool = typer.Option(
@@ -205,7 +202,6 @@ def run_watch(
                 tags=tags,
                 indicator=indicator,
                 sinks=sinks,
-                sink_file=sink_file,
                 feed=feed,
                 dry_run=dry_run,
                 session_policy=session_policy,

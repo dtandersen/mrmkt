@@ -94,7 +94,7 @@ Feature: Watch prices use case
     When I watch symbol "AAA" with sink "carrier-pigeon" in dry-run mode
     Then the watch errors are:
       """
-      unknown sink 'carrier-pigeon' (choose stdout, file, ntfy)
+      unknown sink 'carrier-pigeon' (choose stdout, ntfy)
       """
 
   Scenario: An invalid indicator is rejected
@@ -137,11 +137,11 @@ Feature: Watch prices use case
       Stopped watching.
       """
 
-  Scenario: Live ticks firing a crossing deliver to the sink
+  Scenario: Live ticks firing a crossing deliver to the alert consumer
     Given AAA has a 60-bar climb with a dip
     When I stream an above-level tick then a below-level tick in live mode
     Then the watch succeeds
-    And the sink file contains:
+    And the recorded alert lines are:
       """
       2022-04-04T10:01:00-04:00 | regular | AAA | 1e-06 <= buy 106.144 TRIGGER
       """

@@ -182,22 +182,35 @@ def _watch(
     financial_repository,
     interrupt_stream=False,
     scripted_ticks=None,
+    sink_factory=None,
     **kwargs,
 ):
+    from mrmkt.command.ranges import ListRanges
+    from mrmkt.command.watch import PriceTick
+    from mrmkt.composition import build_watch_sinks
+
     def emit(line: str, err: bool = False) -> None:
         watch_context.emitted.append(line)
 
-    def stream_runner(symbols, engine, feed: str) -> None:
-        if interrupt_stream:
-            raise KeyboardInterrupt
-        if scripted_ticks is not None:
-            for symbol, price, moment in scripted_ticks:
-                engine.on_tick(symbol, price, moment)
-        else:
-            watch_context.streamed = (list(symbols), feed)
+    class FakePriceSource:
+        """Test PriceSource: records subscriptions, replays scripted ticks."""
+
+        def subscribe(self, symbols, feed, *, on_trade, on_bar) -> None:
+            if interrupt_stream:
+                raise KeyboardInterrupt
+            if scripted_ticks is not None:
+                for symbol, price, moment in scripted_ticks:
+                    on_trade(PriceTick(symbol=symbol, price=price, moment=moment))
+            else:
+                watch_context.streamed = (list(symbols), feed)
 
     command = WatchPrices(
-        financial_repository, watch_context.clock, stream_runner, emit
+        financial_repository,
+        watch_context.clock,
+        FakePriceSource(),
+        emit,
+        ranges=ListRanges(financial_repository, watch_context.clock),
+        sink_factory=sink_factory or build_watch_sinks,
     )
     return command.execute(WatchPricesRequest(**kwargs))
 
@@ -220,21 +233,23 @@ def watch_bare_interrupted(watch_context, financial_repository):
 
 
 @when("I stream an above-level tick then a below-level tick in live mode")
-def stream_crossing_ticks(watch_context, financial_repository, tmp_path):
+def stream_crossing_ticks(watch_context, financial_repository):
+    from mrmkt.command.alerts import ListSink
+
     et = ZoneInfo("America/New_York")
     ticks = [
         ("AAA", 1e6, datetime(2022, 4, 4, 10, 0, tzinfo=et)),
         ("AAA", 1e-6, datetime(2022, 4, 4, 10, 1, tzinfo=et)),
     ]
-    watch_context.sink_file = str(tmp_path / "alerts.log")
+    recorder = ListSink()
+    watch_context.recorded = recorder
     watch_context.result = _watch(
         watch_context,
         financial_repository,
         symbols=["AAA"],
-        sinks=["file"],
-        sink_file=watch_context.sink_file,
         dry_run=False,
         scripted_ticks=ticks,
+        sink_factory=lambda names: recorder,
     )
 
 
@@ -391,7 +406,9 @@ def child_output_is_exactly(watch_context, docstring):
     assert_that(watch_context.child_output, equal_to(f"{docstring}\n"))
 
 
-@then("the sink file contains:")
-def sink_file_is_exactly(watch_context, docstring):
-    with open(watch_context.sink_file, encoding="utf-8") as handle:
-        assert_that(handle.read(), equal_to(f"{docstring}\n"))
+@then("the recorded alert lines are:")
+def recorded_alert_lines_are_exactly(watch_context, docstring):
+    from mrmkt.command.alerts import format_alert
+
+    lines = [format_alert(alert) for alert in watch_context.recorded.alerts]
+    assert_that(lines, equal_to(docstring.splitlines()))

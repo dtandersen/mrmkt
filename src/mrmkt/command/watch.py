@@ -1,52 +1,108 @@
 """Live price watcher with transition-only risk-range alerts."""
 
-import os
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
+from typing import Protocol
 
 from mrmkt.command._shared import (
     _resolve_indicator,
-    load_local_config,
     normalize_symbol,
     normalize_tag,
     parse_cli_date,
 )
 from mrmkt.command.alerts import (
-    NTFY_ENV_VAR,
+    Alert,
     AlertEngine,
-    FanoutSink,
-    FileSink,
     ListSink,
-    NtfySink,
-    StdoutSink,
     TriggerRule,
     dry_run_alerts,
     format_alert,
-    resolve_ntfy_url,
 )
 from mrmkt.command.base import BaseResult, Command
 from mrmkt.command.ranges import ListRanges, ListRangesRequest
 from mrmkt.entity.trigger import Trigger
 
 
-def build_alert_sink(
-    name: str, file_path: str | None = None, local_config: dict | None = None
-):
-    """Build a named alert sink; secrets come from env/config, never the repo."""
-    if name == "stdout":
-        return StdoutSink()
-    if name == "file":
-        if not file_path:
-            raise ValueError("--sink-file is required for the file sink")
-        return FileSink(file_path)
-    if name == "ntfy":
-        url = resolve_ntfy_url(os.environ.get(NTFY_ENV_VAR, ""), local_config or {})
-        if not url:
-            raise ValueError(
-                f"set {NTFY_ENV_VAR} or the ntfy topic in local config.yaml"
-            )
-        return NtfySink(url)
-    raise ValueError(f"unknown sink {name!r} (choose stdout, file, ntfy)")
+class AlertConsumer(Protocol):
+    """Fired-alert consumer: analyzer -> sinks. Existing fanout sinks qualify."""
+
+    def __call__(self, alert: Alert) -> None:
+        """Deliver one fired alert to the wrapped sinks."""
+
+
+@dataclass(frozen=True)
+class PriceTick:
+    """Normalized live trade print: price source -> trigger analyzer."""
+
+    symbol: str
+    price: float
+    moment: datetime
+
+
+@dataclass(frozen=True)
+class BarUpdate:
+    """Normalized daily-bar close: price source -> trigger analyzer."""
+
+    symbol: str
+    close: float
+    bar_date: date | None
+
+
+class PriceSource(Protocol):
+    """Live price transport: subscribes to symbols, emits normalized updates.
+
+    Implementations own all transport details (websocket, polling, fakes)
+    and never see the trigger analyzer. WatchPrices subscribes once per
+    run and maps each update onto the analyzer. Blocking until the
+    stream ends; KeyboardInterrupt propagates for clean shutdown.
+    """
+
+    def subscribe(
+        self,
+        symbols: list[str],
+        feed: str,
+        *,
+        on_trade: Callable[[PriceTick], None],
+        on_bar: Callable[[BarUpdate], None],
+    ) -> None:
+        """Subscribe to symbols; invoke callbacks with normalized updates."""
+
+
+class WatchSinkFactory(Protocol):
+    """Build the alert consumer for one run from the requested sink names.
+
+    Owned by the composition root (reads env/config, constructs sink
+    objects); the command only calls it with request values.
+    """
+
+    def __call__(self, sink_names: list[str]) -> AlertConsumer:
+        """Return the fanout consumer for the requested sinks."""
+        raise NotImplementedError
+
+
+class WatchAlertConsumer:
+    """Analyzer -> sink boundary with stored-trigger bookkeeping.
+
+    Delivers every fired alert to the wrapped sink, then disables stored
+    ``once`` triggers so they fire a single time. Dry runs never reach
+    this consumer (no store writes there).
+    """
+
+    def __init__(self, sink, repository, trigger_by_symbol: dict[str, Trigger]):
+        self._sink = sink
+        self._repository = repository
+        self._trigger_by_symbol = trigger_by_symbol
+
+    def __call__(self, alert: Alert) -> None:
+        self._sink(alert)
+        trigger = self._trigger_by_symbol.get(alert.symbol)
+        if (
+            trigger is not None
+            and trigger.frequency == "once"
+            and trigger.id is not None
+        ):
+            self._repository.set_trigger_enabled(trigger.id, False)
 
 
 @dataclass(frozen=True)
@@ -55,7 +111,6 @@ class WatchPricesRequest:
     tags: list[str] | None = None
     indicator: str | None = None
     sinks: list[str] | None = None
-    sink_file: str | None = None
     feed: str = "iex"
     dry_run: bool = False
     session_policy: str = "regular"
@@ -73,16 +128,29 @@ class WatchPricesResult(BaseResult[None]):
 class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
     """Watch live prices and alert once per buy-level touch (deduped to re-arm).
 
-    Streaming output goes through ``emit``; the live price stream arrives
-    through ``stream_runner`` so the command itself never touches the
-    network or builds gateway clients.
+    Flow: price source -> trigger analyzer (AlertEngine) -> alert
+    consumer (fanout sinks). WatchPrices only orchestrates: it selects
+    symbols, loads levels, configures the analyzer, subscribes the
+    source, and routes fired alerts to the consumer. Streaming output
+    goes through ``emit``.
     """
 
-    def __init__(self, repository, clock, stream_runner, emit):
+    def __init__(
+        self,
+        repository,
+        clock,
+        price_source: PriceSource,
+        emit,
+        *,
+        ranges: ListRanges,
+        sink_factory: WatchSinkFactory,
+    ):
         self.repository = repository
         self.clock = clock
-        self.stream_runner = stream_runner
+        self.price_source = price_source
         self.emit = emit
+        self.ranges = ranges
+        self.sink_factory = sink_factory
 
     def execute(self, request: WatchPricesRequest) -> WatchPricesResult:
         if request.indicator is not None:
@@ -110,14 +178,8 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         if request.feed not in ("iex", "sip"):
             return WatchPricesResult.invalid_data(["--feed must be iex or sip"])
         sink_names = request.sinks or ["stdout"]
-        local_config = load_local_config()
         try:
-            fanout = FanoutSink(
-                [
-                    build_alert_sink(name, request.sink_file, local_config)
-                    for name in sink_names
-                ]
-            )
+            fanout = self.sink_factory(sink_names)
         except ValueError as error:
             return WatchPricesResult.invalid_data([str(error)])
         today = self.clock.today()
@@ -143,44 +205,14 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         return WatchPricesResult.success(None)
 
     def _run(self, request: WatchPricesRequest, fanout, as_of_date) -> None:
-        repository = self.repository
-        stored_triggers: list[Trigger] = []
-        use_store = bool(request.trigger_ids) or request.all_triggers
-        if use_store:
-            wanted_ids = set(request.trigger_ids or [])
-            for trigger in repository.list_triggers(enabled_only=True):
-                if trigger.id is None:
-                    continue
-                if request.all_triggers or trigger.id in wanted_ids:
-                    stored_triggers.append(trigger)
+        stored_triggers, selected = self._select_symbols(request)
+        if not selected:
             if request.all_triggers and not stored_triggers:
                 self.emit("No enabled triggers in the store.")
                 return
-            if request.trigger_ids and len(stored_triggers) != len(wanted_ids):
-                found = {t.id for t in stored_triggers}
-                missing = sorted(wanted_ids - found)
-                raise ValueError(f"no enabled trigger with id {missing}")
-            seen: dict[str, Trigger] = {}
-            for trigger in sorted(stored_triggers, key=lambda t: t.id or 0):
-                if trigger.symbol in seen:
-                    raise ValueError(
-                        f"multiple triggers for {trigger.symbol}; refine --trigger-id selection"
-                    )
-                seen[trigger.symbol] = trigger
-            selected = sorted(seen)
-        else:
-            selected = sorted(
-                {normalize_symbol(symbol) for symbol in (request.symbols or [])}
-                | {
-                    symbol
-                    for tag in (request.tags or [])
-                    for symbol in repository.get_symbols_by_tag(normalize_tag(tag))
-                }
-            )
-        if not selected:
             self.emit("No symbols with enough history for levels.")
             return
-        levels_result = ListRanges(repository, self.clock).execute(
+        levels_result = self.ranges.execute(
             ListRangesRequest(
                 symbols=selected,
                 as_of=as_of_date.isoformat() if as_of_date is not None else None,
@@ -194,21 +226,55 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
             self.emit("No symbols with enough history for levels.")
             return
         trigger_by_symbol = {t.symbol: t for t in stored_triggers}
-        disabled_ids: list[int] = []
+        if request.dry_run:
+            self._run_dry_run(request, levels, trigger_by_symbol, as_of_date)
+            return
+        self._run_live(request, fanout, levels, trigger_by_symbol)
 
-        def on_fire(alert) -> None:
-            fanout(alert)
-            trigger = trigger_by_symbol.get(alert.symbol)
-            if (
-                trigger is not None
-                and trigger.frequency == "once"
-                and trigger.id is not None
-                and not request.dry_run
-            ):
-                repository.set_trigger_enabled(trigger.id, False)
-                disabled_ids.append(trigger.id)
+    def _select_symbols(
+        self, request: WatchPricesRequest
+    ) -> tuple[list[Trigger], list[str]]:
+        """Resolve the watch universe from stored triggers or symbols/tags."""
+        repository = self.repository
+        stored_triggers: list[Trigger] = []
+        use_store = bool(request.trigger_ids) or request.all_triggers
+        if use_store:
+            wanted_ids = set(request.trigger_ids or [])
+            for trigger in repository.list_triggers(enabled_only=True):
+                if trigger.id is None:
+                    continue
+                if request.all_triggers or trigger.id in wanted_ids:
+                    stored_triggers.append(trigger)
+            if request.trigger_ids and len(stored_triggers) != len(wanted_ids):
+                found = {t.id for t in stored_triggers}
+                missing = sorted(wanted_ids - found)
+                raise ValueError(f"no enabled trigger with id {missing}")
+            seen: dict[str, Trigger] = {}
+            for trigger in sorted(stored_triggers, key=lambda t: t.id or 0):
+                if trigger.symbol in seen:
+                    raise ValueError(
+                        f"multiple triggers for {trigger.symbol}; refine --trigger-id selection"
+                    )
+                seen[trigger.symbol] = trigger
+            return stored_triggers, sorted(seen)
+        selected = sorted(
+            {normalize_symbol(symbol) for symbol in (request.symbols or [])}
+            | {
+                symbol
+                for tag in (request.tags or [])
+                for symbol in repository.get_symbols_by_tag(normalize_tag(tag))
+            }
+        )
+        return stored_triggers, selected
 
-        engine = AlertEngine(on_alert=on_fire, session_policy=request.session_policy)
+    def _configure_engine(
+        self,
+        request: WatchPricesRequest,
+        engine: AlertEngine,
+        levels,
+        trigger_by_symbol,
+    ) -> dict[str, float]:
+        """Attach stored-trigger rules and seed levels/baselines; return presets."""
         preset_levels: dict[str, float] = {}
         for row in levels.rows:
             trigger = trigger_by_symbol.get(row.symbol)
@@ -236,44 +302,70 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
                 f"{tick.moment.isoformat()} | {tick.session} | {tick.symbol} | "
                 f"{tick.price:g} vs buy {tick.level:g} IGNORED ({tick.reason})"
             )
-        if request.dry_run:
-            # Recording sink only: --dry-run can never deliver to real
-            # sinks. Levels/arm state advance bar by bar (no lookahead).
-            # Stored-trigger rules carry over; `once` triggers are not
-            # disabled in dry runs (no store writes).
-            recorder = ListSink()
-            dry_engine = AlertEngine(
-                on_alert=recorder, session_policy=request.session_policy
-            )
-            for row in levels.rows:
-                trigger = trigger_by_symbol.get(row.symbol)
-                if trigger is not None:
-                    dry_engine.set_rule(
-                        row.symbol,
-                        TriggerRule(
-                            operator=trigger.operator,
-                            frequency=trigger.frequency,
-                            expires_at=trigger.expires_at,
-                            message=trigger.message,
-                        ),
-                    )
-            today = self.clock.today()
-            bars_by_symbol: dict = {}
-            for price in repository.list_prices_for_symbols(
-                [row.symbol for row in levels.rows], date.min, as_of_date or today
-            ):
-                bars_by_symbol.setdefault(price.symbol, []).append(price)
-            self.emit(
-                "# dry-run: replaying stored daily lows as regular-session "
-                "ticks; sinks not called"
-            )
-            for alert in dry_run_alerts(
-                dry_engine, bars_by_symbol, preset_levels=preset_levels
-            ):
-                self.emit(f"would alert: {format_alert(alert)}")
-            return
+        return preset_levels
+
+    def _run_dry_run(
+        self, request: WatchPricesRequest, levels, trigger_by_symbol, as_of_date
+    ) -> None:
+        """Replay stored daily lows chronologically; sinks never contacted.
+
+        Levels/arm state advance bar by bar (no lookahead).
+        Stored-trigger rules carry over; `once` triggers are not
+        disabled in dry runs (no store writes).
+        """
+        recorder = ListSink()
+        dry_engine = AlertEngine(
+            on_alert=recorder, session_policy=request.session_policy
+        )
+        preset_levels: dict[str, float] = {}
+        for row in levels.rows:
+            trigger = trigger_by_symbol.get(row.symbol)
+            if trigger is not None:
+                dry_engine.set_rule(
+                    row.symbol,
+                    TriggerRule(
+                        operator=trigger.operator,
+                        frequency=trigger.frequency,
+                        expires_at=trigger.expires_at,
+                        message=trigger.message,
+                    ),
+                )
+                if trigger.value is not None:
+                    preset_levels[row.symbol] = trigger.value
+        today = self.clock.today()
+        bars_by_symbol: dict = {}
+        for price in self.repository.list_prices_for_symbols(
+            [row.symbol for row in levels.rows], date.min, as_of_date or today
+        ):
+            bars_by_symbol.setdefault(price.symbol, []).append(price)
+        self.emit(
+            "# dry-run: replaying stored daily lows as regular-session "
+            "ticks; sinks not called"
+        )
+        for alert in dry_run_alerts(
+            dry_engine, bars_by_symbol, preset_levels=preset_levels
+        ):
+            self.emit(f"would alert: {format_alert(alert)}")
+
+    def _run_live(
+        self, request: WatchPricesRequest, fanout, levels, trigger_by_symbol
+    ) -> None:
+        """Subscribe the price source; route normalized updates to the analyzer."""
+        consumer = WatchAlertConsumer(fanout, self.repository, trigger_by_symbol)
+        engine = AlertEngine(on_alert=consumer, session_policy=request.session_policy)
+        self._configure_engine(request, engine, levels, trigger_by_symbol)
+        symbols = [row.symbol for row in levels.rows]
         self.emit(
             f"Watching {len(levels.rows)} symbols ({request.session_policy} sessions fire); "
             f"levels as of {levels.data_vintage}."
         )
-        self.stream_runner([row.symbol for row in levels.rows], engine, request.feed)
+
+        def on_trade(tick: PriceTick) -> None:
+            engine.on_tick(tick.symbol, tick.price, tick.moment)
+
+        def on_bar(bar: BarUpdate) -> None:
+            engine.roll_daily_bar(bar.symbol, bar.close, bar.bar_date)
+
+        self.price_source.subscribe(
+            symbols, request.feed, on_trade=on_trade, on_bar=on_bar
+        )
