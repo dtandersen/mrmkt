@@ -9,6 +9,7 @@ from typing import Any, cast
 from alpaca.trading.enums import AssetClass, AssetStatus
 from hamcrest import assert_that, not_none
 
+from mrmkt.command.start_engine import MessageQueue, PriceProvider
 from mrmkt.command.watch import Quote
 from mrmkt.common.util import to_date
 from mrmkt.entity.balance_sheet import BalanceSheet
@@ -59,7 +60,7 @@ class FakeTickSource(LiveTickSource):
         await asyncio.Event().wait()
 
 
-class FakeMessageQueue:
+class FakeMessageQueue(MessageQueue):
     """Fake queue transport that remembers subscribed subjects."""
 
     def __init__(self):
@@ -80,18 +81,27 @@ class FakeMessageQueue:
         self.published.append((subject, event))
 
 
-class FakePriceSource:
-    """Scripted quotes pushed on subscribe, like the websocket."""
+class FakePriceSource(PriceProvider):
+    """Push source with scripted subscribers, like the websocket.
 
-    def __init__(self, quotes=()):
-        self.quotes = list(quotes)
+    Quotes only flow after a push: subscribe records handlers per symbol
+    and push delivers to the handlers currently attached.
+    """
+
+    def __init__(self):
         self.subscribed = []
+        self.handlers = {}
 
     def subscribe(self, symbols, *, on_quote) -> None:
         self.subscribed.append(list(symbols))
-        for quote in self.quotes:
-            if quote.symbol in symbols:
-                on_quote(quote)
+        for symbol in symbols:
+            self.handlers.setdefault(symbol, []).append(on_quote)
+
+    # test method to push quotes to the handlers; not part of the real interface
+    def push(self, quotes) -> None:
+        for quote in quotes:
+            for handler in self.handlers.get(quote.symbol, []):
+                handler(quote)
 
 
 class InMemoryStreamSource:

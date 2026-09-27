@@ -30,7 +30,12 @@ class PriceProvider(ABC):
     def subscribe(
         self, symbols: list[str], *, on_quote: Callable[[Quote], None]
     ) -> None:
-        """Attach and push each quote to the handler."""
+        """Attach, push each quote to the handler, and block.
+
+        Must not return while the stream is alive: worker threads live
+        inside this call, so a register-and-return implementation would
+        silently end streaming. Ends on close/KeyboardInterrupt.
+        """
 
 
 @dataclass(frozen=True)
@@ -50,19 +55,24 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
         self,
         queue: MessageQueue,
         prices: PriceProvider,
-        spawn_thread: Callable = threading.Thread,
+        engine_thread: Callable = threading.Thread,
     ):
         self.queue = queue
         self.prices = prices
-        self.spawn_thread = spawn_thread
+        self.spawn_thread = engine_thread
         self.subject = DEFAULT_SUBJECT
         self.workers = {}
+        self.stop_event = threading.Event()
 
     def execute(self, request: StartEngineRequest) -> StartEngineResult:
         self.subject = request.subject
         self.queue.subscribe(request.subject)
 
         return StartEngineResult.success(None)
+
+    def stop(self) -> None:
+        """Signal all worker threads to stop; loops honor the event."""
+        self.stop_event.set()
 
     def subscribe_symbol(self, symbol: str) -> None:
         """Start streaming one symbol's price events on a new thread."""
@@ -76,6 +86,13 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
 
     def _stream_symbol(self, symbol: str) -> None:
         channel = f"{self.subject}.{symbol}"
-        self.prices.subscribe(
-            [symbol], on_quote=lambda quote: self.queue.publish(channel, quote)
-        )
+
+        def handle_quote(quote: Quote) -> None:
+            print(
+                f"{quote.timestamp.isoformat()} | {quote.symbol} | "
+                f"bid {quote.bid:g} ask {quote.ask:g} -> {channel}",
+                flush=True,
+            )
+            self.queue.publish(channel, quote)
+
+        self.prices.subscribe([symbol], on_quote=handle_quote)

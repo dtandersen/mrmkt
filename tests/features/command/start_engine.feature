@@ -10,12 +10,18 @@ Feature: Start engine
   Scenario: Engine subscribes to market price events when it gets a subscription
     Given the engine is started
     And the price data:
-      | symbol | timestamp | bid | ask |
-      | AAPL   | ?         | 100 | 101 |
-      | AAPL   | ?         | 102 | 103 |
     When the message "subscribe.realtime.price" for "AAPL" is sent
     Then the engine starts streaming stock price data for AAPL on a new thread
-    And the price data is sent to the "subscribe.realtime.price.AAPL" channel:
+    When the price provider pushes:
+      | symbol | timestamp | bid | ask |
+      | AAPL   | ?         | 100 | 101 |
+    Then the price data is sent to the "subscribe.realtime.price.AAPL" channel:
+      | symbol | timestamp | bid | ask |
+      | AAPL   | ?         | 100 | 101 |
+    When the price provider pushes:
+      | symbol | timestamp | bid | ask |
+      | AAPL   | ?         | 102 | 103 |
+    Then the price data is sent to the "subscribe.realtime.price.AAPL" channel:
       | symbol | timestamp | bid | ask |
       | AAPL   | ?         | 100 | 101 |
       | AAPL   | ?         | 102 | 103 |

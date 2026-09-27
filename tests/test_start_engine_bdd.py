@@ -1,17 +1,24 @@
 """BDD coverage for starting the queue-driven engine."""
 
 from datetime import datetime
+from shlex import split
 from types import SimpleNamespace
 
 import pytest
 from hamcrest import assert_that, equal_to, not_none
 from pytest_bdd import given, parsers, scenarios, then, when
 from tests.fakes import FakePriceSource
+from typer.testing import CliRunner
 
+import mrmkt.cli.main as cli
 from mrmkt.command.start_engine import StartEngine, StartEngineRequest
 from mrmkt.command.watch import Quote
+from mrmkt.composition import cli_dependencies_for_testing
 
-scenarios("features/command/start_engine.feature")
+scenarios(
+    "features/cli/start_engine.feature",
+    "features/command/start_engine.feature",
+)
 
 
 def _table_rows(datatable):
@@ -38,16 +45,24 @@ class FakeThread:
 
 
 @pytest.fixture
-def engine_context():
-    return SimpleNamespace(
+def engine_context(fake_queue, financial_repository):
+    prices = FakePriceSource()
+    context = SimpleNamespace(
         result=None,
+        cli_result=None,
         engine=None,
-        prices=FakePriceSource(),
+        prices=prices,
     )
+    context.deps = cli_dependencies_for_testing(
+        repository=financial_repository,
+        engine_queue=fake_queue,
+        engine_prices=prices,
+    )
+    return context
 
 
 def _start(engine_context, fake_queue):
-    engine = StartEngine(fake_queue, engine_context.prices, spawn_thread=FakeThread)
+    engine = StartEngine(fake_queue, engine_context.prices, engine_thread=FakeThread)
     engine_context.engine = engine
     fake_queue.on_message = engine.subscribe_symbol
     run_engine = engine.execute
@@ -59,24 +74,49 @@ def engine_is_started(engine_context, fake_queue):
     _start(engine_context, fake_queue)
 
 
+@when(parsers.parse('I execute "{command}"'))
+def execute_engine_command(engine_context, command):
+    args = split(command)
+    engine_context.cli_result = CliRunner().invoke(
+        cli.app, args[1:], obj=engine_context.deps
+    )
+
+
+@then("the command succeeds")
+def command_succeeds(engine_context):
+    assert_that(engine_context.cli_result.exit_code, equal_to(0))
+
+
+@then(parsers.parse('the queue is subscribed to "{subject}"'))
+def queue_subscribed(engine_context, fake_queue, subject):
+    assert_that(fake_queue.subjects, equal_to([subject]))
+
+
 @when("the engine starts")
 def engine_starts(engine_context, fake_queue):
     _start(engine_context, fake_queue)
 
 
 @given("the price data:")
-def price_data(engine_context, datatable):
-    engine_context.prices.quotes = [
-        Quote(
-            symbol=row["symbol"],
-            bid=float(row["bid"]),
-            ask=float(row["ask"]),
-            timestamp=ANY_TIMESTAMP
-            if row["timestamp"].strip() == "?"
-            else datetime.fromisoformat(row["timestamp"]),
-        )
-        for row in _table_rows(datatable)
-    ]
+def price_data_available(engine_context):
+    """Declare market data is available; rows arrive through pushes."""
+
+
+@when(parsers.parse("the price provider pushes:"))
+def price_provider_pushes(engine_context, datatable):
+    engine_context.prices.push(
+        [
+            Quote(
+                symbol=row["symbol"],
+                bid=float(row["bid"]),
+                ask=float(row["ask"]),
+                timestamp=ANY_TIMESTAMP
+                if row["timestamp"].strip() == "?"
+                else datetime.fromisoformat(row["timestamp"]),
+            )
+            for row in _table_rows(datatable)
+        ]
+    )
 
 
 @when(parsers.parse('the message "{subject}" for "{symbol}" is sent'))

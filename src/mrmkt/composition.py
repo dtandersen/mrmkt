@@ -56,6 +56,7 @@ from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.set_trigger_enabled import SetTriggerEnabled
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
+from mrmkt.command.start_engine import MessageQueue, PriceProvider, StartEngine
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
@@ -84,9 +85,13 @@ class CommandFactory:
         self,
         env: MrMktEnvironment2,
         watch_price_source: PriceSource | None = None,
+        engine_queue: MessageQueue | None = None,
+        engine_prices: PriceProvider | None = None,
     ) -> None:
         self._env = env
         self._watch_price_source = watch_price_source
+        self._engine_queue = engine_queue
+        self._engine_prices = engine_prices
 
     def create_trigger(self) -> CreateTrigger:
         """Build a ready CreateTrigger from the app-scoped environment."""
@@ -214,6 +219,15 @@ class CommandFactory:
             _emit_watch_line,
             ranges=ListRanges(self._env.triggers, self._env.clock),
         )
+
+    def start_engine(self) -> StartEngine:
+        """Build a ready StartEngine from the app-scoped environment."""
+        if self._engine_queue is None or self._engine_prices is None:
+            raise ValueError(
+                "no message queue/price provider configured for the engine "
+                "(no broker selected yet)"
+            )
+        return StartEngine(self._engine_queue, self._engine_prices)
 
     async def live_ticks(self, symbol):
         """Yield live trade ticks; real Alpaca stream unless tests inject a fake."""
@@ -366,6 +380,8 @@ def cli_dependencies_for_testing(
     tick_source=None,
     triggers: Any | None = None,
     watch_price_source: PriceSource | None = None,
+    engine_queue: MessageQueue | None = None,
+    engine_prices: PriceProvider | None = None,
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
@@ -392,5 +408,10 @@ def cli_dependencies_for_testing(
         triggerset_name_generator=triggerset_name_generator or _default_set_name,
         tick_source=tick_source,
     )
-    factory = CommandFactory(env, watch_price_source=watch_price_source)
+    factory = CommandFactory(
+        env,
+        watch_price_source=watch_price_source,
+        engine_queue=engine_queue,
+        engine_prices=engine_prices,
+    )
     return AppContext(command_factory=factory, close=release)
