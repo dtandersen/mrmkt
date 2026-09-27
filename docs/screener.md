@@ -17,9 +17,7 @@ uv run mrmkt prices freshness --tag sp500 --lookback-days 365 --stale-after 5 --
 ```
 
 `--tag` is repeatable (union); `--exclude-tag` is repeatable (subtracted).
-With no `--tag`, all catalog symbols are screened. `scanner.py` at the repo
-root is a thin wrapper around the same screen path (`--tag`, `--exclude-tag`,
-`--as-of`, `--top`, filters) with no hardcoded symbols.
+With no `--tag`, all catalog symbols are screened.
 
 ## As-of and vintage semantics
 

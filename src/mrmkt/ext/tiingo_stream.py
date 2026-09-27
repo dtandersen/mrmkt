@@ -34,15 +34,21 @@ def subscribe_message(api_key: str, threshold_level: int = THRESHOLD_LEVEL) -> d
 class TiingoStreamSource(PriceSource):
     """Tiingo websocket -> normalized quotes.
 
-    The endpoints have no per-symbol subscription: they stream the whole
-    firehose, so this adapter filters frames to the requested symbols
-    locally. IEX top-of-book elements are dicts carrying ``bidPrice`` /
-    ``askPrice`` (with ``mid``, ``tngoLast`` and ``last`` fallbacks);
-    consolidated equity elements are positional arrays
+    Shared parsing base for the two named streams below. The endpoints
+    have no per-symbol subscription: they stream the whole firehose, so
+    this adapter filters frames to the requested symbols locally. IEX
+    top-of-book elements are dicts carrying ``bidPrice`` / ``askPrice``
+    (with ``mid``, ``tngoLast`` and ``last`` fallbacks); consolidated
+    equity elements are positional arrays
     ``[date, ticker, spread, bidSize, bidPrice, refPrice, askPrice, askSize]``
     (threshold 4). Reference-price-only arrays (threshold 6) carry no
     bid/ask and are skipped. Elements with no usable price are skipped.
     """
+
+    #: Stream this class (or subclass) connects to unless overridden.
+    default_endpoint: str = "iex"
+    #: Threshold filter for this stream unless overridden.
+    default_threshold_level: int = THRESHOLD_LEVEL
 
     def __init__(
         self,
@@ -51,8 +57,8 @@ class TiingoStreamSource(PriceSource):
         *,
         connect=None,
         log: Log,
-        endpoint: str = "iex",
-        threshold_level: int = THRESHOLD_LEVEL,
+        endpoint: str | None = None,
+        threshold_level: int | None = None,
     ):
         if not api_key:
             raise ValueError(
@@ -62,8 +68,12 @@ class TiingoStreamSource(PriceSource):
         self.clock_now = clock_now
         self._connect = connect or self._default_connect
         self.log = log
-        self.endpoint = endpoint
-        self.threshold_level = threshold_level
+        self.endpoint = endpoint if endpoint is not None else self.default_endpoint
+        self.threshold_level = (
+            threshold_level
+            if threshold_level is not None
+            else self.default_threshold_level
+        )
 
     @classmethod
     def from_env(
@@ -72,8 +82,8 @@ class TiingoStreamSource(PriceSource):
         *,
         connect=None,
         log: Log,
-        endpoint: str = "iex",
-        threshold_level: int = THRESHOLD_LEVEL,
+        endpoint: str | None = None,
+        threshold_level: int | None = None,
     ) -> "TiingoStreamSource":
         """Build from the ``TIINGO_API_KEY`` environment variable."""
         return cls(
@@ -81,8 +91,12 @@ class TiingoStreamSource(PriceSource):
             clock_now,
             connect=connect,
             log=log,
-            endpoint=endpoint,
-            threshold_level=threshold_level,
+            endpoint=endpoint if endpoint is not None else cls.default_endpoint,
+            threshold_level=(
+                threshold_level
+                if threshold_level is not None
+                else cls.default_threshold_level
+            ),
         )
 
     def _default_connect(self, handler) -> None:
@@ -201,6 +215,20 @@ class TiingoStreamSource(PriceSource):
         if stamp.tzinfo is None:
             stamp = stamp.replace(tzinfo=ET)
         return stamp
+
+
+class TiingoIex(TiingoStreamSource):
+    """IEX top-of-book quote stream (dict elements)."""
+
+    default_endpoint: str = "iex"
+    default_threshold_level: int = THRESHOLD_LEVEL
+
+
+class TiingoFirehose(TiingoStreamSource):
+    """Consolidated equity firehose (positional array elements)."""
+
+    default_endpoint: str = EQUITY_ENDPOINT
+    default_threshold_level: int = EQUITY_THRESHOLD_LEVEL
 
 
 def _element_ticker(element: dict | list | tuple):

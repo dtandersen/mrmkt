@@ -7,7 +7,7 @@ from hamcrest import assert_that, equal_to
 from tests.fakes import CapturingLog
 
 from mrmkt.command.watch import Quote
-from mrmkt.ext.tiingo_stream import TiingoStreamSource
+from mrmkt.ext.tiingo_stream import TiingoFirehose, TiingoIex, TiingoStreamSource
 
 MOMENT = datetime(2022, 4, 4, 14, 0, tzinfo=UTC)
 
@@ -246,3 +246,78 @@ def test_equity_endpoint_names_stream_in_log():
             ]
         ),
     )
+
+
+def test_tiingo_iex_pins_iex_endpoint_and_threshold():
+    from mrmkt.ext.tiingo_stream import THRESHOLD_LEVEL
+
+    source = TiingoIex("test-key", lambda: MOMENT, log=CapturingLog())
+    assert_that(source.endpoint, equal_to("iex"))
+    assert_that(source.threshold_level, equal_to(THRESHOLD_LEVEL))
+
+
+def test_tiingo_iex_parses_top_of_book_frame():
+    calls = []
+
+    def fake_connect(handler):
+        calls.append(handler)
+        handler(frame(element("AAA", bidPrice=106.0, askPrice=107.0)))
+
+    source = TiingoIex(
+        "test-key", lambda: MOMENT, connect=fake_connect, log=CapturingLog()
+    )
+    received = []
+    source.subscribe(["AAA"], "iex", on_quote=received.append)
+    assert_that(len(calls), equal_to(1))
+    assert_that(
+        received,
+        equal_to([Quote(symbol="AAA", bid=106.0, ask=107.0, timestamp=MOMENT)]),
+    )
+
+
+def test_tiingo_firehose_pins_equity_endpoint_and_threshold():
+    from mrmkt.ext.tiingo_stream import EQUITY_ENDPOINT, EQUITY_THRESHOLD_LEVEL
+
+    source = TiingoFirehose("test-key", lambda: MOMENT, log=CapturingLog())
+    assert_that(source.endpoint, equal_to(EQUITY_ENDPOINT))
+    assert_that(source.threshold_level, equal_to(EQUITY_THRESHOLD_LEVEL))
+
+
+def test_tiingo_firehose_parses_equity_array_frame():
+    calls = []
+
+    def fake_connect(handler):
+        calls.append(handler)
+        handler(frame(equity_element()))
+
+    source = TiingoFirehose(
+        "test-key", lambda: MOMENT, connect=fake_connect, log=CapturingLog()
+    )
+    received = []
+    source.subscribe(["AAA"], "cons", on_quote=received.append)
+    assert_that(len(calls), equal_to(1))
+    assert_that(
+        received,
+        equal_to([Quote(symbol="AAA", bid=106.0, ask=107.0, timestamp=MOMENT)]),
+    )
+
+
+def test_named_streams_from_env_read_api_key():
+    import os
+
+    from mrmkt.ext.tiingo_prices import TIINGO_API_KEY_ENV_VAR
+
+    saved = os.environ.get(TIINGO_API_KEY_ENV_VAR)
+    os.environ[TIINGO_API_KEY_ENV_VAR] = "env-key"
+    try:
+        iex = TiingoIex.from_env(lambda: MOMENT, log=CapturingLog())
+        firehose = TiingoFirehose.from_env(lambda: MOMENT, log=CapturingLog())
+        assert_that(iex.api_key, equal_to("env-key"))
+        assert_that(iex.endpoint, equal_to("iex"))
+        assert_that(firehose.api_key, equal_to("env-key"))
+        assert_that(firehose.endpoint, equal_to("equity/intraday"))
+    finally:
+        if saved is None:
+            os.environ.pop(TIINGO_API_KEY_ENV_VAR, None)
+        else:
+            os.environ[TIINGO_API_KEY_ENV_VAR] = saved

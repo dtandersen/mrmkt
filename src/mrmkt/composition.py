@@ -254,7 +254,7 @@ class CommandFactory:
         prices = (
             self._engine_prices
             if self._engine_prices is not None
-            else TiingoEquityPrices(self._log)
+            else TiingoFirehosePrices(self._log)
         )
         return StartEngine(self._env.triggers, queue, prices, self._console, self._log)
 
@@ -345,8 +345,8 @@ def rabbitmq_display_address(url: str) -> str:
     return f"RabbitMQ@{host}:{port}"
 
 
-class TiingoEquityPrices(PriceProvider):
-    """Production PriceProvider: Tiingo equity WS -> normalized quotes."""
+class TiingoFirehosePrices(PriceProvider):
+    """Production PriceProvider: Tiingo equity firehose -> normalized quotes."""
 
     def __init__(self, log: Log):
         self.log = log
@@ -357,17 +357,11 @@ class TiingoEquityPrices(PriceProvider):
         import datetime
 
         from mrmkt.common.clock import ET
-        from mrmkt.ext.tiingo_stream import (
-            EQUITY_ENDPOINT,
-            EQUITY_THRESHOLD_LEVEL,
-            TiingoStreamSource,
-        )
+        from mrmkt.ext.tiingo_stream import TiingoFirehose
 
-        TiingoStreamSource.from_env(
+        TiingoFirehose.from_env(
             lambda: datetime.datetime.now(tz=ET),
             log=self.log,
-            endpoint=EQUITY_ENDPOINT,
-            threshold_level=EQUITY_THRESHOLD_LEVEL,
         ).subscribe(symbols, "cons", on_quote=on_quote)
 
 
