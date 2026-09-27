@@ -86,7 +86,7 @@ class PricesController(Controller):
     async def live(
         self, app_context: AppContext, symbol: str = "NVDA"
     ) -> ServerSentEvent | Response[dict]:
-        """Stream live trade ticks as JSON Server-Sent Events.
+        """Stream live quotes as JSON Server-Sent Events.
 
         The first event carries the latest stored close (or a bare
         heartbeat when nothing is stored) so charts learn it instantly,
@@ -109,7 +109,7 @@ class PricesController(Controller):
         )
 
     async def _live_events(self, app_context, symbol, baseline):
-        """Yield pill HTML, then live ticks; comment keepalives between ticks."""
+        """Yield pill HTML, then live quotes; comment keepalives between ticks."""
         from mrmkt.common.clock import ET
 
         if baseline is None:
@@ -123,22 +123,25 @@ class PricesController(Controller):
                     "live": False,
                 }
             )
-        ticks = app_context.command_factory.live_ticks(symbol)
-        iterator = ticks.__aiter__()
+        quotes = app_context.command_factory.live_ticks(symbol)
+        iterator = quotes.__aiter__()
         while True:
             try:
-                tick = await asyncio.wait_for(iterator.__anext__(), timeout=20)
+                quote = await asyncio.wait_for(iterator.__anext__(), timeout=20)
             except StopAsyncIteration:
                 return
             except TimeoutError:
                 yield ServerSentEventMessage(comment="ping")
                 continue
+            # price stays for the chart math; it now tracks the ask.
             yield json.dumps(
                 {
-                    "symbol": tick.symbol,
-                    "price": tick.price,
-                    "date": tick.at.astimezone(ET).date().isoformat(),
-                    "time": tick.at.astimezone(ET).strftime("%H:%M:%S"),
+                    "symbol": quote.symbol,
+                    "price": quote.ask,
+                    "bid": quote.bid,
+                    "ask": quote.ask,
+                    "date": quote.timestamp.astimezone(ET).date().isoformat(),
+                    "time": quote.timestamp.astimezone(ET).strftime("%H:%M:%S"),
                     "live": True,
                 }
             )

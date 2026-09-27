@@ -4,9 +4,9 @@ Feature: Live price event stream
   So that the dashboard shows the current price without the CLI
 
   Scenario: Stream emits a live tick
-    Given live ticks for these prints:
-      | symbol | price  | at                  |
-      | NVDA   | 150.25 | 2026-09-26T14:30:00 |
+    Given live quotes for these prints:
+      | symbol | bid    | ask    | at                  |
+      | NVDA   | 150.20 | 150.25 | 2026-09-26T14:30:00 |
     When I open "/fragments/prices/live?symbol=NVDA"
     Then the web command succeeds
     And the live stream is an event stream

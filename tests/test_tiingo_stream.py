@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 from hamcrest import assert_that, equal_to
 from tests.fakes import CapturingLog
 
-from mrmkt.command.watch import Quote
 from mrmkt.ext.tiingo_stream import TiingoFirehose, TiingoIex, TiingoStreamSource
+from mrmkt.gateway import Quote
 
 MOMENT = datetime(2022, 4, 4, 14, 0, tzinfo=UTC)
 

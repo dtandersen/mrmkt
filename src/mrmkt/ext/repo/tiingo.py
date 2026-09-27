@@ -1,3 +1,5 @@
+"""Tiingo price repository (remote source)."""
+
 import datetime
 
 from tiingo import TiingoClient
@@ -34,9 +36,7 @@ class TiingoPriceRepository(ReadOnlyPriceRepository, ReadOnlyTickerRepository):
 
         try:
             prices = self.tiingo.get_ticker_price(ticker, start_iso, end_iso)
-            return list(
-                map(lambda x: TiingoPriceRepository.map_price(x, ticker), prices)
-            )
+            return [TiingoPriceRepository.map_price(row, ticker) for row in prices]
         except RestClientError:
             return []
 

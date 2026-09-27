@@ -1,38 +1,13 @@
 """Watch live quote asks and print signals from stored or explicit symbols."""
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime
-from typing import Protocol
 
 from mrmkt.command._shared import normalize_symbol
 from mrmkt.command.alerts import Alert, AlertEngine, TriggerRule
 from mrmkt.command.base import BaseResult, Command, Console, Log
 from mrmkt.command.ranges import ListRanges, ListRangesRequest
 from mrmkt.entity.trigger import Trigger
-
-
-@dataclass(frozen=True)
-class Quote:
-    """Normalized level-one quote from the selected price feed."""
-
-    symbol: str
-    bid: float
-    ask: float
-    timestamp: datetime
-
-
-class PriceSource(Protocol):
-    """Live source that subscribes to symbols and emits normalized quotes."""
-
-    def subscribe(
-        self,
-        symbols: list[str],
-        feed: str,
-        *,
-        on_quote: Callable[[Quote], None],
-    ) -> None:
-        """Subscribe and call the handler as quotes arrive."""
+from mrmkt.gateway import PriceSource, Quote
 
 
 @dataclass(frozen=True)

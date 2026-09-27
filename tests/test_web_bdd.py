@@ -13,6 +13,7 @@ import uvicorn
 from hamcrest import assert_that, contains_string, equal_to
 from playwright.sync_api import sync_playwright
 from pytest_bdd import given, parsers, scenarios, then, when
+from tests.fakes import FakePriceSource
 from tests.web_pages import (
     ChartDataPage,
     IndexPage,
@@ -27,6 +28,7 @@ from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import Trigger
+from mrmkt.gateway import Quote
 from mrmkt.web.app import create_web_app
 
 scenarios(
@@ -72,9 +74,10 @@ def web_browser():
 
 
 @pytest.fixture
-def web_context(web_browser, financial_repository, tick_source):
+def web_context(web_browser, financial_repository):
+    prices = FakePriceSource()
     deps = cli_dependencies_for_testing(
-        repository=financial_repository, tick_source=tick_source
+        repository=financial_repository, engine_prices=prices
     )
     port = _free_port()
     server = uvicorn.Server(
@@ -99,6 +102,7 @@ def web_context(web_browser, financial_repository, tick_source):
         chart=ChartDataPage(page, base_url),
         lookup=SymbolLookupPage(page, base_url),
         live=LivePricesPage(base_url),
+        provider=prices,
         triggers=TriggersPage(page, base_url),
         index=IndexPage(page, base_url),
     )
@@ -274,14 +278,17 @@ def chart_data_is_empty(web_context):
     assert_that(web_context.chart.bars(), equal_to([]))
 
 
-@given("live ticks for these prints:")
-def live_ticks_for_prints(web_context, datatable, tick_source):
-    for row in _table_rows(datatable):
-        tick_source.add_tick(
+@given("live quotes for these prints:")
+def live_quotes_for_prints(web_context, datatable):
+    web_context.provider.preload(
+        Quote(
             symbol=row["symbol"],
-            price=float(row["price"]),
-            at=datetime.fromisoformat(row["at"]),
+            bid=float(row["bid"]),
+            ask=float(row["ask"]),
+            timestamp=datetime.fromisoformat(row["at"]),
         )
+        for row in _table_rows(datatable)
+    )
 
 
 @then("the live stream is an event stream")

@@ -6,8 +6,8 @@ from hamcrest import assert_that, contains_string, equal_to, not_
 from tests.fakes import CapturingLog, FakeMessageQueue
 
 from mrmkt.command.start_engine import DEFAULT_SUBJECT
-from mrmkt.command.watch import Quote
 from mrmkt.composition import QueuePriceSource, rabbitmq_display_address
+from mrmkt.gateway import Quote
 
 
 def test_queue_source_subscribes_per_symbol_and_forwards_quotes():

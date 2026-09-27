@@ -18,12 +18,13 @@ from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.command.ranges import ListRanges
-from mrmkt.command.watch import Quote, WatchPrices, WatchPricesRequest
+from mrmkt.command.watch import WatchPrices, WatchPricesRequest
 from mrmkt.common.clock import ClockStub
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import DEFAULT_MESSAGE_TEMPLATE, Trigger
+from mrmkt.gateway import Quote
 
 scenarios(
     "features/cli/watch.feature",

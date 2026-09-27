@@ -12,9 +12,9 @@ from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.command.start_engine import StartEngine, StartEngineRequest
-from mrmkt.command.watch import Quote
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.trigger import Trigger
+from mrmkt.gateway import Quote
 
 scenarios(
     "features/cli/start_engine.feature",

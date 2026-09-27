@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 
 from hamcrest import assert_that, equal_to
 
-from mrmkt.command.watch import Quote
 from mrmkt.composition import rabbitmq_url_from_section
 from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
+from mrmkt.gateway import Quote
 
 
 class FakePikaChannel:

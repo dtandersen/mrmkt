@@ -58,23 +58,19 @@ from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.set_trigger_enabled import SetTriggerEnabled
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
-from mrmkt.command.start_engine import (
-    DEFAULT_SUBJECT,
-    MessageQueue,
-    PriceProvider,
-    StartEngine,
-)
+from mrmkt.command.start_engine import DEFAULT_SUBJECT, StartEngine
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
 from mrmkt.command.triggersets_common import _default_set_name
-from mrmkt.command.watch import PriceSource, Quote, WatchPrices
+from mrmkt.command.watch import WatchPrices
 from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
-from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
+from mrmkt.ext.repo.alpaca import AlpacaTickerRepository
 from mrmkt.ext.tiingo_prices import TiingoPriceSource
+from mrmkt.gateway import MessageQueue, PriceProvider, PriceSource, Quote
 
 
 class CommandFactory:
@@ -259,16 +255,37 @@ class CommandFactory:
         return StartEngine(self._env.triggers, queue, prices, self._console, self._log)
 
     async def live_ticks(self, symbol):
-        """Yield live trade ticks; real Alpaca stream unless tests inject a fake."""
-        from mrmkt.ext.alpaca_ticks import AlpacaTickSource
+        """Yield live quotes; Tiingo firehose unless tests inject a fake."""
+        import asyncio
+        import threading
 
-        source = (
-            self._env.tick_source
-            if self._env.tick_source is not None
-            else AlpacaTickSource.from_config()
+        provider = (
+            self._engine_prices
+            if self._engine_prices is not None
+            else TiingoFirehosePrices(self._log)
         )
-        async for tick in source.subscribe(symbol):
-            yield tick
+        queue: asyncio.Queue[Quote] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def on_quote(quote: Quote) -> None:
+            loop.call_soon_threadsafe(queue.put_nowait, quote)
+
+        thread = threading.Thread(
+            target=provider.subscribe,
+            args=([symbol],),
+            kwargs={"on_quote": on_quote},
+            daemon=True,
+            name=f"mrmkt-live-{symbol}",
+        )
+        thread.start()
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            provider.close()
+            thread.join(timeout=5)
+            if thread.is_alive():
+                self._log(f"live stream thread for {symbol} did not stop")
 
 
 @dataclass(frozen=True)
@@ -281,57 +298,6 @@ class AppContext:
 
 def _report_price_import_progress(done: int, total: int) -> None:
     typer.echo(f"Imported prices for {done}/{total} symbols...", err=True)
-
-
-class AlpacaLivePriceSource:
-    """Production PriceSource: Alpaca websocket -> normalized updates.
-
-    Built per subscription so the requested feed (iex/sip) applies to the
-    stream. Transport details stay here in the composition root; the
-    command only sees normalized quote callbacks.
-    """
-
-    def __init__(self, log: Log):
-        self.log = log
-
-    def subscribe(
-        self,
-        symbols: list[str],
-        feed: str,
-        *,
-        on_quote: Callable[[Quote], None],
-    ) -> None:
-        import datetime
-        from pathlib import Path
-
-        import yaml
-        from alpaca.data.enums import DataFeed
-        from alpaca.data.live import StockDataStream
-
-        from mrmkt.common.clock import ET
-        from mrmkt.ext.alpaca_stream import AlpacaStreamSource
-
-        config = yaml.safe_load(Path("alpaca.yaml").read_text())
-        stream = StockDataStream(
-            api_key=config["key"],
-            secret_key=config["secret"],
-            feed=DataFeed(feed),
-        )
-        AlpacaStreamSource(
-            stream, lambda: datetime.datetime.now(tz=ET), self.log
-        ).subscribe(symbols, on_quote)
-
-
-class AlpacaEnginePrices(PriceProvider):
-    """Production PriceProvider: Alpaca websocket -> normalized quotes (IEX)."""
-
-    def __init__(self, log: Log):
-        self.log = log
-
-    def subscribe(
-        self, symbols: list[str], *, on_quote: Callable[[Quote], None]
-    ) -> None:
-        AlpacaLivePriceSource(self.log).subscribe(symbols, "iex", on_quote=on_quote)
 
 
 def rabbitmq_display_address(url: str) -> str:
@@ -350,6 +316,7 @@ class TiingoFirehosePrices(PriceProvider):
 
     def __init__(self, log: Log):
         self.log = log
+        self._stream = None
 
     def subscribe(
         self, symbols: list[str], *, on_quote: Callable[[Quote], None]
@@ -359,10 +326,17 @@ class TiingoFirehosePrices(PriceProvider):
         from mrmkt.common.clock import ET
         from mrmkt.ext.tiingo_stream import TiingoFirehose
 
-        TiingoFirehose.from_env(
+        stream = TiingoFirehose.from_env(
             lambda: datetime.datetime.now(tz=ET),
             log=self.log,
-        ).subscribe(symbols, "cons", on_quote=on_quote)
+        )
+        self._stream = stream
+        stream.subscribe(symbols, "cons", on_quote=on_quote)
+
+    def close(self) -> None:
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            stream.close()
 
 
 class QueuePriceSource:
@@ -540,7 +514,6 @@ def cli_dependencies_for_testing(
     alpaca_data_client: StockHistoricalDataClient | None = None,
     trigger_name_generator: Callable[[], str] | None = None,
     triggerset_name_generator: Callable[[], str] | None = None,
-    tick_source=None,
     triggers: Any | None = None,
     watch_price_source: PriceSource | None = None,
     engine_queue: MessageQueue | None = None,
@@ -571,7 +544,6 @@ def cli_dependencies_for_testing(
         else _shared.create_alpaca_data_client(),
         trigger_name_generator=trigger_name_generator or _default_trigger_name,
         triggerset_name_generator=triggerset_name_generator or _default_set_name,
-        tick_source=tick_source,
     )
     factory = CommandFactory(
         env,

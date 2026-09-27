@@ -393,7 +393,7 @@
           }
           const bar = rows[rows.length - 1];
           mrmktChartApi.series.update({ time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
-          this.status = tick.symbol + " · " + rows.length + " bars · LIVE @ " + tick.price;
+          this.status = tick.symbol + " · " + rows.length + " bars · LIVE " + tick.bid + "/" + tick.ask;
         },
         setRange(range) {
           this.currentRange = range;

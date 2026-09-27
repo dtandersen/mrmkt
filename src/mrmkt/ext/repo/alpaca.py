@@ -1,3 +1,5 @@
+"""Alpaca ticker repository (remote source)."""
+
 from typing import Any
 
 from alpaca.trading.enums import AssetClass, AssetStatus

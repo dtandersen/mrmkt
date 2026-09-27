@@ -6,20 +6,16 @@ from collections.abc import Callable
 from datetime import datetime
 
 import websocket
-from tiingo import TiingoWebsocketClient
 
 from mrmkt.command.base import Log
-from mrmkt.command.watch import PriceSource, Quote
 from mrmkt.common.clock import ET
 from mrmkt.ext.tiingo_prices import TIINGO_API_KEY_ENV_VAR
+from mrmkt.gateway import PriceSource, Quote
 
 THRESHOLD_LEVEL = 5
 BASE_URL = "wss://api.tiingo.com"
 EQUITY_ENDPOINT = "equity/intraday"
 EQUITY_THRESHOLD_LEVEL = 4
-# Endpoints the tiingo client supports directly; anything else (e.g. the
-# consolidated equity stream) connects through websocket-client instead.
-TIINGO_CLIENT_ENDPOINTS = ("iex", "fx", "crypto")
 
 
 def subscribe_message(api_key: str, threshold_level: int = THRESHOLD_LEVEL) -> dict:
@@ -67,6 +63,7 @@ class TiingoStreamSource(PriceSource):
         self.api_key = api_key
         self.clock_now = clock_now
         self._connect = connect or self._default_connect
+        self._ws_app = None
         self.log = log
         self.endpoint = endpoint if endpoint is not None else self.default_endpoint
         self.threshold_level = (
@@ -101,19 +98,19 @@ class TiingoStreamSource(PriceSource):
 
     def _default_connect(self, handler) -> None:
         payload = subscribe_message(self.api_key, self.threshold_level)
-        if self.endpoint in TIINGO_CLIENT_ENDPOINTS:
-            TiingoWebsocketClient(
-                payload,
-                endpoint=self.endpoint,
-                on_msg_cb=handler,
-            )
-            return
         app = websocket.WebSocketApp(
             f"{BASE_URL}/{self.endpoint}",
             on_open=lambda ws: ws.send(json.dumps(payload)),
             on_message=lambda ws, raw: handler(raw),
         )
+        self._ws_app = app
         app.run_forever()
+
+    def close(self) -> None:
+        """Release a retained stream so subscribe can return."""
+        app, self._ws_app = self._ws_app, None
+        if app is not None:
+            app.close()
 
     def subscribe(
         self, symbols: list[str], feed: str, *, on_quote: Callable[[Quote], None]

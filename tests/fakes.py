@@ -2,7 +2,7 @@
 
 import asyncio
 import datetime
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -10,8 +10,6 @@ from alpaca.trading.enums import AssetClass, AssetStatus
 from hamcrest import assert_that, not_none
 
 from mrmkt.command.base import Console, Log
-from mrmkt.command.start_engine import MessageQueue, PriceProvider
-from mrmkt.command.watch import Quote
 from mrmkt.common.util import to_date
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
@@ -19,7 +17,7 @@ from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.ext.backend import InMemoryBackend
-from mrmkt.repo.ticks import LiveTickSource, Tick
+from mrmkt.gateway import MessageQueue, PriceProvider, Quote
 
 
 class FakeAlpacaClient:
@@ -44,21 +42,6 @@ class FakeAlpacaClient:
             )
             for row in rows
         ]
-
-
-class FakeTickSource(LiveTickSource):
-    """Scripted live ticks; holds the stream open after scripts run dry."""
-
-    def __init__(self):
-        self._ticks = []
-
-    def add_tick(self, symbol, price, at):
-        self._ticks.append(Tick(symbol=symbol, price=price, at=at))
-
-    async def subscribe(self, symbol: str) -> AsyncIterator[Tick]:
-        for tick in [tick for tick in self._ticks if tick.symbol == symbol]:
-            yield tick
-        await asyncio.Event().wait()
 
 
 class CapturingConsole(Console):
@@ -112,20 +95,31 @@ class FakePriceSource(PriceProvider):
     and push delivers to the handlers currently attached.
     """
 
-    def __init__(self):
+    def __init__(self, quotes=()):
+        self.preloaded = list(quotes)
         self.subscribed = []
         self.handlers = {}
+        self.closed = 0
 
     def subscribe(self, symbols, *, on_quote) -> None:
         self.subscribed.append(list(symbols))
         for symbol in symbols:
             self.handlers.setdefault(symbol, []).append(on_quote)
+        for quote in self.preloaded:
+            if quote.symbol in symbols:
+                on_quote(quote)
+
+    def close(self) -> None:
+        self.closed += 1
 
     # test method to push quotes to the handlers; not part of the real interface
     def push(self, quotes) -> None:
         for quote in quotes:
             for handler in self.handlers.get(quote.symbol, []):
                 handler(quote)
+
+    def preload(self, quotes) -> None:
+        self.preloaded.extend(quotes)
 
 
 class InMemoryStreamSource:

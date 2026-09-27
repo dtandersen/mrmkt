@@ -3,8 +3,8 @@
 from collections.abc import Callable
 
 from mrmkt.command.base import Log
-from mrmkt.command.watch import Quote
 from mrmkt.common.clock import ET
+from mrmkt.gateway import Quote
 
 
 class AlpacaStreamSource:

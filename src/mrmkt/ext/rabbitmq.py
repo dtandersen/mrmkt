@@ -11,8 +11,7 @@ from urllib.parse import urlsplit
 
 import pika
 
-from mrmkt.command.start_engine import MessageQueue
-from mrmkt.command.watch import Quote
+from mrmkt.gateway import MessageQueue, Quote
 
 
 class RabbitMQMessageQueue(MessageQueue):

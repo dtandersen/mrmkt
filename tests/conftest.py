@@ -1,5 +1,5 @@
 import pytest
-from tests.fakes import FakeAlpacaClient, FakeMessageQueue, FakeTickSource
+from tests.fakes import FakeAlpacaClient, FakeMessageQueue
 
 from mrmkt.ext.backend import InMemoryBackend
 
@@ -14,12 +14,6 @@ def financial_repository() -> InMemoryBackend:
 def alpaca_client() -> FakeAlpacaClient:
     """Provide a fresh fake Alpaca trading client for a test."""
     return FakeAlpacaClient()
-
-
-@pytest.fixture
-def tick_source() -> FakeTickSource:
-    """Provide a fresh scripted live-tick source for a test."""
-    return FakeTickSource()
 
 
 @pytest.fixture

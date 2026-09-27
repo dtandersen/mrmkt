@@ -1,41 +1,13 @@
 """Start the engine: attach to the queue's realtime price events."""
 
 import threading
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from mrmkt.command.base import BaseResult, Command, Console, Log
-from mrmkt.command.watch import Quote
+from mrmkt.gateway import MessageQueue, PriceProvider, Quote
 
 DEFAULT_SUBJECT = "subscribe.realtime.price"
-
-
-class MessageQueue(ABC):
-    """Queue transport for realtime price events."""
-
-    @abstractmethod
-    def subscribe(self, subject: str, *, on_event: Callable[..., None]) -> None:
-        """Attach to the subject; call the handler per message."""
-
-    @abstractmethod
-    def publish(self, subject: str, event: Quote) -> None:
-        """Broadcast one price event to the subject's consumers."""
-
-
-class PriceProvider(ABC):
-    """Push source of live quotes; the Alpaca websocket in prod."""
-
-    @abstractmethod
-    def subscribe(
-        self, symbols: list[str], *, on_quote: Callable[[Quote], None]
-    ) -> None:
-        """Attach, push each quote to the handler, and block.
-
-        Must not return while the stream is alive: worker threads live
-        inside this call, so a register-and-return implementation would
-        silently end streaming. Ends on close/KeyboardInterrupt.
-        """
 
 
 def _spawn_worker(target, args=(), daemon=None):
