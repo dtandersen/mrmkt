@@ -2,18 +2,21 @@
 
 import asyncio
 import datetime
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Coroutine
 from types import SimpleNamespace
+from typing import Any, cast
 
 from alpaca.trading.enums import AssetClass, AssetStatus
+from hamcrest import assert_that, not_none
 
-from mrmkt.ext.backend import InMemoryBackend
+from mrmkt.command.watch import Quote
 from mrmkt.common.util import to_date
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
+from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.repo.ticks import LiveTickSource, Tick
 
 
@@ -54,6 +57,69 @@ class FakeTickSource(LiveTickSource):
         for tick in [tick for tick in self._ticks if tick.symbol == symbol]:
             yield tick
         await asyncio.Event().wait()
+
+
+class FakeMessageQueue:
+    """Fake queue transport that remembers subscribed subjects."""
+
+    def __init__(self):
+        self.subjects = []
+        self.messages = []
+        self.published = []
+        self.on_message: Callable[[str], None] | None = None
+
+    def subscribe(self, subject: str) -> None:
+        self.subjects.append(subject)
+
+    def send(self, subject: str, symbol: str) -> None:
+        self.messages.append((subject, symbol))
+        if self.on_message is not None:
+            self.on_message(symbol)
+
+    def publish(self, subject: str, event: Quote) -> None:
+        self.published.append((subject, event))
+
+
+class FakePriceSource:
+    """Scripted quotes pushed on subscribe, like the websocket."""
+
+    def __init__(self, quotes=()):
+        self.quotes = list(quotes)
+        self.subscribed = []
+
+    def subscribe(self, symbols, *, on_quote) -> None:
+        self.subscribed.append(list(symbols))
+        for quote in self.quotes:
+            if quote.symbol in symbols:
+                on_quote(quote)
+
+
+class InMemoryStreamSource:
+    """Fake Alpaca websocket: records subscriptions, replays scripted quotes.
+
+    Mirrors the slice of StockDataStream that AlpacaStreamSource uses:
+    subscribe_quotes(handler, *symbols) plus run(). Like the real
+    dispatcher, handlers are coroutine functions, so replay() drives each
+    scripted quote to completion synchronously.
+    """
+
+    def __init__(self, quotes=()):
+        self.quotes = list(quotes)
+        self.quote_handler: Callable[[Any], Coroutine[Any, Any, None]] | None = None
+        self.symbols = []
+
+    def subscribe_quotes(self, handler, *symbols):
+        self.quote_handler = handler
+        self.symbols.extend(symbols)
+
+    def run(self):
+        pass
+
+    def replay(self):
+        assert_that(self.quote_handler, not_none())
+        handler = cast("Callable[[Any], Coroutine[Any, Any, None]]", self.quote_handler)
+        for quote in self.quotes:
+            asyncio.run(handler(quote))
 
 
 class _CannedBackend(InMemoryBackend):

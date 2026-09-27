@@ -280,65 +280,49 @@ def symbol_armed(engine_context):
 
 @when("a quote has an ask of 99.0 stamped pre-market but received mid-session")
 def quote_stamped_pre(engine_context):
-    import asyncio
     from types import SimpleNamespace
+
+    from tests.fakes import InMemoryStreamSource
 
     from mrmkt.ext.alpaca_stream import AlpacaStreamSource
 
-    class StubStream:
-        def subscribe_quotes(self, handler, *symbols):
-            self.quote_handler = handler
-
-        def run(self):
-            pass
-
-    stream = StubStream()
-    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
-        ["AAA"],
-        on_quote=lambda quote: engine_context.engine.on_tick(
-            quote.symbol, quote.ask, quote.timestamp
-        ),
-    )
-    asyncio.run(
-        stream.quote_handler(
+    stream = InMemoryStreamSource(
+        [
             SimpleNamespace(
                 symbol="AAA",
                 bid_price=98.9,
                 ask_price=99.0,
                 timestamp=_moment(engine_context, "pre"),
             )
-        )
+        ]
     )
-
-
-@when("a quote has an ask of 99.0 with no timestamp at mid-session receipt")
-def quote_no_timestamp(engine_context):
-    import asyncio
-    from types import SimpleNamespace
-
-    from mrmkt.ext.alpaca_stream import AlpacaStreamSource
-
-    class StubStream:
-        def subscribe_quotes(self, handler, *symbols):
-            self.quote_handler = handler
-
-        def run(self):
-            pass
-
-    stream = StubStream()
     AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
         ["AAA"],
         on_quote=lambda quote: engine_context.engine.on_tick(
             quote.symbol, quote.ask, quote.timestamp
         ),
     )
-    asyncio.run(
-        stream.quote_handler(
-            SimpleNamespace(
-                symbol="AAA", bid_price=98.9, ask_price=99.0, timestamp=None
-            )
-        )
+    stream.replay()
+
+
+@when("a quote has an ask of 99.0 with no timestamp at mid-session receipt")
+def quote_no_timestamp(engine_context):
+    from types import SimpleNamespace
+
+    from tests.fakes import InMemoryStreamSource
+
+    from mrmkt.ext.alpaca_stream import AlpacaStreamSource
+
+    stream = InMemoryStreamSource(
+        [SimpleNamespace(symbol="AAA", bid_price=98.9, ask_price=99.0, timestamp=None)]
     )
+    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
+        ["AAA"],
+        on_quote=lambda quote: engine_context.engine.on_tick(
+            quote.symbol, quote.ask, quote.timestamp
+        ),
+    )
+    stream.replay()
 
 
 @when(parsers.parse('"{symbol}" prints {price:f} in the regular session to ntfy'))

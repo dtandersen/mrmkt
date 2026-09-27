@@ -1,5 +1,5 @@
 import pytest
-from tests.fakes import FakeAlpacaClient, FakeTickSource
+from tests.fakes import FakeAlpacaClient, FakeMessageQueue, FakeTickSource
 
 from mrmkt.ext.backend import InMemoryBackend
 
@@ -20,3 +20,9 @@ def alpaca_client() -> FakeAlpacaClient:
 def tick_source() -> FakeTickSource:
     """Provide a fresh scripted live-tick source for a test."""
     return FakeTickSource()
+
+
+@pytest.fixture
+def fake_queue() -> FakeMessageQueue:
+    """Provide a fresh fake message queue for a test."""
+    return FakeMessageQueue()
