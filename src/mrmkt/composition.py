@@ -22,6 +22,7 @@ override any provider with a fake without touching anything else.
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import typer
 from alpaca.data.historical import StockHistoricalDataClient
@@ -56,7 +57,12 @@ from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.set_trigger_enabled import SetTriggerEnabled
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
-from mrmkt.command.start_engine import MessageQueue, PriceProvider, StartEngine
+from mrmkt.command.start_engine import (
+    DEFAULT_SUBJECT,
+    MessageQueue,
+    PriceProvider,
+    StartEngine,
+)
 from mrmkt.command.symbols_label import LabelSymbols
 from mrmkt.command.symbols_unlabel import UnlabelSymbols
 from mrmkt.command.triggers_common import _default_trigger_name
@@ -66,6 +72,7 @@ from mrmkt.common.clock import Clock
 from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
+from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
 
 
 class CommandFactory:
@@ -208,11 +215,14 @@ class CommandFactory:
 
     def watch_prices(self) -> WatchPrices:
         """Build a ready WatchPrices from the app-scoped environment."""
-        price_source = (
-            self._watch_price_source
-            if self._watch_price_source is not None
-            else AlpacaLivePriceSource()
-        )
+        if self._watch_price_source is not None:
+            price_source = self._watch_price_source
+        elif self._engine_queue is not None:
+            price_source = QueuePriceSource(self._engine_queue)
+        else:
+            price_source = QueuePriceSource(
+                RabbitMQMessageQueue(rabbitmq_url_from_config())
+            )
         return WatchPrices(
             self._env.triggers,
             price_source,
@@ -222,12 +232,17 @@ class CommandFactory:
 
     def start_engine(self) -> StartEngine:
         """Build a ready StartEngine from the app-scoped environment."""
-        if self._engine_queue is None or self._engine_prices is None:
-            raise ValueError(
-                "no message queue/price provider configured for the engine "
-                "(no broker selected yet)"
-            )
-        return StartEngine(self._engine_queue, self._engine_prices)
+        queue = (
+            self._engine_queue
+            if self._engine_queue is not None
+            else RabbitMQMessageQueue(rabbitmq_url_from_config())
+        )
+        prices = (
+            self._engine_prices
+            if self._engine_prices is not None
+            else AlpacaEnginePrices()
+        )
+        return StartEngine(queue, prices)
 
     async def live_ticks(self, symbol):
         """Yield live trade ticks; real Alpaca stream unless tests inject a fake."""
@@ -290,6 +305,33 @@ class AlpacaLivePriceSource:
         )
 
 
+class AlpacaEnginePrices(PriceProvider):
+    """Production PriceProvider: Alpaca websocket -> normalized quotes (IEX)."""
+
+    def subscribe(
+        self, symbols: list[str], *, on_quote: Callable[[Quote], None]
+    ) -> None:
+        AlpacaLivePriceSource().subscribe(symbols, "iex", on_quote=on_quote)
+
+
+class QueuePriceSource:
+    """PriceSource over the message queue: per-symbol data subjects.
+
+    The engine publishes each symbol's quotes under its own subject;
+    attach to one subject per requested symbol. Transport details stay
+    here in the composition root; the command only sees normalized
+    quote callbacks.
+    """
+
+    def __init__(self, queue: MessageQueue, subject: str = DEFAULT_SUBJECT):
+        self.queue = queue
+        self.subject = subject
+
+    def subscribe(self, symbols: list[str], feed: str, *, on_quote) -> None:
+        for symbol in symbols:
+            self.queue.subscribe(f"{self.subject}.{symbol}", on_event=on_quote)
+
+
 def _emit_watch_line(line: str, err: bool = False) -> None:
     typer.echo(line, err=err)
 
@@ -318,6 +360,40 @@ def mrmkt_backend_name_from_env() -> str:
     import os
 
     return os.environ.get("MRMKT_BACKEND", "postgres")
+
+
+def rabbitmq_url_from_section(section: dict) -> str:
+    """Build the RabbitMQ URL from a config mapping (see docker-compose)."""
+    if not isinstance(section, dict):
+        section = {}
+    user = quote(str(section.get("user", "mrmkt")), safe="")
+    password = quote(str(section.get("password", "mrmkt")), safe="")
+    host = section.get("host", "localhost")
+    port = section.get("port", 5672)
+    return f"amqp://{user}:{password}@{host}:{port}/"
+
+
+def rabbitmq_url_from_config() -> str:
+    """RabbitMQ URL for the engine bus.
+
+    Explicit ``RABBITMQ_URL`` wins (used by the docker run command);
+    otherwise the ``rabbitmq`` section of config.yaml, which carries the
+    same credentials as docker-compose; a missing config.yaml falls back
+    to those same local dev defaults. Credentials never live in the repo.
+    """
+    import os
+
+    override = os.environ.get("RABBITMQ_URL")
+    if override:
+        return override
+    try:
+        from mrmkt.common.config import read_config
+
+        config = read_config()
+    except OSError:
+        config = {}
+    section = config.get("rabbitmq", {}) if isinstance(config, dict) else {}
+    return rabbitmq_url_from_section(section)
 
 
 def _close_all(backend, release) -> None:

@@ -32,14 +32,11 @@ ANY_TIMESTAMP = datetime(2022, 1, 1)
 
 
 class FakeThread:
-    """Test thread: runs the target inline instead of spawning."""
+    """Test worker: runs the target inline on construction, no spawning."""
 
     def __init__(self, target, args=(), daemon=None):
         self.target = target
         self.args = args
-        self.started = False
-
-    def start(self) -> None:
         self.started = True
         self.target(*self.args)
 
@@ -64,7 +61,6 @@ def engine_context(fake_queue, financial_repository):
 def _start(engine_context, fake_queue):
     engine = StartEngine(fake_queue, engine_context.prices, engine_thread=FakeThread)
     engine_context.engine = engine
-    fake_queue.on_message = engine.subscribe_symbol
     run_engine = engine.execute
     engine_context.result = run_engine(StartEngineRequest())
 

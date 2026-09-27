@@ -67,15 +67,18 @@ class FakeMessageQueue(MessageQueue):
         self.subjects = []
         self.messages = []
         self.published = []
-        self.on_message: Callable[[str], None] | None = None
+        self.handlers = {}
 
-    def subscribe(self, subject: str) -> None:
+    def subscribe(self, subject: str, *, on_event) -> None:
         self.subjects.append(subject)
+        self.handlers[subject] = on_event
 
     def send(self, subject: str, symbol: str) -> None:
         self.messages.append((subject, symbol))
-        if self.on_message is not None:
-            self.on_message(symbol)
+        self.handlers[subject](symbol)
+
+    def deliver(self, subject: str, event: Quote) -> None:
+        self.handlers[subject](event)
 
     def publish(self, subject: str, event: Quote) -> None:
         self.published.append((subject, event))

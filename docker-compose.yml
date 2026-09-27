@@ -1,0 +1,23 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: mrmkt-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-mrmkt}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-mrmkt}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  rabbitmq-data:

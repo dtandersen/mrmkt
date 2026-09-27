@@ -15,8 +15,8 @@ class MessageQueue(ABC):
     """Queue transport for realtime price events."""
 
     @abstractmethod
-    def subscribe(self, subject: str) -> None:
-        """Attach to the subject."""
+    def subscribe(self, subject: str, *, on_event: Callable[..., None]) -> None:
+        """Attach to the subject; call the handler per message."""
 
     @abstractmethod
     def publish(self, subject: str, event: Quote) -> None:
@@ -38,6 +38,13 @@ class PriceProvider(ABC):
         """
 
 
+def _spawn_worker(target, args=(), daemon=None):
+    """Construct and start a daemon worker thread."""
+    worker = threading.Thread(target=target, args=args, daemon=daemon)
+    worker.start()
+    return worker
+
+
 @dataclass(frozen=True)
 class StartEngineRequest:
     subject: str = DEFAULT_SUBJECT
@@ -55,7 +62,7 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
         self,
         queue: MessageQueue,
         prices: PriceProvider,
-        engine_thread: Callable = threading.Thread,
+        engine_thread: Callable = _spawn_worker,
     ):
         self.queue = queue
         self.prices = prices
@@ -65,8 +72,9 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
         self.stop_event = threading.Event()
 
     def execute(self, request: StartEngineRequest) -> StartEngineResult:
+        print(f"Engine starting: subscribing to {request.subject}")
         self.subject = request.subject
-        self.queue.subscribe(request.subject)
+        self.queue.subscribe(request.subject, on_event=self.subscribe_symbol)
 
         return StartEngineResult.success(None)
 
@@ -78,11 +86,9 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
         """Start streaming one symbol's price events on a new thread."""
         if symbol in self.workers:
             return
-        worker = self.spawn_thread(
+        self.workers[symbol] = self.spawn_thread(
             target=self._stream_symbol, args=(symbol,), daemon=True
         )
-        self.workers[symbol] = worker
-        worker.start()
 
     def _stream_symbol(self, symbol: str) -> None:
         channel = f"{self.subject}.{symbol}"
@@ -95,4 +101,5 @@ class StartEngine(Command[StartEngineRequest, StartEngineResult]):
             )
             self.queue.publish(channel, quote)
 
+        print(f"Engine streaming {symbol} -> {channel}")
         self.prices.subscribe([symbol], on_quote=handle_quote)
