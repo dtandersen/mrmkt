@@ -7,7 +7,7 @@ from typing import Protocol
 
 from mrmkt.command._shared import normalize_symbol
 from mrmkt.command.alerts import Alert, AlertEngine, TriggerRule
-from mrmkt.command.base import BaseResult, Command
+from mrmkt.command.base import BaseResult, Command, Console, Log
 from mrmkt.command.ranges import ListRanges, ListRangesRequest
 from mrmkt.entity.trigger import Trigger
 
@@ -55,13 +55,15 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         self,
         repository,
         price_source: PriceSource,
-        emit: Callable[[str], None],
+        console: Console,
+        log: Log,
         *,
         ranges: ListRanges,
     ):
         self.repository = repository
         self.price_source = price_source
-        self.emit = emit
+        self.console = console
+        self.log = log
         self.load_levels = ranges.execute
 
     def execute(self, request: WatchPricesRequest) -> WatchPricesResult:
@@ -79,10 +81,11 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
             self._watch(request)
         except KeyboardInterrupt:
             # Ctrl+C is the watcher's stop button: a clean stop, not a failure.
-            self.emit("Stopped watching.")
+            self.console("Stopped watching.")
         except ValueError as error:
             return WatchPricesResult.invalid_data([str(error)])
         except Exception as error:
+            self.log(f"Failed to watch alerts: {error}")
             return WatchPricesResult.error([f"Failed to watch alerts: {error}"])
         return WatchPricesResult.success(None)
 
@@ -90,9 +93,9 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         triggers, symbols = self._resolve_symbols(request)
         if not symbols:
             if request.all_triggers and not triggers:
-                self.emit("No enabled triggers in the store.")
+                self.console("No enabled triggers in the store.")
             else:
-                self.emit("No symbols with enough history for levels.")
+                self.console("No symbols with enough history for levels.")
             return
 
         levels_result = self.load_levels(ListRangesRequest(symbols=symbols))
@@ -100,7 +103,7 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
             raise RuntimeError("; ".join(levels_result.errors) or "levels failed")
         levels = levels_result.result
         if not levels.rows:
-            self.emit("No symbols with enough history for levels.")
+            self.console("No symbols with enough history for levels.")
             return
 
         trigger_by_symbol = {trigger.symbol: trigger for trigger in triggers}
@@ -145,8 +148,8 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
             trigger = trigger_by_symbol.get(alert.symbol)
             name = trigger.name if trigger is not None else alert.symbol
             bid = latest_bid.get(alert.symbol, alert.price)
-            self.emit(f"Trigger fired: {name}")
-            self.emit(f"symbol: {alert.symbol}, bid: {bid:g}, ask: {alert.price:g}")
+            self.console(f"Trigger fired: {name}")
+            self.console(f"symbol: {alert.symbol}, bid: {bid:g}, ask: {alert.price:g}")
             if (
                 trigger is not None
                 and trigger.frequency == "once"
@@ -175,7 +178,7 @@ class WatchPrices(Command[WatchPricesRequest, WatchPricesResult]):
         engine.seed_baseline({row.symbol: row.close for row in levels.rows})
 
         symbols = [row.symbol for row in levels.rows]
-        self.emit(
+        self.console(
             f"Watching {len(levels.rows)} symbols (regular sessions fire); "
             f"levels as of {levels.data_vintage}."
         )

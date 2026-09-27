@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 from hamcrest import assert_that, equal_to
 from pytest_bdd import given, parsers, scenarios, then, when
+from tests.fakes import CapturingConsole, CapturingLog
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
@@ -40,7 +41,8 @@ def watch_context(financial_repository):
     context = SimpleNamespace(result=None)
     context.cli_result = None
     context.clock = clock
-    context.emitted = []
+    context.console = CapturingConsole()
+    context.log = CapturingLog()
     context.trigger_id = None
     context.proc = None
     context.child_output = ""
@@ -55,6 +57,7 @@ def watch_context(financial_repository):
         repository=financial_repository,
         clock=clock,
         watch_price_source=context.price_source,
+        log=context.log,
     )
     yield context
     proc = context.proc
@@ -203,13 +206,11 @@ def _watch(
             for symbol, bid, ask, timestamp in scripted_quotes or []:
                 on_quote(Quote(symbol=symbol, bid=bid, ask=ask, timestamp=timestamp))
 
-    def emit(line: str) -> None:
-        watch_context.emitted.append(line)
-
     command = WatchPrices(
         financial_repository,
         FakePriceSource(),
-        emit,
+        watch_context.console,
+        watch_context.log,
         ranges=ListRanges(financial_repository, watch_context.clock),
     )
     execute_watch = command.execute
@@ -303,7 +304,7 @@ def watch_errors_are_exactly(watch_context, docstring):
 
 @then("the emitted lines are:")
 def emitted_lines_are_exactly(watch_context, docstring):
-    assert_that(watch_context.emitted, equal_to(docstring.splitlines()))
+    assert_that(watch_context.console.lines, equal_to(docstring.splitlines()))
 
 
 @then("the stored trigger is disabled")
@@ -311,7 +312,7 @@ def stored_trigger_is_disabled(watch_context, financial_repository):
     enabled_ids = {
         trigger.id for trigger in financial_repository.list_triggers(enabled_only=True)
     }
-    assert watch_context.trigger_id not in enabled_ids, watch_context.emitted
+    assert watch_context.trigger_id not in enabled_ids, watch_context.console.lines
 
 
 # Signal handling (blocking child process, real SIGINT).

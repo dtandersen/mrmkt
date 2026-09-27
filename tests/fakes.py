@@ -9,6 +9,7 @@ from typing import Any, cast
 from alpaca.trading.enums import AssetClass, AssetStatus
 from hamcrest import assert_that, not_none
 
+from mrmkt.command.base import Console, Log
 from mrmkt.command.start_engine import MessageQueue, PriceProvider
 from mrmkt.command.watch import Quote
 from mrmkt.common.util import to_date
@@ -58,6 +59,26 @@ class FakeTickSource(LiveTickSource):
         for tick in [tick for tick in self._ticks if tick.symbol == symbol]:
             yield tick
         await asyncio.Event().wait()
+
+
+class CapturingConsole(Console):
+    """Test console: records lines instead of printing."""
+
+    def __init__(self):
+        self.lines = []
+
+    def __call__(self, line: str) -> None:
+        self.lines.append(line)
+
+
+class CapturingLog(Log):
+    """Test log: records lines instead of writing."""
+
+    def __init__(self):
+        self.lines = []
+
+    def __call__(self, line: str) -> None:
+        self.lines.append(line)
 
 
 class FakeMessageQueue(MessageQueue):

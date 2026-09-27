@@ -3,7 +3,7 @@
 import typer
 
 from mrmkt.cli.results import handle
-from mrmkt.command.import_prices import ImportPricesRequest
+from mrmkt.command.import_prices import ImportPricesRequest, PriceHistorySource
 from mrmkt.command.list_prices import ListPricesRequest
 from mrmkt.command.prices_freshness import CheckFreshnessRequest, render_csv
 
@@ -14,8 +14,8 @@ prices_app = typer.Typer(no_args_is_help=True, help="Import and list historical 
 def import_prices(
     ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
-    provider: str = typer.Option(
-        ..., "--provider", help="Price source (currently: alpaca)"
+    provider: PriceHistorySource = typer.Option(
+        ..., "--provider", help="Price source (alpaca, tiingo)"
     ),
     all_symbols: bool = typer.Option(
         False, "--all", help="Import every locally cataloged symbol"
@@ -31,7 +31,7 @@ def import_prices(
     """Import bounded daily price history into the local store."""
     handle(
         ctx,
-        lambda factory: factory.import_prices().execute(
+        lambda factory: factory.import_prices(provider=provider).execute(
             ImportPricesRequest(
                 provider=provider,
                 symbols=symbols,

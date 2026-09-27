@@ -8,6 +8,7 @@ real SIGINT mid-watch and assert graceful shutdown.
 import threading
 from datetime import date, timedelta
 
+from mrmkt.command.base import Console, Log
 from mrmkt.command.ranges import ListRanges
 from mrmkt.command.watch import WatchPrices, WatchPricesRequest
 from mrmkt.common.clock import ClockStub
@@ -55,13 +56,19 @@ def main() -> None:
     clock.set_time(date(2022, 4, 1))
     gate = threading.Event()
 
-    def emit(line: str, err: bool = False) -> None:
-        print(line, flush=True)
+    class PrintConsole(Console):
+        def __call__(self, line: str) -> None:
+            print(line, flush=True)
+
+    class PrintLog(Log):
+        def __call__(self, line: str) -> None:
+            print(line, flush=True)
 
     command = WatchPrices(
         repository,
         BlockingPriceSource(gate),
-        emit,
+        PrintConsole(),
+        PrintLog(),
         ranges=ListRanges(repository, clock),
     )
     command.execute(WatchPricesRequest(symbols=["AAA"]))

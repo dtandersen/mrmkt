@@ -7,13 +7,14 @@ from types import SimpleNamespace
 import pytest
 from hamcrest import assert_that, equal_to, not_none
 from pytest_bdd import given, parsers, scenarios, then, when
-from tests.fakes import FakePriceSource
+from tests.fakes import CapturingConsole, CapturingLog, FakePriceSource
 from typer.testing import CliRunner
 
 import mrmkt.cli.main as cli
 from mrmkt.command.start_engine import StartEngine, StartEngineRequest
 from mrmkt.command.watch import Quote
 from mrmkt.composition import cli_dependencies_for_testing
+from mrmkt.entity.trigger import Trigger
 
 scenarios(
     "features/cli/start_engine.feature",
@@ -44,30 +45,49 @@ class FakeThread:
 @pytest.fixture
 def engine_context(fake_queue, financial_repository):
     prices = FakePriceSource()
+    console = CapturingConsole()
+    log = CapturingLog()
     context = SimpleNamespace(
         result=None,
         cli_result=None,
         engine=None,
         prices=prices,
+        console=console,
+        log=log,
     )
     context.deps = cli_dependencies_for_testing(
         repository=financial_repository,
         engine_queue=fake_queue,
         engine_prices=prices,
+        log=log,
     )
     return context
 
 
-def _start(engine_context, fake_queue):
-    engine = StartEngine(fake_queue, engine_context.prices, engine_thread=FakeThread)
+def _start(engine_context, fake_queue, financial_repository):
+    engine = StartEngine(
+        financial_repository,
+        fake_queue,
+        engine_context.prices,
+        engine_context.console,
+        engine_context.log,
+        engine_thread=FakeThread,
+    )
     engine_context.engine = engine
     run_engine = engine.execute
     engine_context.result = run_engine(StartEngineRequest())
 
 
+@given(parsers.parse('stored trigger "{name}" for "{symbol}"'))
+def stored_trigger_for_symbol(engine_context, financial_repository, name, symbol):
+    financial_repository.add_trigger(
+        Trigger(id=None, name=name, symbol=symbol, indicator="risk-range")
+    )
+
+
 @given("the engine is started")
-def engine_is_started(engine_context, fake_queue):
-    _start(engine_context, fake_queue)
+def engine_is_started(engine_context, fake_queue, financial_repository):
+    _start(engine_context, fake_queue, financial_repository)
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -89,8 +109,8 @@ def queue_subscribed(engine_context, fake_queue, subject):
 
 
 @when("the engine starts")
-def engine_starts(engine_context, fake_queue):
-    _start(engine_context, fake_queue)
+def engine_starts(engine_context, fake_queue, financial_repository):
+    _start(engine_context, fake_queue, financial_repository)
 
 
 @given("the price data:")

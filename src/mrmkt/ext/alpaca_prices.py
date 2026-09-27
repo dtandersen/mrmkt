@@ -1,18 +1,20 @@
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 from alpaca.data.enums import Adjustment, DataFeed
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
+from mrmkt.command.base import Log
 from mrmkt.entity.stock_price import StockPrice
 
 
 class AlpacaPriceSource:
     """Fetch split- and dividend-adjusted daily stock bars from Alpaca."""
 
-    def __init__(self, client: Any):
+    def __init__(self, client: Any, log: Log):
         self.client = client
+        self.log = log
 
     def get_prices(
         self,
@@ -27,10 +29,13 @@ class AlpacaPriceSource:
         if not normalized_symbols:
             return {}
 
+        self.log("Connected to Alpaca prices")
+        self.log(f"Subscribing to {', '.join(normalized_symbols)}")
+
         request = StockBarsRequest(
             symbol_or_symbols=normalized_symbols,
-            start=datetime.combine(start, time.min, tzinfo=timezone.utc),
-            end=datetime.combine(end, time.max, tzinfo=timezone.utc),
+            start=datetime.combine(start, time.min, tzinfo=UTC),
+            end=datetime.combine(end, time.max, tzinfo=UTC),
             timeframe=TimeFrame(1, TimeFrameUnit("Day")),
             adjustment=Adjustment.ALL,
             feed=DataFeed.IEX,

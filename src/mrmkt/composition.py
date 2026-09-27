@@ -22,7 +22,7 @@ override any provider with a fake without touching anything else.
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import typer
 from alpaca.data.historical import StockHistoricalDataClient
@@ -32,6 +32,7 @@ from mrmkt.backend import MrMktBackendFactory
 from mrmkt.command import _shared
 from mrmkt.command.add_triggerset import AddTriggerToSet
 from mrmkt.command.backtest_run import RunBacktest
+from mrmkt.command.base import Console, Log
 from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.create_triggerset import CreateTriggerSet
 from mrmkt.command.delete_trigger import DeleteTrigger
@@ -73,6 +74,7 @@ from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca import AlpacaTickerRepository
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
+from mrmkt.ext.tiingo_prices import TiingoPriceSource
 
 
 class CommandFactory:
@@ -94,11 +96,15 @@ class CommandFactory:
         watch_price_source: PriceSource | None = None,
         engine_queue: MessageQueue | None = None,
         engine_prices: PriceProvider | None = None,
+        console: Console | None = None,
+        log: Log | None = None,
     ) -> None:
         self._env = env
         self._watch_price_source = watch_price_source
         self._engine_queue = engine_queue
         self._engine_prices = engine_prices
+        self._console = console or TyperConsole()
+        self._log = log or TeeLog()
 
     def create_trigger(self) -> CreateTrigger:
         """Build a ready CreateTrigger from the app-scoped environment."""
@@ -156,10 +162,14 @@ class CommandFactory:
         """Build a ready UnlabelSymbols from the app-scoped environment."""
         return UnlabelSymbols(self._env.tickers)
 
-    def import_prices(self) -> ImportPrices:
+    def import_prices(self, provider: str = "alpaca") -> ImportPrices:
         """Build a ready ImportPrices from the app-scoped environment."""
+        if provider.lower() == "tiingo":
+            price_source: Any = TiingoPriceSource.from_env(self._log)
+        else:
+            price_source = AlpacaPriceSource(self._env.alpaca_data_client, self._log)
         return ImportPrices(
-            price_source=AlpacaPriceSource(self._env.alpaca_data_client),
+            price_source=price_source,
             local_repository=self._env.prices,
             clock=self._env.clock,
             on_progress=_report_price_import_progress,
@@ -218,15 +228,19 @@ class CommandFactory:
         if self._watch_price_source is not None:
             price_source = self._watch_price_source
         elif self._engine_queue is not None:
-            price_source = QueuePriceSource(self._engine_queue)
+            price_source = QueuePriceSource(self._engine_queue, self._log)
         else:
+            rabbitmq_url = rabbitmq_url_from_config()
             price_source = QueuePriceSource(
-                RabbitMQMessageQueue(rabbitmq_url_from_config())
+                RabbitMQMessageQueue(rabbitmq_url),
+                self._log,
+                address=rabbitmq_display_address(rabbitmq_url),
             )
         return WatchPrices(
             self._env.triggers,
             price_source,
-            _emit_watch_line,
+            self._console,
+            self._log,
             ranges=ListRanges(self._env.triggers, self._env.clock),
         )
 
@@ -240,9 +254,9 @@ class CommandFactory:
         prices = (
             self._engine_prices
             if self._engine_prices is not None
-            else AlpacaEnginePrices()
+            else TiingoEquityPrices(self._log)
         )
-        return StartEngine(queue, prices)
+        return StartEngine(self._env.triggers, queue, prices, self._console, self._log)
 
     async def live_ticks(self, symbol):
         """Yield live trade ticks; real Alpaca stream unless tests inject a fake."""
@@ -277,6 +291,9 @@ class AlpacaLivePriceSource:
     command only sees normalized quote callbacks.
     """
 
+    def __init__(self, log: Log):
+        self.log = log
+
     def subscribe(
         self,
         symbols: list[str],
@@ -300,18 +317,58 @@ class AlpacaLivePriceSource:
             secret_key=config["secret"],
             feed=DataFeed(feed),
         )
-        AlpacaStreamSource(stream, lambda: datetime.datetime.now(tz=ET)).subscribe(
-            symbols, on_quote
-        )
+        AlpacaStreamSource(
+            stream, lambda: datetime.datetime.now(tz=ET), self.log
+        ).subscribe(symbols, on_quote)
 
 
 class AlpacaEnginePrices(PriceProvider):
     """Production PriceProvider: Alpaca websocket -> normalized quotes (IEX)."""
 
+    def __init__(self, log: Log):
+        self.log = log
+
     def subscribe(
         self, symbols: list[str], *, on_quote: Callable[[Quote], None]
     ) -> None:
-        AlpacaLivePriceSource().subscribe(symbols, "iex", on_quote=on_quote)
+        AlpacaLivePriceSource(self.log).subscribe(symbols, "iex", on_quote=on_quote)
+
+
+def rabbitmq_display_address(url: str) -> str:
+    """Broker label for log lines; never includes credentials from the URL."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname or "localhost"
+        port = parts.port or 5672
+    except ValueError:
+        return "RabbitMQ"
+    return f"RabbitMQ@{host}:{port}"
+
+
+class TiingoEquityPrices(PriceProvider):
+    """Production PriceProvider: Tiingo equity WS -> normalized quotes."""
+
+    def __init__(self, log: Log):
+        self.log = log
+
+    def subscribe(
+        self, symbols: list[str], *, on_quote: Callable[[Quote], None]
+    ) -> None:
+        import datetime
+
+        from mrmkt.common.clock import ET
+        from mrmkt.ext.tiingo_stream import (
+            EQUITY_ENDPOINT,
+            EQUITY_THRESHOLD_LEVEL,
+            TiingoStreamSource,
+        )
+
+        TiingoStreamSource.from_env(
+            lambda: datetime.datetime.now(tz=ET),
+            log=self.log,
+            endpoint=EQUITY_ENDPOINT,
+            threshold_level=EQUITY_THRESHOLD_LEVEL,
+        ).subscribe(symbols, "cons", on_quote=on_quote)
 
 
 class QueuePriceSource:
@@ -323,17 +380,53 @@ class QueuePriceSource:
     quote callbacks.
     """
 
-    def __init__(self, queue: MessageQueue, subject: str = DEFAULT_SUBJECT):
+    def __init__(
+        self,
+        queue: MessageQueue,
+        log: Log,
+        subject: str = DEFAULT_SUBJECT,
+        *,
+        address: str | None = None,
+    ):
         self.queue = queue
+        self.log = log
         self.subject = subject
+        self.address = address or "price queue"
 
     def subscribe(self, symbols: list[str], feed: str, *, on_quote) -> None:
+        if not symbols:
+            return
+        self.log(f"Connecting to {self.address}")
+        self.log(f"Subscribing to {', '.join(symbols)}")
         for symbol in symbols:
             self.queue.subscribe(f"{self.subject}.{symbol}", on_event=on_quote)
 
 
-def _emit_watch_line(line: str, err: bool = False) -> None:
-    typer.echo(line, err=err)
+DEFAULT_LOG_PATH = "mrmkt.log"
+
+
+class TyperConsole(Console):
+    """User-facing output through typer."""
+
+    def __call__(self, line: str) -> None:
+        typer.echo(line)
+
+
+class TeeLog(Log):
+    """Operational record to stdout and a log file."""
+
+    def __init__(self, path: str = DEFAULT_LOG_PATH):
+        self.path = path
+
+    def __call__(self, line: str) -> None:
+        import sys
+
+        print(line, flush=True)
+        try:
+            with open(self.path, "a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+        except OSError as error:
+            print(f"log file write failed: {error}", file=sys.stderr, flush=True)
 
 
 def mrmkt_backend_factory_from_env(
@@ -458,6 +551,8 @@ def cli_dependencies_for_testing(
     watch_price_source: PriceSource | None = None,
     engine_queue: MessageQueue | None = None,
     engine_prices: PriceProvider | None = None,
+    console: Console | None = None,
+    log: Log | None = None,
 ) -> AppContext:
     """Injectable dependencies for ``CliRunner(..., obj=...)`` tests.
 
@@ -489,5 +584,7 @@ def cli_dependencies_for_testing(
         watch_price_source=watch_price_source,
         engine_queue=engine_queue,
         engine_prices=engine_prices,
+        console=console,
+        log=log,
     )
     return AppContext(command_factory=factory, close=release)

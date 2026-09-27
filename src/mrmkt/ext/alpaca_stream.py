@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+from mrmkt.command.base import Log
 from mrmkt.command.watch import Quote
 from mrmkt.common.clock import ET
 
@@ -9,9 +10,10 @@ from mrmkt.common.clock import ET
 class AlpacaStreamSource:
     """Normalize Alpaca quote messages before forwarding them to the watcher."""
 
-    def __init__(self, stream, clock_now):
+    def __init__(self, stream, clock_now, log: Log):
         self.stream = stream
         self.clock_now = clock_now
+        self.log = log
 
     def subscribe(
         self,
@@ -23,6 +25,8 @@ class AlpacaStreamSource:
         async def handle_quote(quote) -> None:
             self._handle_quote(quote, on_quote)
 
+        self.log("Connected to Alpaca stream")
+        self.log(f"Subscribing to {', '.join(symbols)}")
         self.stream.subscribe_quotes(handle_quote, *symbols)
         self.stream.run()
 

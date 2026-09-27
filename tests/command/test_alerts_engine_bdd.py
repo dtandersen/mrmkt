@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
+from tests.fakes import CapturingLog
 
 from mrmkt.command.alerts import AlertEngine, ListSink, TriggerRule, dry_run_alerts
 
@@ -296,7 +297,9 @@ def quote_stamped_pre(engine_context):
             )
         ]
     )
-    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
+    AlpacaStreamSource(
+        stream, lambda: _moment(engine_context, "regular"), CapturingLog()
+    ).subscribe(
         ["AAA"],
         on_quote=lambda quote: engine_context.engine.on_tick(
             quote.symbol, quote.ask, quote.timestamp
@@ -316,7 +319,9 @@ def quote_no_timestamp(engine_context):
     stream = InMemoryStreamSource(
         [SimpleNamespace(symbol="AAA", bid_price=98.9, ask_price=99.0, timestamp=None)]
     )
-    AlpacaStreamSource(stream, lambda: _moment(engine_context, "regular")).subscribe(
+    AlpacaStreamSource(
+        stream, lambda: _moment(engine_context, "regular"), CapturingLog()
+    ).subscribe(
         ["AAA"],
         on_quote=lambda quote: engine_context.engine.on_tick(
             quote.symbol, quote.ask, quote.timestamp
@@ -513,3 +518,16 @@ def alerts_below_level(engine_context):
 @then("delivery happened only through on_alert")
 def only_on_alert(engine_context):
     assert engine_context.delivered == engine_context.fired
+
+
+def test_alpaca_stream_logs_connection_and_subscribed_symbols():
+    from tests.fakes import InMemoryStreamSource
+
+    from mrmkt.ext.alpaca_stream import AlpacaStreamSource
+
+    log = CapturingLog()
+    AlpacaStreamSource(InMemoryStreamSource([]), lambda: None, log).subscribe(
+        ["AAA", "BBB"], on_quote=lambda quote: None
+    )
+
+    assert log.lines == ["Connected to Alpaca stream", "Subscribing to AAA, BBB"]

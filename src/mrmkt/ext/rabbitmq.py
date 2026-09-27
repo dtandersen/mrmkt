@@ -18,19 +18,22 @@ from mrmkt.command.watch import Quote
 class RabbitMQMessageQueue(MessageQueue):
     """MessageQueue over a RabbitMQ broker (default: local dev instance)."""
 
-    def __init__(self, url: str, connect=None):
+    def __init__(self, url: str, connect=None, log=None):
         self.url = url
+        self.log = log
         self._connect = connect or (
             lambda: pika.BlockingConnection(pika.URLParameters(url))
         )
 
     def subscribe(self, subject: str, *, on_event) -> None:
-        host = urlsplit(self.url).hostname or "unknown"
-        print(f"Connecting to RabbitMQ@{host}", flush=True)
+        if self.log is not None:
+            host = urlsplit(self.url).hostname or "unknown"
+            self.log(f"Connecting to RabbitMQ@{host}")
         connection = self._connect()
         channel = connection.channel()
         channel.queue_declare(queue=subject, durable=True)
-        print(f"Subscribing to {subject}", flush=True)
+        if self.log is not None:
+            self.log(f"Subscribing to {subject}")
         channel.basic_consume(
             queue=subject,
             on_message_callback=lambda ch, method, properties, body: self._dispatch(

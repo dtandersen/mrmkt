@@ -7,6 +7,11 @@ Feature: Start engine
     When the engine starts
     Then the engine is subscribed to "subscribe.realtime.price" events
 
+  Scenario: Engine streams enabled stored triggers on start
+    Given stored trigger "dip-watch" for "AAA"
+    When the engine starts
+    Then the engine starts streaming stock price data for AAA on a new thread
+
   Scenario: Engine subscribes to market price events when it gets a subscription
     Given the engine is started
     And the price data:

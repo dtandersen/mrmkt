@@ -60,3 +60,17 @@ class Command[REQ, RES: BaseResult](ABC):
     @abstractmethod
     def execute(self, request: REQ) -> RES:
         pass
+
+
+class Console(ABC):
+    """User-facing output: results, status, and error messages."""
+
+    @abstractmethod
+    def __call__(self, line: str) -> None: ...
+
+
+class Log(ABC):
+    """Operational record: flow, exceptions, and diagnostics."""
+
+    @abstractmethod
+    def __call__(self, line: str) -> None: ...

@@ -5,10 +5,18 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
+from enum import StrEnum
 
 from mrmkt.command._shared import normalize_symbol, normalize_tag, parse_cli_date
 from mrmkt.command.base import BaseResult, Command
 from mrmkt.common.sql import Duplicate
+
+
+class PriceHistorySource(StrEnum):
+    """Historical price providers selectable via ``--provider``."""
+
+    ALPACA = "alpaca"
+    TIINGO = "tiingo"
 
 
 @dataclass(frozen=True)
@@ -80,9 +88,9 @@ class ImportPrices(Command[ImportPricesRequest, ImportPricesResult]):
         self.sleep = sleep
 
     def execute(self, request: ImportPricesRequest) -> ImportPricesResult:
-        if request.provider.lower() != "alpaca":
+        if request.provider.lower() not in ("alpaca", "tiingo"):
             return ImportPricesResult.invalid_data(
-                ["only the 'alpaca' provider is currently supported"]
+                ["only the 'alpaca' and 'tiingo' providers are currently supported"]
             )
         selector_count = sum(
             (bool(request.symbols), request.all_symbols, request.tag is not None)
