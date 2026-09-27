@@ -18,7 +18,6 @@ from alpaca.trading.client import TradingClient
 from psycopg2.pool import SimpleConnectionPool
 
 from mrmkt.common.clock import Clock, WallClock
-from mrmkt.common.sql import InsecureSqlGenerator
 from mrmkt.entity.trigger import normalize_trigger_indicator
 from mrmkt.ext.backend import PostgresBackend
 from mrmkt.ext.backend.postgres import PostgresSqlClient
@@ -115,7 +114,7 @@ def create_local_ticker_repository() -> tuple[PostgresBackend, Callable[[], None
         port=db_config["port"],
         database=db_config["db"],
     )
-    sql_client = PostgresSqlClient(InsecureSqlGenerator(), pool)
+    sql_client = PostgresSqlClient(pool)
     return PostgresBackend(sql_client), pool.closeall
 
 

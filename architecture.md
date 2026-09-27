@@ -62,8 +62,8 @@ CLI Commands invoke Commands; dependency construction belongs in the composition
 |  |  |  |- api - mrmkt rest api backend
 |  |  |  |- memory - in-memory backend
 |  |  |  |- postgres - postgres backend (bundle)
-|  |  |- repo/postgres - narrow postgres repositories
-|  |  |- repo - repository implementation
+|  |  |- repo - repository implementations
+|  |  |  |- postgres -  narrow postgres repositories
 |  |- common - shared impl (clocks, config, sql plumbing)
 |  |- indicator - built-in indicators
 |  |- backtest - strategies + portfolio simulation

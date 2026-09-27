@@ -1,11 +1,12 @@
 import json
 import unittest
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from hamcrest import *
 
-from mrmkt.common.sql import JsonField, InsecureSqlGenerator
+from mrmkt.common.sql import JsonField
 from mrmkt.common.util import EnhancedJSONEncoder
+from mrmkt.ext.backend.postgres import build_insert
 
 
 @dataclass
@@ -27,19 +28,33 @@ class JsonRow:
 
 class TestStringMethods(unittest.TestCase):
     def test_insert_with_values(self):
-        converter = InsecureSqlGenerator()
-        insert, values = converter.to_insert('table', asdict(TestRow(x=5, y="b")))
-        self.assertEqual("insert into table (x, y) values (%s, %s)", insert)
+        insert, values = build_insert("table", {"x": 5, "y": "b"})
+        self.assertEqual('insert into "table" ("x", "y") values (%s, %s)', insert)
         assert_that(values, equal_to((5, "b")))
 
     def test_insert_with_different_order(self):
-        converter = InsecureSqlGenerator()
-        insert, values = converter.to_insert('table', TestRow2(b="z", a=11))
-        self.assertEqual("insert into table (b, a) values (%s, %s)", insert)
+        insert, values = build_insert("table", TestRow2(b="z", a=11))
+        self.assertEqual('insert into "table" ("b", "a") values (%s, %s)', insert)
         assert_that(values, equal_to(("z", 11)))
 
     def test_insert_json(self):
-        converter = InsecureSqlGenerator()
-        insert, values = converter.to_insert('table', JsonRow(data=JsonField(data=TestRow(x=5, y="b"))))
-        self.assertEqual("insert into table (data) values (%s)", insert)
-        assert_that(values, equal_to(tuple([json.dumps(TestRow(x=5, y="b"), cls=EnhancedJSONEncoder)])))
+        insert, values = build_insert(
+            "table", JsonRow(data=JsonField(data=TestRow(x=5, y="b")))
+        )
+        self.assertEqual('insert into "table" ("data") values (%s)', insert)
+        assert_that(
+            values,
+            equal_to(tuple([json.dumps(TestRow(x=5, y="b"), cls=EnhancedJSONEncoder)])),
+        )
+
+    def test_rejects_hostile_table(self):
+        with self.assertRaises(ValueError):
+            build_insert("trigger; drop table trigger --", {"x": 5})
+
+    def test_rejects_hostile_column(self):
+        with self.assertRaises(ValueError):
+            build_insert("table", {'x": "%s --': 5})
+
+    def test_rejects_empty_row(self):
+        with self.assertRaises(ValueError):
+            build_insert("table", {})

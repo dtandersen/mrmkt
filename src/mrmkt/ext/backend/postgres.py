@@ -1,16 +1,21 @@
 """Postgres whole-service backend (client + composed repositories)."""
 
+import dataclasses
 import datetime
+import json
 import logging
+import re
 from collections.abc import Callable
-from typing import Any
+from dataclasses import asdict
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import AbstractConnectionPool
 
 from mrmkt.backend import MrMktBackend
-from mrmkt.common.sql import Duplicate, SqlClient, SqlGenerator
+from mrmkt.common.sql import Duplicate, JsonField, SqlClient
+from mrmkt.common.util import EnhancedJSONEncoder
 from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
@@ -26,10 +31,43 @@ from mrmkt.ext.repo.postgres.tickers import PostgresTickerRepository
 from mrmkt.ext.repo.postgres.trigger_sets import PostgresTriggerSetRepository
 from mrmkt.ext.repo.postgres.triggers import PostgresTriggerRepository
 
+_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _quote_identifier(name: str) -> str:
+    """Quote a table/column identifier; reject anything not allowlisted."""
+    if not _IDENTIFIER_RE.fullmatch(name):
+        raise ValueError(f"invalid SQL identifier: {name!r}")
+    return f'"{name}"'
+
+
+def _map_value(value: Any) -> Any:
+    if isinstance(value, JsonField):
+        return json.dumps(value.data, cls=EnhancedJSONEncoder)
+    if isinstance(value, dict):  # asdict() form of a JsonField
+        return json.dumps(value["data"], cls=EnhancedJSONEncoder)
+    return value
+
+
+def build_insert(table: str, values: Any) -> tuple[str, tuple]:
+    """Build a parameterized insert; identifiers are allowlisted, values bound."""
+    d: dict[str, Any]
+    if dataclasses.is_dataclass(values) and not isinstance(values, type):
+        d = asdict(values)
+    else:
+        d = cast(dict[str, Any], values)
+    if not d:
+        raise ValueError("insert requires at least one column")
+    columns = ", ".join(_quote_identifier(key) for key in d)
+    placeholders = ", ".join("%s" for _ in d)
+    query = (
+        f"insert into {_quote_identifier(table)} ({columns}) values ({placeholders})"
+    )
+    return query, tuple(_map_value(value) for value in d.values())
+
 
 class PostgresSqlClient(SqlClient):
-    def __init__(self, converter: SqlGenerator, pool: AbstractConnectionPool):
-        self.converter = converter
+    def __init__(self, pool: AbstractConnectionPool):
         self.pool = pool
 
     def select(self, query: str, mapper: Callable[[dict], object], params: tuple = ()):
@@ -57,7 +95,7 @@ class PostgresSqlClient(SqlClient):
         conn = self.pool.getconn()
         try:
             with conn, conn.cursor() as cur:
-                sql, params = self.converter.to_insert(table, values)
+                sql, params = build_insert(table, values)
                 logging.debug(sql)
                 try:
                     cur.execute(sql, params)

@@ -1,11 +1,8 @@
 import dataclasses
-import json
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any, cast
-
-from mrmkt.common.util import EnhancedJSONEncoder
+from typing import Any
 
 
 @dataclasses.dataclass
@@ -52,38 +49,6 @@ class MockSqlClient(SqlClient):
 
     def append_select(self, query: str, rows: list[Any]):
         self.selects[query] = [asdict(row) for row in rows]
-
-
-class SqlGenerator(ABC):
-    @abstractmethod
-    def to_insert(self, table: str, params: Any) -> tuple[str, tuple]:
-        """Build a parameterized insert; implemented by gateways."""
-
-
-# @author little bobby tables
-class InsecureSqlGenerator(SqlGenerator):
-    def to_insert(self, table: str, params: Any):
-        if dataclasses.is_dataclass(params) and not isinstance(params, type):
-            d = asdict(cast(Any, params))
-        else:
-            d = cast(dict[str, Any], params)
-
-        keys = d.keys()
-        columns = ", ".join(keys)
-        values = ", ".join("%s" for _ in keys)
-        query = f"insert into {table} ({columns}) values ({values})"
-        # print(d.values())
-        v = [self.map_obj(x) for x in d.values()]
-        return query, tuple(v)
-
-    def map_obj(self, x):
-        # print(x)
-        if isinstance(x, dict):
-            j = json.dumps(x["data"], cls=EnhancedJSONEncoder)
-            # print("json=" + j)
-            return j
-        else:
-            return x
 
 
 class Duplicate(Exception):
