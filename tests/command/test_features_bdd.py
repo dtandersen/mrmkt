@@ -21,15 +21,29 @@ scenarios(
 )
 
 
+class SymbolSpecificTickerLookup:
+    """Fail if create-feature regresses to scanning the whole catalog."""
+
+    def __init__(self, repository):
+        self.repository = repository
+
+    def list_tickers_by_symbol(self, symbol):
+        return self.repository.list_tickers_by_symbol(symbol)
+
+    def get_tickers(self):
+        raise AssertionError("feature create must use a symbol-specific listing lookup")
+
+
 @pytest.fixture
 def feature_context(financial_repository):
     clock = ClockStub()
     clock.set_time(datetime.date(2026, 9, 27))
+    ticker_lookup = SymbolSpecificTickerLookup(financial_repository)
     return SimpleNamespace(
         clock=clock,
         result=None,
         removed=0,
-        create=CreateFeature(financial_repository, financial_repository, clock),
+        create=CreateFeature(financial_repository, ticker_lookup, clock),
         delete=DeleteFeature(financial_repository),
         list=ListFeatures(financial_repository),
         show=ShowFeature(financial_repository),

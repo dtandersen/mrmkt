@@ -15,8 +15,15 @@ class PostgresTickerRepository(TickerRepository):
 
     def get_tickers(self) -> list[Ticker]:
         rows = self.sql_client.select("select * " + "from ticker", self.ticker_mapper)
-
         return rows
+
+    def list_tickers_by_symbol(self, symbol: str) -> list[Ticker]:
+        normalized = symbol.strip().upper()
+        return self.sql_client.select(
+            "select * from ticker where ticker = %s order by exchange asc",
+            self.ticker_mapper,
+            (normalized,),
+        )
 
     def ticker_mapper(self, row):
         return Ticker(ticker=row["ticker"], exchange=row["exchange"], type=row["type"])

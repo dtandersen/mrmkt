@@ -1,10 +1,14 @@
 """VectorBT execution engine with an explicit portfolio overlay.
 
-One wide ``from_signals`` call simulates fills (close execution,
-intrabar stop-loss, percentage fees) and produces trade records.
-Selection, position caps, the equal-weight daily series, and statistics
-use the same transparent overlay math as the validated research engine:
-sizing scale is irrelevant because the overlay weights by return.
+One wide ``from_signals`` call simulates fills (next-bar-close execution
+by default, intrabar stop-loss, all-in friction per side) and produces
+trade records. Selection, position caps, the equal-weight daily series,
+and statistics use a transparent overlay: sizing scale is irrelevant
+because the overlay weights by return, so ``size_pct`` only sizes the
+unconstrained fill simulation and never the reported portfolio weights
+(validation plan open item — do not read position sizing into results).
+Days a name has no stored price contribute no mark and no open count
+rather than NaN-poisoning the series.
 """
 
 from dataclasses import dataclass, field
@@ -68,7 +72,9 @@ def run_portfolio(
         raise ValueError("close, entries, and exits must share an index")
     if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
         raise ValueError("close, entries, and exits must share columns")
-    records = simulate_fills(close, entries, exits, size_pct, fees, stop, freq, high, low)
+    records = simulate_fills(
+        close, entries, exits, size_pct, fees, stop, freq, high, low
+    )
     return aggregate_trades(close, records, max_positions, fees)
 
 
@@ -150,7 +156,10 @@ def aggregate_trades(
                 if span <= 0:
                     continue
                 marks = prices[l0 + 1 : l0 + span + 1] / prices[l0 : l0 + span] - 1
-                day_sum[g0 + 1 : g1 + 1] += marks
+                # Missing bars carry no mark and no open count (rather than
+                # NaN-poisoning the shared daily series); costs still book.
+                hit = np.arange(g0 + 1, g1 + 1)[np.isfinite(marks)]
+                day_sum[hit] += marks[np.isfinite(marks)]
                 # Attribute each side's friction to a day the position is
                 # counted open (entry fee to the first marked day, exit fee
                 # to the exit day): booking at g0 would drop the fee when
@@ -158,7 +167,7 @@ def aggregate_trades(
                 # excluding the entrant.
                 day_cost[g0 + 1] += fees_per_side
                 day_cost[g1] += fees_per_side
-                open_count[g0 + 1 : g1 + 1] += 1
+                open_count[hit] += 1
                 opened_today += 1
                 gross = float(row["Avg Exit Price"] / row["Avg Entry Price"] - 1)
                 trades.append(
@@ -175,9 +184,10 @@ def aggregate_trades(
                 if span <= 0:
                     continue
                 marks = prices[l0 + 1 :] / prices[l0:-1] - 1
-                day_sum[g0 + 1 :] += marks
+                hit = np.arange(g0 + 1, n_days)[np.isfinite(marks)]
+                day_sum[hit] += marks[np.isfinite(marks)]
                 day_cost[g0 + 1] += fees_per_side
-                open_count[g0 + 1 :] += 1
+                open_count[hit] += 1
                 opened_today += 1
         invested = open_count > 0
         count = np.where(invested, open_count, 1)
@@ -206,7 +216,9 @@ def aggregate_trades(
             win_rate=float(len(wins) / n_trades) if n_trades else 0.0,
             avg_win=float(wins.mean()) if len(wins) else 0.0,
             avg_loss=float(losses.mean()) if len(losses) else 0.0,
-            profit_factor=float(wins.sum() / -losses.sum()) if len(losses) and losses.sum() else 0.0,
+            profit_factor=float(wins.sum() / -losses.sum())
+            if len(losses) and losses.sum()
+            else 0.0,
             expectancy=float(nets.mean()) if n_trades else 0.0,
             avg_hold_days=float(holds.mean()) if n_trades else 0.0,
             exposure=float(invested.mean()),

@@ -55,11 +55,7 @@ class CreateFeature(Command[CreateFeatureRequest, CreateFeatureResult]):
                     ["dates must be ISO dates, now, or durations such as 7d"]
                 )
         try:
-            listings = [
-                ticker
-                for ticker in self.tickers.get_tickers()
-                if ticker.ticker == symbol
-            ]
+            listings = self.tickers.list_tickers_by_symbol(symbol)
         except Exception as error:
             return CreateFeatureResult.error([f"Failed to resolve symbol: {error}"])
         if not listings:

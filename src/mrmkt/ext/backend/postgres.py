@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql as pg_sql
 from psycopg2.pool import AbstractConnectionPool
 
 from mrmkt.backend import MrMktBackend
@@ -36,11 +37,11 @@ from mrmkt.repo.features import FeatureRepository
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def _quote_identifier(name: str) -> str:
-    """Quote a table/column identifier; reject anything not allowlisted."""
+def _validate_identifier(name: str) -> str:
+    """Allow only simple application-owned table/column identifiers."""
     if not _IDENTIFIER_RE.fullmatch(name):
         raise ValueError(f"invalid SQL identifier: {name!r}")
-    return f'"{name}"'
+    return name
 
 
 def _map_value(value: Any) -> Any:
@@ -51,8 +52,8 @@ def _map_value(value: Any) -> Any:
     return value
 
 
-def build_insert(table: str, values: Any) -> tuple[str, tuple]:
-    """Build a parameterized insert; identifiers are allowlisted, values bound."""
+def build_insert(table: str, values: Any) -> tuple[pg_sql.Composable, tuple]:
+    """Build an insert using SQL identifiers and bound data values."""
     d: dict[str, Any]
     if dataclasses.is_dataclass(values) and not isinstance(values, type):
         d = asdict(values)
@@ -60,10 +61,12 @@ def build_insert(table: str, values: Any) -> tuple[str, tuple]:
         d = cast(dict[str, Any], values)
     if not d:
         raise ValueError("insert requires at least one column")
-    columns = ", ".join(_quote_identifier(key) for key in d)
-    placeholders = ", ".join("%s" for _ in d)
-    query = (
-        f"insert into {_quote_identifier(table)} ({columns}) values ({placeholders})"
+    columns = pg_sql.SQL(", ").join(
+        pg_sql.Identifier(_validate_identifier(key)) for key in d
+    )
+    placeholders = pg_sql.SQL(", ").join(pg_sql.Placeholder() for _ in d)
+    query = pg_sql.SQL("insert into {} ({}) values ({})").format(
+        pg_sql.Identifier(_validate_identifier(table)), columns, placeholders
     )
     return query, tuple(_map_value(value) for value in d.values())
 
@@ -232,6 +235,9 @@ class PostgresBackend(MrMktBackend, FeatureRepository):
 
     def get_tickers(self) -> list[Ticker]:
         return self._tickers.get_tickers()
+
+    def list_tickers_by_symbol(self, symbol: str) -> list[Ticker]:
+        return self._tickers.list_tickers_by_symbol(symbol)
 
     def add_ticker(self, ticker: Ticker):
         return self._tickers.add_ticker(ticker)

@@ -24,6 +24,14 @@ class FakeAlpacaClient:
     def __init__(self):
         self.assets = []
         self.error = None
+        self.positions: list[Any] = []
+        self.orders: dict[str, Any] = {}
+        self.positions_error = None
+        self.orders_error = None
+        self.account = None
+        self.account_error = None
+        self.submitted: list[Any] = []
+        self.canceled: list[str] = []
 
     def get_all_assets(self, filter=None):
         if self.error is not None:
@@ -42,6 +50,140 @@ class FakeAlpacaClient:
             )
             for row in rows
         ]
+
+    # --- paper-trading surface (positions + orders) ---
+
+    def set_positions(self, rows):
+        """Populate fake positions from row dicts (symbol/qty/avg_entry/current/market_value/unrealized_pl)."""
+        self.positions = [SimpleNamespace(**row) for row in rows]
+
+    def set_orders(self, rows):
+        """Populate fake orders from row dicts (id/symbol/side/qty/order_type/status/...)."""
+        self.orders = {row["id"]: SimpleNamespace(**row) for row in rows}
+
+    def get_all_positions(self):
+        if self.positions_error is not None:
+            raise self.positions_error
+        return list(self.positions)
+
+    def set_account(self, row):
+        """Populate the fake account from a dict (equity/cash/buying_power/portfolio_value/currency)."""
+        self.account = SimpleNamespace(**row)
+
+    def get_account(self):
+        if self.account_error is not None:
+            raise self.account_error
+        if self.account is None:
+            raise RuntimeError("no fake account configured")
+        return self.account
+
+    def get_orders(self, filter=None):
+        if self.orders_error is not None:
+            raise self.orders_error
+        status = getattr(filter, "status", None)
+        if status is None:
+            status_value = "open"
+        elif hasattr(status, "value"):
+            status_value = status.value
+        else:
+            status_value = str(status)
+        orders = list(self.orders.values())
+        if status_value == "open":
+            orders = [
+                o
+                for o in orders
+                if getattr(o, "status", "")
+                in ("new", "partially_filled", "accepted", "pending_new")
+            ]
+        elif status_value == "closed":
+            orders = [
+                o
+                for o in orders
+                if getattr(o, "status", "")
+                not in ("new", "partially_filled", "accepted", "pending_new")
+            ]
+        return orders
+
+    def get_order_by_id(self, order_id):
+        if self.orders_error is not None:
+            raise self.orders_error
+        order = self.orders.get(str(order_id))
+        if order is None:
+            raise RuntimeError(f"order not found: {order_id} (404)")
+        return order
+
+    def submit_order(self, order_data):
+        if self.orders_error is not None:
+            raise self.orders_error
+        self.submitted.append(order_data)
+        fields = (
+            order_data.to_request_fields()
+            if hasattr(order_data, "to_request_fields")
+            else {}
+        )
+        order_id = f"fake-{len(self.submitted):04d}"
+        stop_loss = getattr(order_data, "stop_loss", None)
+        stop_price = (
+            getattr(stop_loss, "stop_price", None)
+            if stop_loss is not None
+            else fields.get("stop_price")
+        )
+        order = SimpleNamespace(
+            id=order_id,
+            symbol=fields.get("symbol", getattr(order_data, "symbol", "")),
+            side=fields.get("side", getattr(order_data, "side", "buy")),
+            qty=fields.get("qty", getattr(order_data, "qty", 0)),
+            order_type="limit",
+            type="limit",
+            status="new",
+            limit_price=fields.get(
+                "limit_price", getattr(order_data, "limit_price", None)
+            ),
+            stop_price=stop_price,
+            filled_qty=0,
+            filled_avg_price=None,
+            time_in_force=fields.get("time_in_force", "gtc"),
+        )
+        self.orders[order_id] = order
+        return order
+
+    def cancel_order_by_id(self, order_id):
+        if self.orders_error is not None:
+            raise self.orders_error
+        if str(order_id) not in self.orders:
+            raise RuntimeError(f"order not found: {order_id} (404)")
+        self.canceled.append(str(order_id))
+        self.orders[str(order_id)].status = "canceled"
+
+
+class FakeAlpacaDataClient:
+    """Fake Alpaca data client: scripted latest quotes per symbol."""
+
+    def __init__(self):
+        self.quotes: dict[str, Any] = {}
+        self.error = None
+
+    def set_quotes(self, rows):
+        """Populate fake quotes from row dicts (symbol/bid/ask/timestamp ISO)."""
+        self.quotes = {
+            row["symbol"]: SimpleNamespace(
+                symbol=row["symbol"],
+                bid_price=float(row["bid"]),
+                ask_price=float(row["ask"]),
+                timestamp=datetime.datetime.fromisoformat(row["timestamp"]),
+            )
+            for row in rows
+        }
+
+    def get_stock_latest_quote(self, request):
+        if self.error is not None:
+            raise self.error
+        symbols = getattr(request, "symbol_or_symbols", [])
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        return {
+            symbol: self.quotes[symbol] for symbol in symbols if symbol in self.quotes
+        }
 
 
 class CapturingConsole(Console):

@@ -8,6 +8,29 @@ from hamcrest import assert_that, close_to, equal_to
 
 from mrmkt.backtest.portfolio import aggregate_trades
 from mrmkt.backtest.strategy import BuyRedStrategy, StrategyRunner
+from mrmkt.backtest.strategy.base import ParamSpec, SignalSet, Strategy
+
+
+class SingleSignalStrategy(Strategy):
+    """Test stub: one entry bar and one exit bar (positions, not dates)."""
+
+    def __init__(self, entry_pos=1, exit_pos=3):
+        self.entry_pos = entry_pos
+        self.exit_pos = exit_pos
+
+    @classmethod
+    def param_specs(cls) -> dict[str, ParamSpec]:
+        return {}
+
+    def generate(self, close, high, low, context=None) -> SignalSet:
+        entries = pd.DataFrame(False, index=close.index, columns=close.columns)
+        exits = pd.DataFrame(False, index=close.index, columns=close.columns)
+        entries.iloc[self.entry_pos, :] = True
+        exits.iloc[self.exit_pos, :] = True
+        return SignalSet(entries=entries, exits=exits)
+
+    def describe(self) -> str:
+        return "single test entry and exit"
 
 
 def noisy_dip(seed=42, n=400, dip_day=320, dip=(-0.04, -0.03)):
@@ -20,7 +43,9 @@ def noisy_dip(seed=42, n=400, dip_day=320, dip=(-0.04, -0.03)):
 
 
 def frames_for(symbols_closes):
-    idx = pd.date_range("2020-01-01", periods=len(next(iter(symbols_closes.values()))), freq="B")
+    idx = pd.date_range(
+        "2020-01-01", periods=len(next(iter(symbols_closes.values()))), freq="B"
+    )
     closes, highs, lows = {}, {}, {}
     for sym, closes_list in symbols_closes.items():
         arr = np.array(closes_list, float)
@@ -208,7 +233,8 @@ class TestChunkedRunner(unittest.TestCase):
         result = StrategyRunner().run(BuyRedStrategy.trend_only(), close, high, low)
         crash_day = idx[crash]
         stopped = [
-            t for t in result.trades
+            t
+            for t in result.trades
             if t.exit_date == crash_day and t.gross_return < -0.05
         ]
 
@@ -216,7 +242,9 @@ class TestChunkedRunner(unittest.TestCase):
 
     def test_exit_day_counts_open_position(self):
         idx = pd.date_range("2020-01-01", periods=5, freq="B")
-        close = pd.DataFrame({"A": [100.0, 105.0, 110.0, 115.0, 120.0], "B": [200.0] * 5}, index=idx)
+        close = pd.DataFrame(
+            {"A": [100.0, 105.0, 110.0, 115.0, 120.0], "B": [200.0] * 5}, index=idx
+        )
         records = pd.DataFrame(
             [
                 {
@@ -242,3 +270,75 @@ class TestChunkedRunner(unittest.TestCase):
 
         assert_that(result.n_trades, equal_to(2))
         assert_that(result.total_return, close_to(0.075, 1e-12))
+
+    def test_next_bar_execution_delays_fills_by_one_bar(self):
+        # Signals are known at bar close; the default executable model
+        # fills the next close, never the signal bar itself.
+        idx = pd.date_range("2020-01-01", periods=6, freq="B")
+        prices = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
+        close = pd.DataFrame({"A": prices}, index=idx)
+        high = pd.DataFrame({"A": [p * 1.005 for p in prices]}, index=idx)
+        low = pd.DataFrame({"A": [p * 0.995 for p in prices]}, index=idx)
+
+        result = StrategyRunner().run(
+            SingleSignalStrategy(entry_pos=1, exit_pos=3),
+            close,
+            high,
+            low,
+            start=idx[0],
+        )
+
+        assert_that(result.n_trades, equal_to(1))
+        trade = result.trades[0]
+        assert_that(trade.entry_date, equal_to(idx[2]))
+        assert_that(trade.exit_date, equal_to(idx[4]))
+        assert_that(trade.gross_return, close_to(104.0 / 102.0 - 1, 1e-9))
+
+    def test_zero_lag_fills_at_signal_close(self):
+        idx = pd.date_range("2020-01-01", periods=6, freq="B")
+        prices = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
+        close = pd.DataFrame({"A": prices}, index=idx)
+        high = pd.DataFrame({"A": [p * 1.005 for p in prices]}, index=idx)
+        low = pd.DataFrame({"A": [p * 0.995 for p in prices]}, index=idx)
+
+        result = StrategyRunner(fill_lag=0).run(
+            SingleSignalStrategy(entry_pos=1, exit_pos=3),
+            close,
+            high,
+            low,
+            start=idx[0],
+        )
+
+        assert_that(result.n_trades, equal_to(1))
+        trade = result.trades[0]
+        assert_that(trade.entry_date, equal_to(idx[1]))
+        assert_that(trade.exit_date, equal_to(idx[3]))
+
+    def test_invalid_fill_lag_raises(self):
+        with self.assertRaises(ValueError):
+            StrategyRunner(fill_lag=2)
+
+    def test_missing_bar_days_carry_no_mark_or_count(self):
+        # A gap in stored prices must not NaN-poison the shared series:
+        # the gap days contribute no mark and no open count, while trade
+        # accounting (entry/exit prices) still books the round trip.
+        idx = pd.date_range("2020-01-01", periods=5, freq="B")
+        close = pd.DataFrame({"A": [100.0, 105.0, np.nan, 115.0, 120.0]}, index=idx)
+        records = pd.DataFrame(
+            [
+                {
+                    "Entry Timestamp": idx[0],
+                    "Exit Timestamp": idx[3],
+                    "Status": "Closed",
+                    "Avg Entry Price": 100.0,
+                    "Avg Exit Price": 115.0,
+                    "Column": "A",
+                },
+            ]
+        )
+
+        result = aggregate_trades(close, records, max_positions=10)
+
+        assert_that(result.n_trades, equal_to(1))
+        assert_that(result.total_return, close_to(105.0 / 100.0 - 1, 1e-12))
+        assert_that(result.expectancy, close_to(115.0 / 100.0 - 1, 1e-12))

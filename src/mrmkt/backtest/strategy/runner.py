@@ -6,9 +6,23 @@ import numpy as np
 import pandas as pd
 
 from mrmkt.backtest.portfolio import PortfolioResult, aggregate_trades, simulate_fills
-from mrmkt.backtest.strategy.base import MarketContext, Strategy
+from mrmkt.backtest.strategy.base import MarketContext, SignalSet, Strategy
 
 DEFAULT_WARMUP_BARS = 300
+
+
+def _apply_fill_lag(signals: SignalSet, fill_lag: int) -> SignalSet:
+    """Delay fills so signals are executable: known at bar close, filled later.
+
+    ``fill_lag=0`` fills at the signal bar close (requires acting on the
+    touch before the close prints — optimistic). ``fill_lag=1`` fills at
+    the next bar close (clearly executable, mildly conservative)."""
+    if fill_lag == 0:
+        return signals
+    return SignalSet(
+        entries=signals.entries.shift(fill_lag).fillna(False).astype(bool),
+        exits=signals.exits.shift(fill_lag).fillna(False).astype(bool),
+    )
 
 
 class StrategyRunner:
@@ -21,12 +35,16 @@ class StrategyRunner:
         stop: float = 0.08,
         max_positions: int = 50,
         warmup_bars: int = DEFAULT_WARMUP_BARS,
+        fill_lag: int = 1,
     ):
+        if fill_lag not in (0, 1):
+            raise ValueError("fill_lag must be 0 (signal close) or 1 (next close)")
         self.size_pct = size_pct
         self.fees = fees
         self.stop = stop
         self.max_positions = max_positions
         self.warmup_bars = warmup_bars
+        self.fill_lag = fill_lag
 
     def run(
         self,
@@ -42,7 +60,9 @@ class StrategyRunner:
 
         ``benchmark`` is an optional non-tradable market series (e.g.
         SPY closes) forwarded as signal context for gating."""
-        return self.run_chunked(strategy, [(close, high, low)], start=start, benchmark=benchmark)
+        return self.run_chunked(
+            strategy, [(close, high, low)], start=start, benchmark=benchmark
+        )
 
     def run_chunked(
         self,
@@ -92,7 +112,10 @@ class StrategyRunner:
             full_close = pd.concat([c for c, _, _ in prepared], axis=1)
             full_high = pd.concat([h for _, h, _ in prepared], axis=1)
             full_low = pd.concat([lo for _, _, lo in prepared], axis=1)
-            signals = strategy.generate(full_close, full_high, full_low, context=context)
+            signals = _apply_fill_lag(
+                strategy.generate(full_close, full_high, full_low, context=context),
+                self.fill_lag,
+            )
             all_records = []
             for close, high, low in prepared:
                 cols = list(close.columns)
@@ -113,7 +136,9 @@ class StrategyRunner:
             all_records = []
             all_closes = []
             for close, high, low in prepared:
-                signals = strategy.generate(close, high, low, context=context)
+                signals = _apply_fill_lag(
+                    strategy.generate(close, high, low, context=context), self.fill_lag
+                )
                 all_records.append(
                     simulate_fills(
                         close,

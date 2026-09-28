@@ -43,6 +43,7 @@ class RunBacktestRequest:
     stop: float = 0.08
     fees: float = 0.0
     chunk_size: int = 250
+    fill_lag: int = 1
 
 
 @dataclass
@@ -70,6 +71,10 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
             return RunBacktestResult.invalid_data(["fees must be >= 0"])
         if request.chunk_size < 1:
             return RunBacktestResult.invalid_data(["chunk-size must be at least 1"])
+        if request.fill_lag not in (0, 1):
+            return RunBacktestResult.invalid_data(
+                ["fill-lag must be 0 (signal close) or 1 (next close)"]
+            )
 
         today = self.clock.today()
         try:
@@ -195,7 +200,10 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
             n_symbols = sum(frame[0].shape[1] for frame in chunks)
 
             runner = StrategyRunner(
-                size_pct=request.size_pct, stop=request.stop, fees=request.fees
+                size_pct=request.size_pct,
+                stop=request.stop,
+                fees=request.fees,
+                fill_lag=request.fill_lag,
             )
             start: date = (
                 start_date if start_date is not None else list(union_idx)[300].date()

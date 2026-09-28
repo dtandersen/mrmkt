@@ -73,6 +73,7 @@ from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
 from mrmkt.ext.repo.alpaca import AlpacaTickerRepository
 from mrmkt.ext.tiingo_fundamentals import TiingoFundamentalsSource
 from mrmkt.ext.tiingo_prices import TiingoPriceSource
+from mrmkt.ext.yahoo_prices import YahooFinancePriceSource
 from mrmkt.gateway import MessageQueue, PriceProvider, PriceSource, Quote
 
 
@@ -125,6 +126,48 @@ class CommandFactory:
         """Build a ready DeleteTrigger from the app-scoped environment."""
         return DeleteTrigger(self._env.triggers)
 
+    def _trading_gateway(self):
+        """Build the paper trading gateway over the Alpaca client."""
+        from mrmkt.ext.alpaca_trading import AlpacaTradingGateway
+
+        return AlpacaTradingGateway(self._env.alpaca_client)
+
+    def list_positions(self):
+        """Build a ready ListPositions from the app-scoped environment."""
+        from mrmkt.command.list_positions import ListPositions
+
+        return ListPositions(self._trading_gateway())
+
+    def create_order(self):
+        """Build a ready CreateOrder from the app-scoped environment."""
+        from mrmkt.command.create_order import CreateOrder
+
+        return CreateOrder(self._trading_gateway())
+
+    def list_orders(self):
+        """Build a ready ListOrders from the app-scoped environment."""
+        from mrmkt.command.list_orders import ListOrders
+
+        return ListOrders(self._trading_gateway())
+
+    def show_order(self):
+        """Build a ready ShowOrder from the app-scoped environment."""
+        from mrmkt.command.show_order import ShowOrder
+
+        return ShowOrder(self._trading_gateway())
+
+    def cancel_order(self):
+        """Build a ready CancelOrder from the app-scoped environment."""
+        from mrmkt.command.cancel_order import CancelOrder
+
+        return CancelOrder(self._trading_gateway())
+
+    def show_balance(self):
+        """Build a ready ShowBalance from the app-scoped environment."""
+        from mrmkt.command.show_balance import ShowBalance
+
+        return ShowBalance(self._trading_gateway())
+
     def set_trigger_enabled(self) -> SetTriggerEnabled:
         """Build a ready SetTriggerEnabled from the app-scoped environment."""
         return SetTriggerEnabled(self._env.triggers)
@@ -167,6 +210,8 @@ class CommandFactory:
         """Build a ready ImportPrices from the app-scoped environment."""
         if provider.lower() == "tiingo":
             price_source: Any = TiingoPriceSource.from_env(self._log)
+        elif provider.lower() == "yahoo":
+            price_source = YahooFinancePriceSource(log=self._log)
         else:
             price_source = AlpacaPriceSource(self._env.alpaca_data_client, self._log)
         return ImportPrices(
@@ -179,6 +224,13 @@ class CommandFactory:
     def list_prices(self) -> ListPrices:
         """Build a ready ListPrices from the app-scoped environment."""
         return ListPrices(self._env.prices, self._env.clock)
+
+    def get_quote(self, feed: str = "iex"):
+        """Build a ready GetQuote from the app-scoped environment."""
+        from mrmkt.command.get_quote import GetQuote
+        from mrmkt.ext.alpaca_quote import AlpacaQuoteGateway
+
+        return GetQuote(AlpacaQuoteGateway(self._env.alpaca_data_client, feed=feed))
 
     def create_feature(self):
         """Build a ready CreateFeature from the app-scoped environment."""

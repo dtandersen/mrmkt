@@ -200,6 +200,13 @@ class InMemoryBackend(MrMktBackend, FeatureRepository):
     def get_tickers(self) -> list[Ticker]:
         return list(self.tickers.all())
 
+    def list_tickers_by_symbol(self, symbol: str) -> list[Ticker]:
+        normalized = symbol.strip().upper()
+        return sorted(
+            [ticker for ticker in self.tickers.all() if ticker.ticker == normalized],
+            key=lambda ticker: ticker.exchange,
+        )
+
     def add_ticker(self, ticker: Ticker):
         self.tickers.add(ticker)
 

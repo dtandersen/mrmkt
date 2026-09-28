@@ -17,6 +17,7 @@ class PriceHistorySource(StrEnum):
 
     ALPACA = "alpaca"
     TIINGO = "tiingo"
+    YAHOO = "yahoo"
 
 
 @dataclass(frozen=True)
@@ -88,9 +89,12 @@ class ImportPrices(Command[ImportPricesRequest, ImportPricesResult]):
         self.sleep = sleep
 
     def execute(self, request: ImportPricesRequest) -> ImportPricesResult:
-        if request.provider.lower() not in ("alpaca", "tiingo"):
+        if request.provider.lower() not in ("alpaca", "tiingo", "yahoo"):
             return ImportPricesResult.invalid_data(
-                ["only the 'alpaca' and 'tiingo' providers are currently supported"]
+                [
+                    "only the 'alpaca', 'tiingo', and 'yahoo' providers "
+                    "are currently supported"
+                ]
             )
         selector_count = sum(
             (bool(request.symbols), request.all_symbols, request.tag is not None)

@@ -108,6 +108,43 @@ class RealtimeAccessor:
             raise LookupError(f"no live quotes for {symbol}") from error
 
 
+class FeaturesAccessor:
+    """Computed features: read the log, write new values."""
+
+    def __init__(self, factory):
+        self._factory = factory
+
+    def of_symbol(self, symbol: str, feature: str | None = None):
+        """Stored rows for one symbol, oldest first."""
+        from mrmkt.command.list_features import ListFeaturesRequest
+
+        result = self._factory.list_features().execute(
+            ListFeaturesRequest(symbol=symbol)
+        )
+        rows = _check(result, what=f"features for {symbol}")
+        if feature is not None:
+            rows = [row for row in rows if row.feature == feature]
+        return rows
+
+    def latest(self, symbol: str, feature: str):
+        """Latest stored value for one symbol+feature."""
+        from mrmkt.command.show_feature import ShowFeatureRequest
+
+        result = self._factory.show_feature().execute(
+            ShowFeatureRequest(symbol=symbol, name=feature)
+        )
+        return _check(result, what=f"feature {feature} for {symbol}")
+
+    def create(self, symbol: str, assignment: str, date: str | None = None):
+        """Store one value (name=value); returns the stored row."""
+        from mrmkt.command.create_feature import CreateFeatureRequest
+
+        result = self._factory.create_feature().execute(
+            CreateFeatureRequest(symbol=symbol, assignment=assignment, date=date)
+        )
+        return _check(result, what=f"feature {assignment} for {symbol}")
+
+
 class SymbolsAccessor:
     """Cataloged symbols: ``mkt.symbols.with_tag("sp500")``."""
 
@@ -127,6 +164,7 @@ class MrMkt:
 
     def __init__(self, context: AppContext):
         self._context = context
+        self.features = FeaturesAccessor(context.command_factory)
         self.prices_historical = PricesAccessor(context.command_factory)
         self.prices_realtime = RealtimeAccessor(context.command_factory)
         self.symbols = SymbolsAccessor(context.command_factory)

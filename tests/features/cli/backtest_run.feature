@@ -47,3 +47,19 @@ Feature: Backtest run with benchmark context
     Then the command succeeds
     And the output mentions "sole selected symbol"
     And the output mentions "Trades:"
+
+  Scenario: Fill lag flag selects the execution model
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | SPY    | ARCA     | us_equity |
+    And the local price catalog contains a 400-bar climb with a dip for AAA
+    And the local price catalog contains a 400-bar steady climb for SPY
+    When I execute "mrmkt backtest run AAA --strategy trend-pullback --params market_sma=20,trend_sma=50,rising_bars=5,mom_lookback=60,mom_skip=5,momentum_top_share=1.0,pullback_period=10,recovery_bars=0,exit_mode=range --benchmark SPY --fill-lag 0"
+    Then the command succeeds
+    And the output mentions "Trades:"
+
+  Scenario: Bad fill lag names the valid choices
+    When I execute "mrmkt backtest run AAPL --fill-lag 5"
+    Then the command fails
+    And the output mentions "fill-lag"

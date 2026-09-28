@@ -15,7 +15,7 @@ def import_prices(
     ctx: typer.Context,
     symbols: list[str] | None = typer.Argument(None, help="Symbols to import"),
     provider: PriceHistorySource = typer.Option(
-        ..., "--provider", help="Price source (alpaca, tiingo)"
+        ..., "--provider", help="Price source (alpaca, tiingo, yahoo)"
     ),
     all_symbols: bool = typer.Option(
         False, "--all", help="Import every locally cataloged symbol"

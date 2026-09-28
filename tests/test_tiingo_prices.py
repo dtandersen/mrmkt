@@ -309,11 +309,17 @@ def test_import_prices_accepts_tiingo_provider():
     assert_that(outcome.is_success(), equal_to(True))
 
 
+def test_import_prices_accepts_yahoo_provider():
+    outcome = _import_with_provider("yahoo")
+
+    assert_that(outcome.is_success(), equal_to(True))
+
+
 def test_import_prices_still_rejects_unknown_providers():
     outcome = _import_with_provider("fmp")
 
     assert_that(outcome.is_success(), equal_to(False))
     assert_that(
         "; ".join(outcome.errors),
-        contains_string("only the 'alpaca' and 'tiingo' providers"),
+        contains_string("only the 'alpaca', 'tiingo', and 'yahoo' providers"),
     )

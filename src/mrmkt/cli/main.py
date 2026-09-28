@@ -8,10 +8,13 @@ to sit in this module now live in :mod:`mrmkt.cli`.
 import typer
 
 from mrmkt.cli.backtest import backtest_app
+from mrmkt.cli.balance import balance_app
 from mrmkt.cli.engine import engine_app
 from mrmkt.cli.features import feature_app
 from mrmkt.cli.fundamentals import fundamentals_app
 from mrmkt.cli.indicators import indicators_app
+from mrmkt.cli.order import order_app
+from mrmkt.cli.position import position_app
 from mrmkt.cli.prices import prices_app
 from mrmkt.cli.results import handle
 from mrmkt.cli.signals import signals_app
@@ -19,6 +22,7 @@ from mrmkt.cli.symbols import symbols_app
 from mrmkt.cli.trigger import trigger_app
 from mrmkt.cli.triggerset import triggerset_app
 from mrmkt.command.alerts import render_levels_csv
+from mrmkt.command.get_quote import GetQuoteRequest
 from mrmkt.command.ranges import ListRangesRequest
 from mrmkt.command.screen import ScreenSymbolsRequest, render_csv
 from mrmkt.command.watch import WatchPricesRequest
@@ -54,7 +58,10 @@ def teardown_app(ctx: typer.Context) -> None:
 
 
 app.add_typer(engine_app, name="engine")
+app.add_typer(balance_app, name="balance")
 app.add_typer(feature_app, name="feature")
+app.add_typer(position_app, name="position")
+app.add_typer(order_app, name="order")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
 app.add_typer(fundamentals_app, name="fundamentals")
@@ -188,6 +195,26 @@ def run_watch(
             )
         ),
         lambda _: None,
+    )
+
+
+@app.command("quote")
+def run_quote(
+    ctx: typer.Context,
+    symbol: str = typer.Argument(..., help="Symbol to quote"),
+    feed: str = typer.Option("iex", "--feed", help="Alpaca data feed: iex or sip"),
+) -> None:
+    """Print the latest price quote for one symbol as CSV."""
+    handle(
+        ctx,
+        lambda factory: factory.get_quote(feed=feed).execute(
+            GetQuoteRequest(symbol=symbol)
+        ),
+        lambda quote: typer.echo(
+            "symbol,bid,ask,timestamp\n"
+            f"{quote.symbol},{quote.bid},{quote.ask},{quote.timestamp.isoformat()}\n",
+            nl=False,
+        ),
     )
 
 

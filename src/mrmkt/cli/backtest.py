@@ -45,6 +45,11 @@ def run_backtest(
     chunk_size: int = typer.Option(
         250, "--chunk-size", help="Symbols loaded and simulated per chunk"
     ),
+    fill_lag: int = typer.Option(
+        1,
+        "--fill-lag",
+        help="Bars between signal and fill: 0 = signal close (optimistic), 1 = next close (executable)",
+    ),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
     handle(
@@ -63,6 +68,7 @@ def run_backtest(
                 stop=stop,
                 fees=fees,
                 chunk_size=chunk_size,
+                fill_lag=fill_lag,
             )
         ),
         _echo_backtest,

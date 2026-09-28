@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from shlex import split
 from types import SimpleNamespace
@@ -38,15 +38,18 @@ class FakeAlpacaDataClient:
         symbols = request.symbol_or_symbols
         if isinstance(symbols, str):
             symbols = [symbols]
-        return SimpleNamespace(data={symbol: self.bars.get(symbol, []) for symbol in symbols})
+        return SimpleNamespace(
+            data={symbol: self.bars.get(symbol, []) for symbol in symbols}
+        )
 
 
 @pytest.fixture
-def price_import_context(financial_repository):
+def price_import_context(financial_repository, requests_mock):
     clock = ClockStub()
     clock.set_time(date(2026, 6, 28))
     context = SimpleNamespace(
         alpaca=FakeAlpacaDataClient(),
+        yahoo_http=requests_mock,
         clock=clock,
         result=None,
     )
@@ -81,7 +84,7 @@ def _set_alpaca_bars(context, datatable):
             timestamp=datetime.combine(
                 date.fromisoformat(row["date"]),
                 time.min,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             open=float(row["open"]),
             high=float(row["high"]),
@@ -98,7 +101,9 @@ def alpaca_returns_daily_bars(price_import_context, datatable):
 
 
 @given("the local ticker catalog contains these symbols:")
-def local_catalog_contains_symbols(price_import_context, datatable, financial_repository):
+def local_catalog_contains_symbols(
+    price_import_context, datatable, financial_repository
+):
     for row in _table_rows(datatable):
         financial_repository.add_ticker(
             Ticker(ticker=row["symbol"], exchange=row["exchange"], type=row["type"])
@@ -106,7 +111,9 @@ def local_catalog_contains_symbols(price_import_context, datatable, financial_re
 
 
 @given(parsers.parse('ticker "{symbol}" on "{exchange}" already has tag "{tag}"'))
-def ticker_already_has_tag(price_import_context, symbol, exchange, tag, financial_repository):
+def ticker_already_has_tag(
+    price_import_context, symbol, exchange, tag, financial_repository
+):
     financial_repository.add_tag(symbol, exchange, tag)
 
 
@@ -124,6 +131,37 @@ def fake_clock_says_today(price_import_context, today):
 @given("the Alpaca price request fails")
 def alpaca_price_request_fails(price_import_context):
     price_import_context.alpaca.error = RuntimeError("market data unavailable")
+
+
+@given(parsers.parse('Yahoo Finance returns VIX close "{close}" for "{day}"'))
+def yahoo_finance_returns_vix_close(price_import_context, close, day):
+    bar_date = date.fromisoformat(day)
+    timestamp = int(datetime.combine(bar_date, time.min, tzinfo=UTC).timestamp())
+    price_import_context.yahoo_http.get(
+        "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX",
+        json={
+            "chart": {
+                "result": [
+                    {
+                        "timestamp": [timestamp],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": [15.61],
+                                    "high": [15.94],
+                                    "low": [14.68],
+                                    "close": [float(close)],
+                                    "volume": [0],
+                                }
+                            ],
+                            "adjclose": [{"adjclose": [float(close)]}],
+                        },
+                    }
+                ],
+                "error": None,
+            }
+        },
+    )
 
 
 @when(parsers.parse('I execute "{command}"'))
@@ -167,7 +205,9 @@ def alpaca_receives_date_range(price_import_context, start, end):
 
 
 @then("the local price catalog contains these daily bars:")
-def assert_local_price_catalog_contains_bars(price_import_context, datatable, financial_repository):
+def assert_local_price_catalog_contains_bars(
+    price_import_context, datatable, financial_repository
+):
     expected = {
         (
             price.symbol,
@@ -195,7 +235,11 @@ def assert_local_price_catalog_contains_bars(price_import_context, datatable, fi
     assert_that(actual, equal_to(expected))
 
 
-@then(parsers.parse('the local price catalog contains exactly one "{symbol}" bar on "{day}"'))
+@then(
+    parsers.parse(
+        'the local price catalog contains exactly one "{symbol}" bar on "{day}"'
+    )
+)
 def local_price_is_unique(price_import_context, symbol, day, financial_repository):
     matching = [
         price
@@ -216,6 +260,28 @@ def import_reports_bar_count(price_import_context, count):
 @then("no Alpaca request is sent")
 def no_alpaca_request_is_sent(price_import_context):
     assert_that(price_import_context.alpaca.requests, equal_to([]))
+
+
+@then(
+    parsers.parse('Yahoo Finance receives VIX history from "{start}" through "{end}"')
+)
+def yahoo_finance_receives_vix_history(price_import_context, start, end):
+    assert_that(price_import_context.yahoo_http.call_count, equal_to(1))
+    request = price_import_context.yahoo_http.last_request
+    assert_that(request.method, equal_to("GET"))
+    assert_that(request.path.lower(), equal_to("/v8/finance/chart/%5evix"))
+    expected_start = int(
+        datetime.combine(date.fromisoformat(start), time.min, tzinfo=UTC).timestamp()
+    )
+    expected_end = int(
+        datetime.combine(
+            date.fromisoformat(end) + timedelta(days=1),
+            time.min,
+            tzinfo=UTC,
+        ).timestamp()
+    )
+    assert_that(request.qs["period1"], equal_to([str(expected_start)]))
+    assert_that(request.qs["period2"], equal_to([str(expected_end)]))
 
 
 @then("the local price catalog remains empty")

@@ -86,3 +86,12 @@ Feature: Import daily prices from Alpaca
     And Alpaca receives the symbols "AAPL"
     And Alpaca receives the date range from "2025-12-30" to "2026-06-28"
     And the import reports 1 new daily bar
+
+  Scenario: Import the VIX index through Yahoo Finance
+    Given Yahoo Finance returns VIX close "14.87" for "2026-09-25"
+    When I execute "mrmkt prices import --provider yahoo VIX --from 2026-09-25 --to 2026-09-25"
+    Then the command succeeds
+    And Yahoo Finance receives VIX history from "2026-09-25" through "2026-09-25"
+    And the local price catalog contains these daily bars:
+      | symbol | date       | open  | high  | low   | close | volume |
+      | VIX    | 2026-09-25 | 15.61 | 15.94 | 14.68 | 14.87 | 0      |

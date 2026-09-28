@@ -144,5 +144,25 @@ def test_realtime_latest_times_out_without_flow(financial_repository):
         session.close()
 
 
+def test_features_accessor_round_trip(financial_repository):
+    from mrmkt.entity.ticker import Ticker as _Ticker
+
+    financial_repository.add_ticker(
+        _Ticker(ticker="SPY", exchange="NASDAQ", type="us_equity")
+    )
+    session = MrMkt(cli_dependencies_for_testing(repository=financial_repository))
+    try:
+        row = session.features.create("SPY", "rr15.low=760.42", "2026-09-24")
+        assert row.value_num == 760.42
+        assert session.features.latest("SPY", "rr15.low").value_num == 760.42
+        assert len(session.features.of_symbol("SPY")) == 1
+        with pytest.raises(LookupError):
+            session.features.latest("SPY", "nope")
+        with pytest.raises(ValueError):
+            session.features.create("SPY", "badassignment", "2026-09-24")
+    finally:
+        session.close()
+
+
 def test_connect_is_exposed_on_package():
     assert callable(mrmkt.connect)

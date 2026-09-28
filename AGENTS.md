@@ -14,3 +14,5 @@ Coordinate with other local pi sessions on related codebases. Use `/skill:pi-int
 **Principle:** Prefer `send` for notifications; `ask` only when blocked waiting for input.
 
 Read [Architecture](architecture.md) before writing code. Do not edit it with permission.
+
+There are scripting language examples in `user-scripts/`.
