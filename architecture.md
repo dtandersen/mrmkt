@@ -52,12 +52,14 @@ CLI Commands invoke Commands; dependency construction belongs in the composition
 |  |- composition.py - composition root (wiring + backend selection)
 |  |- backend.py - MrMktBackend interface + backend factory
 |  |- entity - entities (returned by repositories and gateways)
+|  |- gateway - api client interfaces
 |  |- repo - repository interfaces
 |  |- api - wire DTOs (never entities)
 |  |- web - website + JSON api
 |  |  |- api - ApiControllers (DTOs in/out)
 |  |- ext - repository/gateway implementations
 |  |  |- api_gen - generated openapi client
+|  |  |- gateway - API client implementations
 |  |  |- backend
 |  |  |  |- api - mrmkt rest api backend
 |  |  |  |- memory - in-memory backend

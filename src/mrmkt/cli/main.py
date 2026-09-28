@@ -10,6 +10,7 @@ import typer
 from mrmkt.cli.backtest import backtest_app
 from mrmkt.cli.engine import engine_app
 from mrmkt.cli.features import feature_app
+from mrmkt.cli.fundamentals import fundamentals_app
 from mrmkt.cli.indicators import indicators_app
 from mrmkt.cli.prices import prices_app
 from mrmkt.cli.results import handle
@@ -56,6 +57,7 @@ app.add_typer(engine_app, name="engine")
 app.add_typer(feature_app, name="feature")
 app.add_typer(symbols_app, name="symbols")
 app.add_typer(prices_app, name="prices")
+app.add_typer(fundamentals_app, name="fundamentals")
 app.add_typer(indicators_app, name="indicators")
 app.add_typer(backtest_app, name="backtest")
 app.add_typer(signals_app, name="signals")

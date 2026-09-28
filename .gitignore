@@ -9,3 +9,4 @@ __pycache__
 config.yaml
 /mrmkt.log
 /.coverage
+/user-scripts

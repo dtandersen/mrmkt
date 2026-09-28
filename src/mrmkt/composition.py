@@ -36,6 +36,7 @@ from mrmkt.command.base import Console, Log
 from mrmkt.command.create_trigger import CreateTrigger
 from mrmkt.command.create_triggerset import CreateTriggerSet
 from mrmkt.command.delete_trigger import DeleteTrigger
+from mrmkt.command.import_fundamentals import ImportFundamentals
 from mrmkt.command.import_prices import ImportPrices
 from mrmkt.command.import_symbols import ImportSymbols
 from mrmkt.command.indicators_risk_range import CalculateRiskRange
@@ -56,6 +57,7 @@ from mrmkt.command.ranges import ListRanges
 from mrmkt.command.remove_triggerset import RemoveTriggerFromSet
 from mrmkt.command.screen import ScreenSymbols
 from mrmkt.command.set_trigger_enabled import SetTriggerEnabled
+from mrmkt.command.show_fundamentals import ShowFundamentals
 from mrmkt.command.show_trigger import ShowTrigger
 from mrmkt.command.signals_current import CurrentSignals
 from mrmkt.command.start_engine import DEFAULT_SUBJECT, StartEngine
@@ -69,6 +71,7 @@ from mrmkt.common.env import MrMktEnvironment2
 from mrmkt.ext.alpaca_prices import AlpacaPriceSource
 from mrmkt.ext.rabbitmq import RabbitMQMessageQueue
 from mrmkt.ext.repo.alpaca import AlpacaTickerRepository
+from mrmkt.ext.tiingo_fundamentals import TiingoFundamentalsSource
 from mrmkt.ext.tiingo_prices import TiingoPriceSource
 from mrmkt.gateway import MessageQueue, PriceProvider, PriceSource, Quote
 
@@ -92,6 +95,7 @@ class CommandFactory:
         watch_price_source: PriceSource | None = None,
         engine_queue: MessageQueue | None = None,
         engine_prices: PriceProvider | None = None,
+        fundamentals_source=None,
         console: Console | None = None,
         log: Log | None = None,
     ) -> None:
@@ -99,6 +103,7 @@ class CommandFactory:
         self._watch_price_source = watch_price_source
         self._engine_queue = engine_queue
         self._engine_prices = engine_prices
+        self._fundamentals_source = fundamentals_source
         self._console = console or TyperConsole()
         self._log = log or TeeLog()
 
@@ -198,6 +203,26 @@ class CommandFactory:
         from mrmkt.command.show_feature import ShowFeature
 
         return ShowFeature(self._env.features)
+
+    def import_fundamentals(self, provider: str = "tiingo") -> ImportFundamentals:
+        """Build a ready ImportFundamentals from the app-scoped environment."""
+        source = (
+            self._fundamentals_source
+            if self._fundamentals_source is not None
+            else TiingoFundamentalsSource.from_env(self._log)
+        )
+        return ImportFundamentals(
+            fundamentals_source=source,
+            financials=self._env.financials,
+            prices=self._env.prices,
+            tickers=self._env.tickers,
+            clock=self._env.clock,
+            on_progress=_report_fundamentals_import_progress,
+        )
+
+    def show_fundamentals(self) -> ShowFundamentals:
+        """Build a ready ShowFundamentals from the app-scoped environment."""
+        return ShowFundamentals(self._env.financials)
 
     def check_freshness(self) -> CheckFreshness:
         """Build a ready CheckFreshness from the app-scoped environment."""
@@ -329,6 +354,10 @@ class AppContext:
 
 def _report_price_import_progress(done: int, total: int) -> None:
     typer.echo(f"Imported prices for {done}/{total} symbols...", err=True)
+
+
+def _report_fundamentals_import_progress(done: int, total: int) -> None:
+    typer.echo(f"Imported fundamentals for {done}/{total} symbols...", err=True)
 
 
 def rabbitmq_display_address(url: str) -> str:
@@ -575,6 +604,7 @@ def cli_dependencies_for_testing(
     watch_price_source: PriceSource | None = None,
     engine_queue: MessageQueue | None = None,
     engine_prices: PriceProvider | None = None,
+    fundamentals_source=None,
     console: Console | None = None,
     log: Log | None = None,
 ) -> AppContext:
@@ -608,6 +638,7 @@ def cli_dependencies_for_testing(
         watch_price_source=watch_price_source,
         engine_queue=engine_queue,
         engine_prices=engine_prices,
+        fundamentals_source=fundamentals_source,
         console=console,
         log=log,
     )

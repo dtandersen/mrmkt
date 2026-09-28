@@ -26,6 +26,9 @@ uv run mrmkt prices import --provider alpaca AAPL MSFT --from 180d
 uv run mrmkt prices import --provider alpaca --all --from 180d
 uv run mrmkt prices list AAPL MSFT --from 7d
 uv run mrmkt prices import --provider alpaca AAPL --from 2024-01-01 --to 2024-01-31
+uv run mrmkt fundamentals import --provider tiingo --tag sp500
+uv run mrmkt fundamentals import --provider tiingo AAPL MSFT
+uv run mrmkt fundamentals show AAPL
 uv run mrmkt indicators sma AAPL --period 20 --from 180d
 uv run mrmkt indicators volatility AAPL --period 21 --from 180d
 uv run mrmkt indicators vol-of-vol AAPL --vol-period 21 --vov-period 21 --from 180d
@@ -50,7 +53,11 @@ can be labeled together, and each label applies to all matching exchange listing
 `--all` imports symbols from the local catalog, while `--tag` imports only
 symbols with that label. Imports run in batches of 100 symbols with retries and
 progress output; batches that keep failing are listed at the end and the command
-exits nonzero. Relative dates such as `180d` are measured back from
+exits nonzero. Fundamentals imports fetch as-reported Tiingo statements
+(filing-date granularity, income first) plus daily market caps; enterprise
+value joins each daily cap with the latest filed shares and the latest
+stored bar close on or before that date. Show prints stored statements as
+deterministic tables. Relative dates such as `180d` are measured back from
 today, and an omitted `--to` defaults to today. Price listing requires explicit
 symbols and can optionally filter by date range. Indicators read stored close prices and
 return dated values; prior bars are used as warm-up, but only the requested
