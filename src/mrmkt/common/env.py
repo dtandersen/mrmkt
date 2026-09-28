@@ -8,6 +8,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.trading.client import TradingClient
 
 from mrmkt.common.clock import Clock
+from mrmkt.repo.features import FeatureRepository
 from mrmkt.repo.financials import FinancialRepository
 from mrmkt.repo.prices import PriceRepository
 from mrmkt.repo.tags import TickerTagRepository
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class MrMktEnvironment2:
+    features: FeatureRepository
     financials: FinancialRepository
     prices: PriceRepository
     tickers: TickerRepository

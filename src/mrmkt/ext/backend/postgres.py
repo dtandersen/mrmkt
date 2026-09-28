@@ -24,12 +24,14 @@ from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
 from mrmkt.entity.trigger import Trigger
+from mrmkt.ext.repo.postgres.features import PostgresFeatureRepository
 from mrmkt.ext.repo.postgres.financials import PostgresFinancialRepository
 from mrmkt.ext.repo.postgres.prices import PostgresPriceRepository
 from mrmkt.ext.repo.postgres.tags import PostgresTagRepository
 from mrmkt.ext.repo.postgres.tickers import PostgresTickerRepository
 from mrmkt.ext.repo.postgres.trigger_sets import PostgresTriggerSetRepository
 from mrmkt.ext.repo.postgres.triggers import PostgresTriggerRepository
+from mrmkt.repo.features import FeatureRepository
 
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -118,7 +120,7 @@ class PostgresSqlClient(SqlClient):
             self.pool.putconn(conn)
 
 
-class PostgresBackend(MrMktBackend):
+class PostgresBackend(MrMktBackend, FeatureRepository):
     """Whole-service Postgres backend delegating to narrow repositories.
 
     Composition instead of multiple inheritance: MI of the narrow
@@ -127,6 +129,7 @@ class PostgresBackend(MrMktBackend):
     """
 
     def __init__(self, sql_client: SqlClient):
+        self._features = PostgresFeatureRepository(sql_client)
         self._financials = PostgresFinancialRepository(sql_client)
         self._prices = PostgresPriceRepository(sql_client)
         self._tickers = PostgresTickerRepository(sql_client)
@@ -186,6 +189,21 @@ class PostgresBackend(MrMktBackend):
 
     def add_price(self, price: StockPrice):
         return self._prices.add_price(price)
+
+    def add_feature(self, feature):
+        return self._features.add_feature(feature)
+
+    def delete_features(self, symbol: str, feature: str) -> int:
+        return self._features.delete_features(symbol, feature)
+
+    def list_features(
+        self,
+        symbol: str,
+        feature: str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ):
+        return self._features.list_features(symbol, feature, start, end)
 
     def list_prices(
         self,

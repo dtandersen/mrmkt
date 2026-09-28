@@ -175,6 +175,30 @@ class CommandFactory:
         """Build a ready ListPrices from the app-scoped environment."""
         return ListPrices(self._env.prices, self._env.clock)
 
+    def create_feature(self):
+        """Build a ready CreateFeature from the app-scoped environment."""
+        from mrmkt.command.create_feature import CreateFeature
+
+        return CreateFeature(self._env.features, self._env.tickers, self._env.clock)
+
+    def delete_feature(self):
+        """Build a ready DeleteFeature from the app-scoped environment."""
+        from mrmkt.command.delete_feature import DeleteFeature
+
+        return DeleteFeature(self._env.features)
+
+    def list_features(self):
+        """Build a ready ListFeatures from the app-scoped environment."""
+        from mrmkt.command.list_features import ListFeatures
+
+        return ListFeatures(self._env.features)
+
+    def show_feature(self):
+        """Build a ready ShowFeature from the app-scoped environment."""
+        from mrmkt.command.show_feature import ShowFeature
+
+        return ShowFeature(self._env.features)
+
     def check_freshness(self) -> CheckFreshness:
         """Build a ready CheckFreshness from the app-scoped environment."""
         return CheckFreshness(self._env.prices, self._env.clock)
@@ -511,6 +535,7 @@ def create_app_context(backend_name: str | None = None) -> AppContext:
     alpaca_data_client = _shared.create_alpaca_data_client()
     backend = mrmkt_backend_factory_from_env(repository).create(name)
     env = MrMktEnvironment2(
+        features=repository,
         financials=repository,
         prices=repository,
         tickers=repository,
@@ -561,6 +586,7 @@ def cli_dependencies_for_testing(
     """
     release = repository_release if repository_release is not None else lambda: None
     env = MrMktEnvironment2(
+        features=repository,
         financials=repository,
         prices=repository,
         tickers=repository,

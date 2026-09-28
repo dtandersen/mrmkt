@@ -1,5 +1,6 @@
 """Narrow Postgres repositories, one per capability."""
 
+from mrmkt.ext.repo.postgres.features import PostgresFeatureRepository
 from mrmkt.ext.repo.postgres.financials import PostgresFinancialRepository
 from mrmkt.ext.repo.postgres.prices import PostgresPriceRepository
 from mrmkt.ext.repo.postgres.tags import PostgresTagRepository
@@ -8,6 +9,7 @@ from mrmkt.ext.repo.postgres.trigger_sets import PostgresTriggerSetRepository
 from mrmkt.ext.repo.postgres.triggers import PostgresTriggerRepository
 
 __all__ = [
+    "PostgresFeatureRepository",
     "PostgresFinancialRepository",
     "PostgresPriceRepository",
     "PostgresTagRepository",

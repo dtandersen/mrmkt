@@ -8,6 +8,7 @@ from mrmkt.entity.analysis import Analysis
 from mrmkt.entity.balance_sheet import BalanceSheet
 from mrmkt.entity.cash_flow import CashFlow
 from mrmkt.entity.enterprise_value import EnterpriseValue
+from mrmkt.entity.feature import Feature
 from mrmkt.entity.income_statement import IncomeStatement
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
@@ -17,16 +18,18 @@ from mrmkt.entity.trigger import (
     Trigger,
     normalize_trigger_indicator,
 )
+from mrmkt.repo.features import FeatureRepository
 from mrmkt.repo.trigger_sets import TriggerSetNotFound
 
 
 @dataclass
-class InMemoryBackend(MrMktBackend):
+class InMemoryBackend(MrMktBackend, FeatureRepository):
     incomes: Table
     balances: Table
     analysis: Table
     cashflows: Table
     enterprises: Table
+    features: Table
     prices: Table
     tickers: Table
     tag_assignments: set[tuple[str, str, str]]
@@ -41,6 +44,7 @@ class InMemoryBackend(MrMktBackend):
         self.prices = Table(symbol_date_key)
         self.cashflows = Table(symbol_date_key)
         self.enterprises = Table(symbol_date_key)
+        self.features = Table(feature_key)
         self.tickers = Table(ticker_exchange_key)
         self.tag_assignments = set()
         self.triggers = Table(trigger_id_key)
@@ -160,6 +164,35 @@ class InMemoryBackend(MrMktBackend):
 
     def add_price(self, price: StockPrice):
         self.prices.add(price)
+
+    def add_feature(self, feature: Feature) -> None:
+        self.features.add(feature)
+
+    def delete_features(self, symbol: str, feature: str) -> int:
+        doomed = [
+            key
+            for key, row in self.features.values.items()
+            if row.symbol == symbol and row.feature == feature
+        ]
+        for key in doomed:
+            self.features.pop(key)
+        return len(doomed)
+
+    def list_features(
+        self,
+        symbol: str,
+        feature: str | None = None,
+        start=None,
+        end=None,
+    ):
+        rows = self.features.filter(lambda f: f.symbol == symbol)
+        if feature is not None:
+            rows = [row for row in rows if row.feature == feature]
+        if start is not None:
+            rows = [row for row in rows if row.date >= start]
+        if end is not None:
+            rows = [row for row in rows if row.date <= end]
+        return sorted(rows, key=lambda row: (row.feature, row.date))
 
     def get_symbols(self) -> list[str]:
         return [t.ticker for t in self.tickers.all()]
@@ -338,6 +371,10 @@ def symbol_date_key(obj) -> str:
 
 def string_key(symbol: str) -> str:
     return symbol
+
+
+def feature_key(obj) -> str:
+    return f"{obj.symbol}-{obj.exchange}-{obj.feature}-{obj.date.strftime('%Y-%m-%d')}"
 
 
 def ticker_exchange_key(obj) -> str:
