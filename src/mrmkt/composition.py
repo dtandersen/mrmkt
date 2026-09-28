@@ -465,18 +465,19 @@ def _close_all(backend, release) -> None:
         release()
 
 
-def create_app_context() -> AppContext:
+def create_app_context(backend_name: str | None = None) -> AppContext:
     """Production wiring installed by the CLI root callback.
 
     The repository opens lazily on first use and its release runs once at
     teardown (:attr:`CliDependencies.close`, registered on the Typer context).
+    Pass ``backend_name`` to override the ``MRMKT_BACKEND`` environment.
     """
     repository, release = _shared.create_local_ticker_repository()
     clock = _shared.create_clock()
     alpaca_client = _shared.create_alpaca_client()
     alpaca_data_client = _shared.create_alpaca_data_client()
     backend = mrmkt_backend_factory_from_env(repository).create(
-        mrmkt_backend_name_from_env()
+        backend_name or mrmkt_backend_name_from_env()
     )
     env = MrMktEnvironment2(
         financials=repository,
