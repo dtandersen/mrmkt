@@ -1,11 +1,19 @@
 """Scripting facade tests (in-memory backend, no DB or network)."""
 
-from datetime import date, timedelta
+import threading
+import time
+from datetime import UTC, date, datetime, timedelta
+
+import pytest
+from tests.fakes import FakeMessageQueue
 
 import mrmkt
+from mrmkt.command.start_engine import DEFAULT_SUBJECT
 from mrmkt.composition import cli_dependencies_for_testing
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
+from mrmkt.ext.backend import InMemoryBackend
+from mrmkt.gateway import Quote
 from mrmkt.scripting import MrMkt
 
 
@@ -36,7 +44,7 @@ def _session(financial_repository, **kwargs):
 def test_prices_of_symbol_returns_oldest_first(financial_repository):
     _seed(financial_repository)
     with _session(financial_repository) as mkt:
-        bars = mkt.prices.of_symbol("SPY")
+        bars = mkt.prices_historical.of_symbol("SPY")
     assert len(bars) == 40
     assert [bar.date for bar in bars] == sorted(bar.date for bar in bars)
     assert all(bar.symbol == "SPY" for bar in bars)
@@ -45,18 +53,14 @@ def test_prices_of_symbol_returns_oldest_first(financial_repository):
 def test_prices_latest_returns_most_recent_bar(financial_repository):
     _seed(financial_repository)
     with _session(financial_repository) as mkt:
-        row = mkt.prices.latest("SPY")
+        row = mkt.prices_historical.latest("SPY")
     assert row.symbol == "SPY"
     assert row.date == date(2024, 1, 2) + timedelta(days=39)
 
 
 def test_prices_latest_without_history(financial_repository):
-    with _session(financial_repository) as mkt:
-        try:
-            mkt.prices.latest("SPY")
-        except LookupError:
-            return
-    raise AssertionError("expected LookupError for missing symbol")
+    with _session(financial_repository) as mkt, pytest.raises(LookupError):
+        mkt.prices_historical.latest("SPY")
 
 
 def test_symbols_with_tag_lists_tickers(financial_repository):
@@ -79,6 +83,65 @@ def test_context_manager_releases_resources(financial_repository):
     ):
         pass
     assert released == [True]
+
+
+def test_prices_import_rejects_unknown_provider(financial_repository):
+    with _session(financial_repository) as mkt, pytest.raises(ValueError):
+        mkt.prices_historical.import_history(["SPY"], provider="bogus", from_date="7d")
+
+
+def test_empty_in_memory_store_and_release():
+    with (
+        MrMkt(cli_dependencies_for_testing(repository=InMemoryBackend())) as session,
+        pytest.raises(LookupError),
+    ):
+        assert session.symbols.with_tag("sp500") == []
+        session.prices_historical.latest("SPY")
+
+
+def test_realtime_latest_returns_bus_quote(financial_repository):
+    queue = FakeMessageQueue()
+    session = MrMkt(
+        cli_dependencies_for_testing(
+            repository=financial_repository, engine_queue=queue
+        )
+    )
+    quote = Quote(
+        symbol="SPY",
+        bid=770.0,
+        ask=771.0,
+        timestamp=datetime.now(tz=UTC),
+    )
+    out = {}
+    worker = threading.Thread(
+        target=lambda: out.setdefault(
+            "quote", session.prices_realtime.latest("SPY", timeout=5)
+        ),
+        daemon=True,
+    )
+    worker.start()
+    for _ in range(500):
+        if queue.subjects:
+            break
+        time.sleep(0.01)
+    queue.deliver(f"{DEFAULT_SUBJECT}.SPY", quote)
+    worker.join(timeout=10)
+    assert out["quote"] == quote
+    session.close()
+
+
+def test_realtime_latest_times_out_without_flow(financial_repository):
+    queue = FakeMessageQueue()
+    session = MrMkt(
+        cli_dependencies_for_testing(
+            repository=financial_repository, engine_queue=queue
+        )
+    )
+    try:
+        with pytest.raises(LookupError):
+            session.prices_realtime.latest("SPY", timeout=1)
+    finally:
+        session.close()
 
 
 def test_connect_is_exposed_on_package():

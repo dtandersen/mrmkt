@@ -5,11 +5,13 @@ opens its own short-lived connection because pika connections must not
 be shared across threads (workers publish concurrently).
 """
 
+import contextlib
 import json
 from datetime import datetime
 from urllib.parse import urlsplit
 
 import pika
+import pika.exceptions
 
 from mrmkt.gateway import MessageQueue, Quote
 
@@ -23,6 +25,7 @@ class RabbitMQMessageQueue(MessageQueue):
         self._connect = connect or (
             lambda: pika.BlockingConnection(pika.URLParameters(url))
         )
+        self._consumers: list = []
 
     def subscribe(self, subject: str, *, on_event) -> None:
         if self.log is not None:
@@ -33,14 +36,34 @@ class RabbitMQMessageQueue(MessageQueue):
         channel.queue_declare(queue=subject, durable=True)
         if self.log is not None:
             self.log(f"Subscribing to {subject}")
-        channel.basic_consume(
-            queue=subject,
-            on_message_callback=lambda ch, method, properties, body: self._dispatch(
-                body, on_event
-            ),
-            auto_ack=True,
-        )
-        channel.start_consuming()
+        self._consumers.append((connection, channel))
+        try:
+            with contextlib.suppress(
+                pika.exceptions.ConnectionClosed,
+                pika.exceptions.ChannelClosed,
+            ):
+                channel.basic_consume(
+                    queue=subject,
+                    on_message_callback=lambda ch, method, properties, body: (
+                        self._dispatch(body, on_event)
+                    ),
+                    auto_ack=True,
+                )
+                channel.start_consuming()
+        finally:
+            self._discard(connection, channel)
+
+    def close(self) -> None:
+        """Stop blocking subscribe calls from any thread."""
+        for connection, channel in list(self._consumers):
+            with contextlib.suppress(Exception):
+                connection.add_callback_threadsafe(channel.stop_consuming)
+
+    def _discard(self, connection, channel) -> None:
+        with contextlib.suppress(ValueError):
+            self._consumers.remove((connection, channel))
+        with contextlib.suppress(Exception):
+            connection.close()
 
     def publish(self, subject: str, event: Quote) -> None:
         connection = self._connect()

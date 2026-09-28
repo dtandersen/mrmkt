@@ -255,25 +255,32 @@ class CommandFactory:
         return StartEngine(self._env.triggers, queue, prices, self._console, self._log)
 
     async def live_ticks(self, symbol):
-        """Yield live quotes; Tiingo firehose unless tests inject a fake."""
+        """Yield live quotes from the RabbitMQ bus; tests inject a fake."""
         import asyncio
         import threading
 
-        provider = (
-            self._engine_prices
-            if self._engine_prices is not None
-            else TiingoFirehosePrices(self._log)
-        )
+        if self._engine_prices is not None:
+            provider = self._engine_prices
+        elif self._engine_queue is not None:
+            provider = QueueLivePrices(self._engine_queue, self._log)
+        else:
+            provider = QueueLivePrices(
+                RabbitMQMessageQueue(rabbitmq_url_from_config()), self._log
+            )
         queue: asyncio.Queue[Quote] = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
         def on_quote(quote: Quote) -> None:
             loop.call_soon_threadsafe(queue.put_nowait, quote)
 
+        def run() -> None:
+            try:
+                provider.subscribe([symbol], on_quote=on_quote)
+            except Exception as error:
+                self._log(f"live prices unavailable for {symbol}: {error}")
+
         thread = threading.Thread(
-            target=provider.subscribe,
-            args=([symbol],),
-            kwargs={"on_quote": on_quote},
+            target=run,
             daemon=True,
             name=f"mrmkt-live-{symbol}",
         )
@@ -368,6 +375,31 @@ class QueuePriceSource:
         self.log(f"Subscribing to {', '.join(symbols)}")
         for symbol in symbols:
             self.queue.subscribe(f"{self.subject}.{symbol}", on_event=on_quote)
+
+
+class QueueLivePrices(PriceProvider):
+    """PriceProvider over the message queue: the engine ingests the
+    Tiingo firehose once and republishes per symbol; web consumers attach
+    to one subject per symbol instead of opening their own firehose."""
+
+    def __init__(
+        self,
+        queue: MessageQueue,
+        log: Log,
+        subject: str = DEFAULT_SUBJECT,
+    ):
+        self.queue = queue
+        self.log = log
+        self.subject = subject
+
+    def subscribe(
+        self, symbols: list[str], *, on_quote: Callable[[Quote], None]
+    ) -> None:
+        for symbol in symbols:
+            self.queue.subscribe(f"{self.subject}.{symbol}", on_event=on_quote)
+
+    def close(self) -> None:
+        self.queue.close()
 
 
 DEFAULT_LOG_PATH = "mrmkt.log"
@@ -472,13 +504,12 @@ def create_app_context(backend_name: str | None = None) -> AppContext:
     teardown (:attr:`CliDependencies.close`, registered on the Typer context).
     Pass ``backend_name`` to override the ``MRMKT_BACKEND`` environment.
     """
+    name = (backend_name or mrmkt_backend_name_from_env()).strip().lower()
     repository, release = _shared.create_local_ticker_repository()
     clock = _shared.create_clock()
     alpaca_client = _shared.create_alpaca_client()
     alpaca_data_client = _shared.create_alpaca_data_client()
-    backend = mrmkt_backend_factory_from_env(repository).create(
-        backend_name or mrmkt_backend_name_from_env()
-    )
+    backend = mrmkt_backend_factory_from_env(repository).create(name)
     env = MrMktEnvironment2(
         financials=repository,
         prices=repository,

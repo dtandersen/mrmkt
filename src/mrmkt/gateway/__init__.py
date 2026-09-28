@@ -41,6 +41,10 @@ class MessageQueue(ABC):
     def publish(self, subject: str, event: Quote) -> None:
         """Broadcast one price event to the subject's consumers."""
 
+    def close(self) -> None:
+        """Stop blocking subscribe calls so consumer threads can exit."""
+        return None
+
 
 class PriceProvider(ABC):
     """Push source of live quotes."""

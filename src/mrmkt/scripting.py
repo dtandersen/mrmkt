@@ -29,7 +29,7 @@ def _check[T](result: BaseResult[T], *, what: str) -> T:
 
 
 class PricesAccessor:
-    """Stored daily bars: ``mkt.prices.of_symbol("SPY")``."""
+    """Settled daily bars, oldest first."""
 
     def __init__(self, factory):
         self._factory = factory
@@ -54,6 +54,59 @@ class PricesAccessor:
             raise LookupError(f"no stored prices for {symbol}")
         return bars[-1]
 
+    def import_history(
+        self,
+        symbols: list[str],
+        *,
+        provider: str = "alpaca",
+        from_date: str,
+        to_date: str | None = None,
+    ) -> int:
+        """Fetch bars into the store; returns the new-bar count."""
+        from mrmkt.command.import_prices import ImportPricesRequest
+
+        checked = provider.strip().lower()
+        if checked not in ("alpaca", "tiingo"):
+            raise ValueError(f"unknown price provider {provider!r}")
+        result = self._factory.import_prices(provider=checked).execute(
+            ImportPricesRequest(
+                provider=checked,
+                symbols=list(symbols),
+                from_date=from_date,
+                to_date=to_date,
+            )
+        )
+        outcome = _check(result, what=f"price import for {symbols}")
+        return outcome.result.imported
+
+
+class RealtimeAccessor:
+    """Live quotes off the bus: ``mkt.prices_realtime.latest("SPY")``.
+
+    Read-only: needs the engine publishing (see architecture constraint
+    in moneyman memory). Raises LookupError when nothing flows in time.
+    Persisting ticks needs its own table — not this accessor.
+    """
+
+    def __init__(self, factory):
+        self._factory = factory
+
+    def latest(self, symbol: str, *, timeout: float = 10.0):
+        """Most recent live quote, or LookupError on timeout."""
+        import asyncio
+
+        async def first():
+            agen = self._factory.live_ticks(symbol)
+            try:
+                return await asyncio.wait_for(agen.__anext__(), timeout)
+            finally:
+                await agen.aclose()
+
+        try:
+            return asyncio.run(first())
+        except TimeoutError as error:
+            raise LookupError(f"no live quotes for {symbol}") from error
+
 
 class SymbolsAccessor:
     """Cataloged symbols: ``mkt.symbols.with_tag("sp500")``."""
@@ -74,7 +127,8 @@ class MrMkt:
 
     def __init__(self, context: AppContext):
         self._context = context
-        self.prices = PricesAccessor(context.command_factory)
+        self.prices_historical = PricesAccessor(context.command_factory)
+        self.prices_realtime = RealtimeAccessor(context.command_factory)
         self.symbols = SymbolsAccessor(context.command_factory)
 
     def close(self) -> None:
@@ -95,6 +149,6 @@ def connect(*, backend: str | None = None) -> MrMkt:
     ``MRMKT_BACKEND``. Use as a context manager so resources release::
 
         with mrmkt.connect() as mkt:
-            bars = mkt.prices.of_symbol("SPY")
+            bars = mkt.prices_historical.of_symbol("SPY")
     """
     return MrMkt(create_app_context(backend_name=backend))
