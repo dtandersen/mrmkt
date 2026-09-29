@@ -65,6 +65,21 @@ class Strategy(ABC):
         ``context`` carries non-tradable inputs such as the market
         benchmark; strategies that do not need it ignore it."""
 
+    def entry_limits(
+        self,
+        close: pd.DataFrame,
+        high: pd.DataFrame,
+        low: pd.DataFrame,
+        context: MarketContext | None = None,
+    ) -> pd.DataFrame | None:
+        """Resting-limit prices per bar for fill_model='limit-touch'.
+
+        Entries fill only on bars whose low touches the limit; NaN means
+        a market entry (ungated). Default None: the strategy does not
+        support limit-touch fills."""
+        del close, high, low, context
+        return None
+
     @abstractmethod
     def describe(self) -> str:
         """Human-readable rule summary for notes and logs."""

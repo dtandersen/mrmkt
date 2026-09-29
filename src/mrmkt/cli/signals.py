@@ -27,6 +27,13 @@ def run_signals_current(
     strategy_name: str = typer.Option(
         "buy-red", "--strategy", help="Strategy name from the registry"
     ),
+    strategy_file: str | None = typer.Option(
+        None,
+        "--strategy-file",
+        help="Import a Python file first so its @register decorators run; "
+        "lets experiments outside src/ run with zero src changes "
+        "(running is not promotion)",
+    ),
     params_text: str | None = typer.Option(
         None, "--params", help="Strategy params as k=v,... (defaults when omitted)"
     ),
@@ -53,6 +60,7 @@ def run_signals_current(
                 exclude_tags=exclude_tags,
                 as_of=as_of,
                 strategy_name=strategy_name,
+                strategy_file=strategy_file,
                 params_text=params_text,
                 benchmark=benchmark,
                 include_benchmark=include_benchmark,

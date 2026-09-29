@@ -13,7 +13,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from mrmkt.backtest.strategy import build_strategy, parse_params
+from mrmkt.backtest.strategy import build_strategy, load_strategy_file, parse_params
 from mrmkt.command._shared import (
     MEMBERSHIP_VINTAGE_NOTE,
     normalize_symbol,
@@ -35,6 +35,7 @@ class SignalsQuery:
     exclude_tags: list[str] = field(default_factory=list)
     as_of: date | None = None
     strategy_name: str = "buy-red"
+    strategy_file: str | None = None
     params: dict[str, str] = field(default_factory=dict)
     benchmark_symbol: str | None = None
     include_benchmark: bool = False
@@ -63,6 +64,14 @@ class SignalRow:
     mom_rank: float | None = None
     pullback_dist: float | None = None
     gate: bool | None = None
+    buy_level: float | None = None
+    sell_level: float | None = None
+    vs_buy: float | None = None
+    vs_sell: float | None = None
+    touch_ok: bool | None = None
+    dist_lo_ok: bool | None = None
+    drawdown_ok: bool | None = None
+    vov_ok: bool | None = None
 
 
 @dataclass
@@ -87,6 +96,7 @@ class CurrentSignalsRequest:
     exclude_tags: list[str] | None = None
     as_of: str | None = None
     strategy_name: str = "buy-red"
+    strategy_file: str | None = None
     params_text: str | None = None
     benchmark: str = ""
     include_benchmark: bool = False
@@ -138,6 +148,7 @@ class CurrentSignals(Command[CurrentSignalsRequest, CurrentSignalsResult]):
             exclude_tags=exclude_tags,
             as_of=as_of_date,
             strategy_name=request.strategy_name,
+            strategy_file=request.strategy_file,
             params=params,
             benchmark_symbol=benchmark_symbol,
             include_benchmark=request.include_benchmark,
@@ -154,6 +165,8 @@ class CurrentSignals(Command[CurrentSignalsRequest, CurrentSignalsResult]):
 
 def _score_signals(repository, query: SignalsQuery) -> SignalsResult:
     """Score the current bar per symbol through a registered strategy."""
+    if query.strategy_file:
+        load_strategy_file(query.strategy_file)
     strategy = build_strategy(query.strategy_name, dict(query.params))
     symbols = resolve_universe(repository, query.include_tags, query.exclude_tags)
     if query.benchmark_symbol and not query.include_benchmark:
@@ -241,7 +254,7 @@ def _score_signals(repository, query: SignalsQuery) -> SignalsResult:
     )
     context = MarketContext(benchmark=benchmark)
     signals = strategy.generate(closes, highs, lows, context=context)
-    attribution = _attribution(strategy, closes, context, as_of)
+    attribution = _attribution(strategy, closes, lows, context, as_of)
 
     rows: list[SignalRow] = []
     for symbol, bars in frames.items():
@@ -291,6 +304,14 @@ def _score_signals(repository, query: SignalsQuery) -> SignalsResult:
                 mom_rank=attr.get("mom_rank"),
                 pullback_dist=attr.get("pullback_dist"),
                 gate=attr.get("gate"),
+                buy_level=attr.get("buy_level"),
+                sell_level=attr.get("sell_level"),
+                vs_buy=attr.get("vs_buy"),
+                vs_sell=attr.get("vs_sell"),
+                touch_ok=attr.get("touch_ok"),
+                dist_lo_ok=attr.get("dist_lo_ok"),
+                drawdown_ok=attr.get("drawdown_ok"),
+                vov_ok=attr.get("vov_ok"),
             )
         )
     vintage = max((r.signal_date for r in rows), default=None)
@@ -329,14 +350,16 @@ def _load_benchmark(repository, benchmark_symbol: str | None, as_of: date):
     return pd.Series({b.date: b.close for b in bars}).sort_index(), True
 
 
-def _attribution(strategy, closes: pd.DataFrame, context, as_of: date) -> dict:
+def _attribution(
+    strategy, closes: pd.DataFrame, lows: pd.DataFrame, context, as_of: date
+) -> dict:
     """Per-symbol ranking inputs; BuyRed, TrendPullback, and Rotation."""
     from mrmkt.backtest.strategy.buy_red import BuyRedStrategy
     from mrmkt.backtest.strategy.momentum_rotation import MomentumRotationStrategy
     from mrmkt.backtest.strategy.trend_pullback import TrendPullbackStrategy
 
     if isinstance(strategy, BuyRedStrategy):
-        return _buy_red_attribution(strategy, closes, as_of)
+        return _buy_red_attribution(strategy, closes, lows, as_of)
     if isinstance(strategy, TrendPullbackStrategy):
         return _trend_pullback_attribution(strategy, closes, context, as_of)
     if isinstance(strategy, MomentumRotationStrategy):
@@ -427,11 +450,13 @@ def _rotation_attribution(strategy, closes: pd.DataFrame, context, as_of: date) 
     }
 
 
-def _buy_red_attribution(strategy, closes: pd.DataFrame, as_of: date) -> dict:
+def _buy_red_attribution(
+    strategy, closes: pd.DataFrame, lows: pd.DataFrame, as_of: date
+) -> dict:
     from mrmkt.backtest.signals import _levels, vov_percentile
 
     params = strategy.params
-    sma_fast, sma_slow, _, _, dist_lo, drawdown, _ = _levels(closes, params)
+    sma_fast, sma_slow, buy, sell, dist_lo, drawdown, _ = _levels(closes, params)
     ranking = (
         vov_percentile(
             closes, vol_period=params.vol_period, lookback=params.vov_lookback
@@ -447,18 +472,38 @@ def _buy_red_attribution(strategy, closes: pd.DataFrame, as_of: date) -> dict:
         close = closes.loc[stamp, symbol]
         fast = sma_fast.loc[stamp, symbol]
         slow = sma_slow.loc[stamp, symbol]
+        buy_px = _num(buy.loc[stamp, symbol])
+        sell_px = _num(sell.loc[stamp, symbol])
+        dist_lo_v = _num(dist_lo.loc[stamp, symbol])
+        drawdown_v = _num(drawdown.loc[stamp, symbol])
+        vov_v = _num(ranking.loc[stamp, symbol]) if ranking is not None else None
+        low_v = _num(lows.loc[stamp, symbol]) if stamp in lows.index else None
         out[symbol] = {
-            "dist_lo": _num(dist_lo.loc[stamp, symbol]),
-            "drawdown": _num(drawdown.loc[stamp, symbol]),
-            "vov_pct": _num(ranking.loc[stamp, symbol])
-            if ranking is not None
-            else None,
+            "dist_lo": dist_lo_v,
+            "drawdown": drawdown_v,
+            "vov_pct": vov_v,
             "above_fast": bool(close > fast)
             if pd.notna(close) and pd.notna(fast)
             else None,
             "above_slow": bool(close > slow)
             if pd.notna(close) and pd.notna(slow)
             else None,
+            "buy_level": buy_px,
+            "sell_level": sell_px,
+            "vs_buy": _num((close - buy_px) / buy_px)
+            if pd.notna(close) and buy_px
+            else None,
+            "vs_sell": _num((sell_px - close) / close)
+            if pd.notna(close) and sell_px and close != 0
+            else None,
+            "touch_ok": bool(low_v <= buy_px) if low_v is not None and buy_px else None,
+            "dist_lo_ok": bool(dist_lo_v > params.dist_lo_min)
+            if dist_lo_v is not None
+            else None,
+            "drawdown_ok": bool(drawdown_v > -params.dd_max)
+            if drawdown_v is not None
+            else None,
+            "vov_ok": bool(vov_v <= params.vov_max) if vov_v is not None else None,
         }
     return out
 
@@ -506,6 +551,14 @@ SIGNALS_COLUMNS = [
     "mom_rank",
     "pullback_dist",
     "gate",
+    "buy_level",
+    "sell_level",
+    "vs_buy",
+    "vs_sell",
+    "touch_ok",
+    "dist_lo_ok",
+    "drawdown_ok",
+    "vov_ok",
 ]
 
 
@@ -554,6 +607,14 @@ def render_csv(result: SignalsResult) -> str:
                     _fmt(row.mom_rank),
                     _fmt(row.pullback_dist),
                     _fmt(row.gate),
+                    _fmt(row.buy_level),
+                    _fmt(row.sell_level),
+                    _fmt(row.vs_buy),
+                    _fmt(row.vs_sell),
+                    _fmt(row.touch_ok),
+                    _fmt(row.dist_lo_ok),
+                    _fmt(row.drawdown_ok),
+                    _fmt(row.vov_ok),
                 ]
             )
         )

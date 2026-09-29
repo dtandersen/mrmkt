@@ -114,8 +114,35 @@ def price_catalog_contains_rise_then_fall(
     _add_bars(financial_repository, symbol, closes)
 
 
+@given(parsers.parse('a strategy file defining "{name}"'))
+def strategy_file_defining(backtest_run_context, name, tmp_path):
+    path = tmp_path / f"{name}.py"
+    path.write_text(
+        "import pandas as pd\n"
+        "from mrmkt.backtest.strategy import Strategy, register\n"
+        "from mrmkt.backtest.strategy.base import MarketContext, ParamSpec, SignalSet\n"
+        f"@register({name!r})\n"
+        "class FileStrategy(Strategy):\n"
+        "    @classmethod\n"
+        "    def param_specs(cls):\n"
+        "        return {}\n"
+        "    def generate(self, close, high, low, context=None):\n"
+        "        entries = pd.DataFrame(False, index=close.index, columns=close.columns)\n"
+        "        exits = pd.DataFrame(False, index=close.index, columns=close.columns)\n"
+        "        entries.iloc[350, :] = True\n"
+        "        exits.iloc[355, :] = True\n"
+        "        return SignalSet(entries, exits)\n"
+        "    def describe(self):\n"
+        "        return 'file-loaded CLI test strategy'\n"
+    )
+    backtest_run_context.strategy_file = str(path)
+
+
 @when(parsers.parse('I execute "{command}"'))
 def execute_backtest_command(backtest_run_context, command):
+    command = command.replace(
+        "STRATEGY_FILE", getattr(backtest_run_context, "strategy_file", "")
+    )
     args = split(command)
     backtest_run_context.result = CliRunner().invoke(
         cli.app, args[1:], obj=backtest_run_context.deps

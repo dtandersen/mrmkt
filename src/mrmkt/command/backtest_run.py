@@ -6,7 +6,12 @@ from typing import Any
 
 import pandas as pd
 
-from mrmkt.backtest.strategy import StrategyRunner, build_strategy, parse_params
+from mrmkt.backtest.strategy import (
+    StrategyRunner,
+    build_strategy,
+    load_strategy_file,
+    parse_params,
+)
 from mrmkt.command._shared import (
     normalize_symbol,
     normalize_tag,
@@ -27,6 +32,7 @@ class BacktestOutcome:
     start: date | None
     end_date: date
     summary: Any  # runner result, or None when the run produced nothing to report
+    execution: str  # execution assumptions echoed by the CLI
 
 
 @dataclass(frozen=True)
@@ -44,6 +50,9 @@ class RunBacktestRequest:
     fees: float = 0.0
     chunk_size: int = 250
     fill_lag: int = 1
+    fill_model: str = "close"
+    fill_price: str = "close"
+    strategy_file: str | None = None
 
 
 @dataclass
@@ -75,6 +84,18 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
             return RunBacktestResult.invalid_data(
                 ["fill-lag must be 0 (signal close) or 1 (next close)"]
             )
+        if request.fill_model not in ("close", "limit-touch"):
+            return RunBacktestResult.invalid_data(
+                ["fill-model must be 'close' or 'limit-touch'"]
+            )
+        if request.fill_price not in ("close", "limit"):
+            return RunBacktestResult.invalid_data(
+                ["fill-price must be 'close' or 'limit'"]
+            )
+        if request.fill_price != "close" and request.fill_model != "limit-touch":
+            return RunBacktestResult.invalid_data(
+                ["fill-price='limit' needs fill-model='limit-touch'"]
+            )
 
         today = self.clock.today()
         try:
@@ -96,6 +117,8 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
             return RunBacktestResult.invalid_data(["--from must be on or before --to"])
 
         try:
+            if request.strategy_file:
+                load_strategy_file(request.strategy_file)
             strategy = build_strategy(
                 request.strategy_name, parse_params(request.params_text)
             )
@@ -122,6 +145,11 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
             )
         except ValueError as error:
             return RunBacktestResult.invalid_data([str(error)])
+        execution = (
+            f"fill-lag {request.fill_lag}, fill-model {request.fill_model}, "
+            f"fill-price {request.fill_price}, fees {request.fees}, "
+            f"stop {request.stop}, size {request.size_pct}%"
+        )
         if not selected:
             return RunBacktestResult.success(
                 BacktestOutcome(
@@ -132,6 +160,7 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
                     start=None,
                     end_date=end_date,
                     summary=None,
+                    execution=execution,
                 )
             )
         try:
@@ -195,6 +224,7 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
                         start=None,
                         end_date=end_date,
                         summary=None,
+                        execution=execution,
                     )
                 )
             n_symbols = sum(frame[0].shape[1] for frame in chunks)
@@ -204,6 +234,8 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
                 stop=request.stop,
                 fees=request.fees,
                 fill_lag=request.fill_lag,
+                fill_model=request.fill_model,
+                fill_price=request.fill_price,
             )
             start: date = (
                 start_date if start_date is not None else list(union_idx)[300].date()
@@ -222,5 +254,6 @@ class RunBacktest(Command[RunBacktestRequest, RunBacktestResult]):
                 start=start,
                 end_date=end_date,
                 summary=summary,
+                execution=execution,
             )
         )

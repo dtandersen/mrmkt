@@ -7,6 +7,7 @@ import pandas as pd
 
 from mrmkt.backtest.signals import (
     BacktestParams,
+    buy_sell_levels,
     entry_signals,
     exit_signals,
     vov_percentile,
@@ -83,13 +84,31 @@ class BuyRedStrategy(Strategy):
         context: MarketContext | None = None,
     ) -> SignalSet:
         """Entry/exit booleans over full-history frames (warm-up kept)."""
-        ranking = vov_percentile(
-            close, vol_period=self.params.vol_period, lookback=self.params.vov_lookback
-        ) if self.params.use_vov else None
+        ranking = (
+            vov_percentile(
+                close,
+                vol_period=self.params.vol_period,
+                lookback=self.params.vov_lookback,
+            )
+            if self.params.use_vov
+            else None
+        )
         return SignalSet(
             entries=entry_signals(close, low, self.params, ranking),
             exits=exit_signals(close, high, self.params),
         )
+
+    def entry_limits(
+        self,
+        close: pd.DataFrame,
+        high: pd.DataFrame,
+        low: pd.DataFrame,
+        context: MarketContext | None = None,
+    ) -> pd.DataFrame:
+        """Resting buy limits at the contemporaneous LRR for touch fills."""
+        del high, low, context
+        buy, _ = buy_sell_levels(close, self.params)
+        return buy
 
     def describe(self) -> str:
         """Human-readable rule summary for notes and logs."""

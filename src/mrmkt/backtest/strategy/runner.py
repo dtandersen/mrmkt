@@ -5,7 +5,12 @@ from typing import cast
 import numpy as np
 import pandas as pd
 
-from mrmkt.backtest.portfolio import PortfolioResult, aggregate_trades, simulate_fills
+from mrmkt.backtest.portfolio import (
+    PortfolioResult,
+    aggregate_trades,
+    simulate_fills,
+    simulate_limit_touch_fills,
+)
 from mrmkt.backtest.strategy.base import MarketContext, SignalSet, Strategy
 
 DEFAULT_WARMUP_BARS = 300
@@ -25,6 +30,57 @@ def _apply_fill_lag(signals: SignalSet, fill_lag: int) -> SignalSet:
     )
 
 
+def _limit_fill_prices(
+    entries: pd.DataFrame, limits: pd.DataFrame, fill_lag: int
+) -> dict:
+    """Map ``(symbol, fill_timestamp)`` to the resting limit for kept entries.
+
+    Only entries with a finite limit get an override (NaN limits are market
+    fills priced at the close); the touch gate in :func:`_apply_limit_touch`
+    decides which entries are kept. Filling at the limit is exact when the
+    fill bar touches then closes at/above it, and conservative on
+    gap-throughs (a real order improves toward the open, but opens are not
+    in the HLC pipeline, so that improvement is deliberately unmodeled)."""
+    ref = limits.shift(fill_lag)
+    kept = entries.fillna(False).to_numpy() & ref.notna().to_numpy()
+    out: dict = {}
+    for j, col in enumerate(entries.columns):
+        for i in entries.index[kept[:, j]]:
+            px = ref.loc[i, col]
+            try:
+                price = float(px)
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(price):
+                out[(str(col), i)] = price
+    return out
+
+
+def _apply_limit_touch(
+    entries: pd.DataFrame, limits: pd.DataFrame, low: pd.DataFrame, fill_lag: int
+) -> pd.DataFrame:
+    """Keep only entries whose resting limit is touched on the fill bar.
+
+    The limit is known at the signal-bar close; the fill bar is
+    ``fill_lag`` bars later. An entry fills only if that bar's low
+    reaches the limit (a one-session resting order). NaN limits mean a
+    market entry and are never gated. This gate decides *which* entries
+    fill; *pricing* is set by ``fill_price`` (fill-bar close by default,
+    resting limit with ``fill_price='limit'``). Under close pricing the
+    fill cuts both ways versus a real resting fill at the limit:
+    at-or-above the limit it overstates cost (conservative), below the
+    limit — a bar that touched then closed under it — it understates cost
+    (optimistic). Same-day risk after an intraday touch is not modeled:
+    the position is treated as opened at the close, so an intrabar
+    round trip through the stop on the fill bar itself is invisible here.
+    The realism gain over the close model is the miss: untouched limits
+    simply do not fill."""
+    ref = limits.shift(fill_lag)
+    touched = (low <= ref).fillna(False)
+    market = ref.isna()
+    return (entries & (market | touched)).fillna(False).astype(bool)
+
+
 class StrategyRunner:
     """Executes any Strategy over full-history frames."""
 
@@ -36,15 +92,56 @@ class StrategyRunner:
         max_positions: int = 50,
         warmup_bars: int = DEFAULT_WARMUP_BARS,
         fill_lag: int = 1,
+        fill_model: str = "close",
+        fill_price: str = "close",
     ):
         if fill_lag not in (0, 1):
             raise ValueError("fill_lag must be 0 (signal close) or 1 (next close)")
+        if fill_model not in ("close", "limit-touch"):
+            raise ValueError(
+                "fill_model must be 'close' (fill every signal) or "
+                "'limit-touch' (fill only touched resting limits)"
+            )
+        if fill_price not in ("close", "limit"):
+            raise ValueError(
+                "fill_price must be 'close' (fill-bar close) or "
+                "'limit' (resting limit price)"
+            )
+        if fill_price != "close" and fill_model != "limit-touch":
+            raise ValueError("fill_price='limit' needs fill_model='limit-touch'")
+        if not 0 < size_pct <= 100:
+            raise ValueError("size_pct must be between 0 and 100")
+        if not 0 < stop < 1:
+            raise ValueError("stop must be between 0 and 1")
+        if fees < 0:
+            raise ValueError("fees must be >= 0")
         self.size_pct = size_pct
         self.fees = fees
         self.stop = stop
         self.max_positions = max_positions
         self.warmup_bars = warmup_bars
         self.fill_lag = fill_lag
+        self.fill_model = fill_model
+        self.fill_price = fill_price
+
+    def _limits_or_raise(
+        self,
+        strategy: Strategy,
+        close: pd.DataFrame,
+        high: pd.DataFrame,
+        low: pd.DataFrame,
+        context: MarketContext,
+    ) -> pd.DataFrame | None:
+        """Limit frame for touch gating, or None under the close model."""
+        if self.fill_model != "limit-touch":
+            return None
+        limits = strategy.entry_limits(close, high, low, context)
+        if limits is None:
+            raise ValueError(
+                f"strategy {type(strategy).__name__} does not provide entry "
+                "limits for fill_model='limit-touch'"
+            )
+        return limits
 
     def run(
         self,
@@ -108,6 +205,7 @@ class StrategyRunner:
             # NaTType in the union, which the isna guard above excludes.
             first_ts = cast(pd.Timestamp, bar)
         context = MarketContext(benchmark=benchmark, test_start=first_ts)
+        entry_prices: dict = {}
         if getattr(strategy, "needs_universe", False):
             full_close = pd.concat([c for c, _, _ in prepared], axis=1)
             full_high = pd.concat([h for _, h, _ in prepared], axis=1)
@@ -116,14 +214,41 @@ class StrategyRunner:
                 strategy.generate(full_close, full_high, full_low, context=context),
                 self.fill_lag,
             )
+            limits = self._limits_or_raise(
+                strategy, full_close, full_high, full_low, context
+            )
             all_records = []
             for close, high, low in prepared:
                 cols = list(close.columns)
+                entries = pd.DataFrame(signals.entries[cols])
+                exits = pd.DataFrame(signals.exits[cols])
+                if limits is not None:
+                    chunk_limits = pd.DataFrame(limits[cols])
+                    entries = _apply_limit_touch(
+                        entries, chunk_limits, low, self.fill_lag
+                    )
+                    if self.fill_price == "limit":
+                        entry_prices.update(
+                            _limit_fill_prices(entries, chunk_limits, self.fill_lag)
+                        )
+                        all_records.append(
+                            simulate_limit_touch_fills(
+                                close,
+                                high,
+                                low,
+                                entries,
+                                exits,
+                                chunk_limits,
+                                self.fill_lag,
+                                self.stop,
+                            )
+                        )
+                        continue
                 all_records.append(
                     simulate_fills(
                         close,
-                        pd.DataFrame(signals.entries[cols]),
-                        pd.DataFrame(signals.exits[cols]),
+                        entries,
+                        exits,
                         size_pct=self.size_pct,
                         fees=self.fees,
                         stop=self.stop,
@@ -139,10 +264,32 @@ class StrategyRunner:
                 signals = _apply_fill_lag(
                     strategy.generate(close, high, low, context=context), self.fill_lag
                 )
+                entries = signals.entries
+                limits = self._limits_or_raise(strategy, close, high, low, context)
+                if limits is not None:
+                    entries = _apply_limit_touch(entries, limits, low, self.fill_lag)
+                    if self.fill_price == "limit":
+                        entry_prices.update(
+                            _limit_fill_prices(entries, limits, self.fill_lag)
+                        )
+                        all_records.append(
+                            simulate_limit_touch_fills(
+                                close,
+                                high,
+                                low,
+                                entries,
+                                signals.exits,
+                                limits,
+                                self.fill_lag,
+                                self.stop,
+                            )
+                        )
+                        all_closes.append(close)
+                        continue
                 all_records.append(
                     simulate_fills(
                         close,
-                        signals.entries,
+                        entries,
                         signals.exits,
                         size_pct=self.size_pct,
                         fees=self.fees,
@@ -158,4 +305,10 @@ class StrategyRunner:
         window = full.index >= first
         mask: pd.Series = records["Entry Timestamp"] >= first
         kept: pd.DataFrame = records.loc[mask]
-        return aggregate_trades(full.loc[window], kept, self.max_positions, self.fees)
+        return aggregate_trades(
+            full.loc[window],
+            kept,
+            self.max_positions,
+            self.fees,
+            entry_prices or None,
+        )

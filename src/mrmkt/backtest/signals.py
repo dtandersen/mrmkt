@@ -22,7 +22,9 @@ class BacktestParams:
     trail_lookback: int = 252
 
 
-def vov_percentile(close: pd.DataFrame, vol_period: int = 21, lookback: int = 252) -> pd.DataFrame:
+def vov_percentile(
+    close: pd.DataFrame, vol_period: int = 21, lookback: int = 252
+) -> pd.DataFrame:
     """21/21-style vol-of-vol percentile rank per symbol (0-100)."""
     logret = np.log(close / close.shift(1))
     dvol = logret.rolling(vol_period).std(ddof=1)
@@ -44,23 +46,51 @@ def vov_percentile(close: pd.DataFrame, vol_period: int = 21, lookback: int = 25
 def _levels(
     close: pd.DataFrame,
     params: BacktestParams,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+]:
     sma_fast: pd.DataFrame = pd.DataFrame(close.rolling(params.trend_fast).mean())
     sma_slow: pd.DataFrame = pd.DataFrame(close.rolling(params.trend_slow).mean())
     anchor: pd.DataFrame = pd.DataFrame(close.rolling(params.anchor_period).mean())
     # np.log on a DataFrame returns a DataFrame (pandas __array_ufunc__);
     # the annotation pins that for the type checker.
-    dvol: pd.DataFrame = np.log(close / close.shift(1)).rolling(params.vol_period).std(ddof=1)
+    dvol: pd.DataFrame = (
+        np.log(close / close.shift(1)).rolling(params.vol_period).std(ddof=1)
+    )
     half_width = params.width * dvol * np.sqrt(params.horizon_days)
     buy: pd.DataFrame = anchor * (1 - half_width)
     sell: pd.DataFrame = anchor * (1 + half_width)
-    trailing_low: pd.DataFrame = pd.DataFrame(close.rolling(params.trail_lookback).min())
+    trailing_low: pd.DataFrame = pd.DataFrame(
+        close.rolling(params.trail_lookback).min()
+    )
     dist_lo: pd.DataFrame = (close - trailing_low) / trailing_low
     trailing_peak: pd.DataFrame = pd.DataFrame(
         close.rolling(params.trail_lookback, min_periods=1).max()
     )
-    drawdown: pd.DataFrame = (close / trailing_peak - 1).rolling(params.trail_lookback, min_periods=1).min()
+    drawdown: pd.DataFrame = (
+        (close / trailing_peak - 1).rolling(params.trail_lookback, min_periods=1).min()
+    )
     return sma_fast, sma_slow, buy, sell, dist_lo, drawdown, dvol
+
+
+def buy_sell_levels(
+    close: pd.DataFrame,
+    params: BacktestParams,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Public risk-range levels: contemporaneous buy (LRR) and sell (TRR).
+
+    Same band ``entry_signals`` touches and ``exit_signals`` breaks against,
+    exposed so tooling (e.g. ``signals current``) reports distances without
+    importing the private ``_levels`` helper. Past-only like everything else.
+    """
+    _, _, buy, sell, _, _, _ = _levels(close, params)
+    return buy, sell
 
 
 def entry_signals(

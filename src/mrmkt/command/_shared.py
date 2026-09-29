@@ -18,6 +18,7 @@ from alpaca.trading.client import TradingClient
 from psycopg2.pool import SimpleConnectionPool
 
 from mrmkt.common.clock import Clock, WallClock
+from mrmkt.common.config import find_config_file
 from mrmkt.entity.trigger import normalize_trigger_indicator
 from mrmkt.ext.backend import PostgresBackend
 from mrmkt.ext.backend.postgres import PostgresSqlClient
@@ -85,8 +86,16 @@ def split_benchmark_symbol(
 
 # These factories are small seams for BDD tests: tests replace them with a fake
 # Alpaca client and an in-memory ticker repository.
+def _require_config(name: str) -> Path:
+    """Resolve a required config file via .mrmkt/ discovery (legacy cwd fallback)."""
+    found = find_config_file(name)
+    if found is None:
+        raise FileNotFoundError(f"{name} not found (.mrmkt/ or cwd)")
+    return found
+
+
 def create_alpaca_client() -> TradingClient:
-    config = yaml.safe_load(Path("alpaca.yaml").read_text())
+    config = yaml.safe_load(_require_config("alpaca.yaml").read_text())
     endpoint = config["endpoint"].rstrip("/")
     parsed_endpoint = urlsplit(endpoint)
     if parsed_endpoint.hostname != "paper-api.alpaca.markets":
@@ -103,7 +112,7 @@ def create_alpaca_client() -> TradingClient:
 
 
 def create_local_ticker_repository() -> tuple[PostgresBackend, Callable[[], None]]:
-    config = yaml.safe_load(Path("dbschema.yml").read_text())
+    config = yaml.safe_load(_require_config("dbschema.yml").read_text())
     db_config = config["databases"]["db1"]
     pool = SimpleConnectionPool(
         1,
@@ -119,17 +128,20 @@ def create_local_ticker_repository() -> tuple[PostgresBackend, Callable[[], None
 
 
 def create_alpaca_data_client() -> StockHistoricalDataClient:
-    config = yaml.safe_load(Path("alpaca.yaml").read_text())
+    config = yaml.safe_load(_require_config("alpaca.yaml").read_text())
     return StockHistoricalDataClient(
         api_key=config["key"],
         secret_key=config["secret"],
     )
 
 
-def load_local_config() -> dict:
+def load_local_config(start: Path | None = None) -> dict:
     """Read optional local config.yaml; missing/invalid means {} (never raises)."""
+    found = find_config_file("config.yaml", start)
+    if found is None:
+        return {}
     try:
-        text = Path("config.yaml").read_text()
+        text = found.read_text()
     except OSError:
         return {}
     try:

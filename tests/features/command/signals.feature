@@ -10,6 +10,7 @@ Feature: Current signal discovery use case
     When I score strategy "buy-red" on tag "universe"
     Then every row has a signal date on or before as-of
     And row "AAA" reports dist_lo, drawdown, and trend state
+    And row "AAA" reports buy/sell levels and entry legs
     And the CSV states no fill price is shown or implied
 
   Scenario: Trend-pullback rows carry momentum rank and gate state
@@ -39,6 +40,14 @@ Feature: Current signal discovery use case
     And symbol "AAA" has a 300-bar climb tagged "universe"
     When I score strategy "buy-red" on tag "universe"
     Then every non-empty numeric cell parses as float
+
+  Scenario: External strategy file scores through signals current
+    Given a clean price catalog
+    And symbol "AAA" has a 300-bar climb tagged "universe"
+    And a scoring strategy file defining "file-sig"
+    When I score strategy "file-sig" from file on tag "universe"
+    Then "AAA" is a scored row
+    And the CSV names strategy "file-sig"
 
   Scenario: A missing benchmark falls back transparently
     Given a clean price catalog

@@ -63,3 +63,60 @@ Feature: Backtest run with benchmark context
     When I execute "mrmkt backtest run AAPL --fill-lag 5"
     Then the command fails
     And the output mentions "fill-lag"
+
+  Scenario: Limit-touch fills only touched resting limits
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | SPY    | ARCA     | us_equity |
+    And the local price catalog contains a 400-bar climb with a dip for AAA
+    And the local price catalog contains a 400-bar steady climb for SPY
+    When I execute "mrmkt backtest run AAA --strategy buy-red --params use_vov=false --benchmark SPY --fill-model limit-touch"
+    Then the command succeeds
+    And the output mentions "Trades:"
+    And the output mentions "Execution: fill-lag 1, fill-model limit-touch"
+
+  Scenario: Limit fill price fills resting limits at the limit
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | SPY    | ARCA     | us_equity |
+    And the local price catalog contains a 400-bar climb with a dip for AAA
+    And the local price catalog contains a 400-bar steady climb for SPY
+    When I execute "mrmkt backtest run AAA --strategy buy-red --params use_vov=false --benchmark SPY --fill-model limit-touch --fill-price limit"
+    Then the command succeeds
+    And the output mentions "Trades:"
+    And the output mentions "fill-price limit"
+
+  Scenario: Bad fill price names the valid choices
+    When I execute "mrmkt backtest run AAPL --fill-price midpoint"
+    Then the command fails
+    And the output mentions "fill-price"
+
+  Scenario: Limit-touch without strategy limits is rejected
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | SPY    | ARCA     | us_equity |
+    And the local price catalog contains a 400-bar climb with a dip for AAA
+    And the local price catalog contains a 400-bar steady climb for SPY
+    When I execute "mrmkt backtest run AAA --strategy trend-pullback --params market_sma=20,trend_sma=50,rising_bars=5,mom_lookback=60,mom_skip=5,momentum_top_share=1.0,pullback_period=10,recovery_bars=0,exit_mode=range --benchmark SPY --fill-model limit-touch"
+    Then the command fails
+    And the output mentions "entry limits"
+
+  Scenario: Bad fill model names the valid choices
+    When I execute "mrmkt backtest run AAPL --fill-model midpoint"
+    Then the command fails
+    And the output mentions "fill-model"
+
+  Scenario: External strategy file runs through the CLI
+    Given the local ticker catalog contains these symbols:
+      | symbol | exchange | type      |
+      | AAA    | NASDAQ   | us_equity |
+      | SPY    | ARCA     | us_equity |
+    And the local price catalog contains a 400-bar climb with a dip for AAA
+    And the local price catalog contains a 400-bar steady climb for SPY
+    And a strategy file defining "file-dip"
+    When I execute "mrmkt backtest run AAA --strategy-file STRATEGY_FILE --strategy file-dip --benchmark SPY"
+    Then the command succeeds
+    And the output mentions "Trades:"

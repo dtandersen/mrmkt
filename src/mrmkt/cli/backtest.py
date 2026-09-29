@@ -29,6 +29,13 @@ def run_backtest(
     strategy_name: str = typer.Option(
         "buy-red", "--strategy", help="Strategy name from the registry"
     ),
+    strategy_file: str | None = typer.Option(
+        None,
+        "--strategy-file",
+        help="Import a Python file first so its @register decorators run; "
+        "lets experiments outside src/ run with zero src changes "
+        "(running is not promotion)",
+    ),
     params_text: str | None = typer.Option(
         None, "--params", help="Strategy params as k=v,... (defaults when omitted)"
     ),
@@ -50,6 +57,20 @@ def run_backtest(
         "--fill-lag",
         help="Bars between signal and fill: 0 = signal close (optimistic), 1 = next close (executable)",
     ),
+    fill_model: str = typer.Option(
+        "close",
+        "--fill-model",
+        help="Fill model: close fills every signal at the fill-bar close; "
+        "limit-touch fills only resting limits touched on the fill bar "
+        "(strategies without entry limits are rejected)",
+    ),
+    fill_price: str = typer.Option(
+        "close",
+        "--fill-price",
+        help="Fill price under limit-touch: close fills at the fill-bar "
+        "close (default, existing numbers frozen); limit fills at the "
+        "resting limit, i.e. what the order actually gets",
+    ),
 ) -> None:
     """Backtest a strategy over stored prices with vectorbt."""
     handle(
@@ -62,6 +83,7 @@ def run_backtest(
                 from_date=from_date,
                 to_date=to_date,
                 strategy_name=strategy_name,
+                strategy_file=strategy_file,
                 params_text=params_text,
                 benchmark=benchmark,
                 size_pct=size_pct,
@@ -69,6 +91,8 @@ def run_backtest(
                 fees=fees,
                 chunk_size=chunk_size,
                 fill_lag=fill_lag,
+                fill_model=fill_model,
+                fill_price=fill_price,
             )
         ),
         _echo_backtest,
@@ -90,12 +114,14 @@ def _echo_backtest(outcome) -> None:
         typer.echo("No symbols with enough history to backtest.")
         return
     if outcome.status == "no_trades":
+        typer.echo(f"Execution: {outcome.execution}")
         typer.echo("No trades generated in the test window.")
         return
     summary = outcome.summary
     typer.echo(
         f"Symbols: {outcome.n_symbols}  Test window: {outcome.start} to {outcome.end_date}"
     )
+    typer.echo(f"Execution: {outcome.execution}")
     typer.echo(f"Trades: {summary.n_trades}  Win rate: {summary.win_rate:.1%}")
     typer.echo(f"Avg win: {summary.avg_win:+.2%}  Avg loss: {summary.avg_loss:+.2%}")
     typer.echo(

@@ -13,6 +13,7 @@ from mrmkt.backtest.strategy.naive_dip import NaiveDipStrategy
 from mrmkt.backtest.strategy.registry import (
     STRATEGIES,
     build_strategy,
+    load_strategy_file,
     parse_params,
     register,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "StrategyRunner",
     "TrendPullbackStrategy",
     "build_strategy",
+    "load_strategy_file",
     "parse_params",
     "register",
 ]

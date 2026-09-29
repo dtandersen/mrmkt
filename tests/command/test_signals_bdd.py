@@ -14,9 +14,9 @@ from mrmkt.command.signals_current import (
     render_csv,
 )
 from mrmkt.common.clock import ClockStub
-from mrmkt.ext.backend import InMemoryBackend
 from mrmkt.entity.stock_price import StockPrice
 from mrmkt.entity.ticker import Ticker
+from mrmkt.ext.backend import InMemoryBackend
 
 FEATURE = Path(__file__).parent.parent / "features" / "command" / "signals.feature"
 scenarios(str(FEATURE))
@@ -94,9 +94,43 @@ def _payload(signals_context):
     return result.result
 
 
+@given(parsers.parse('a scoring strategy file defining "{name}"'))
+def scoring_strategy_file(signals_context, name, tmp_path):
+    path = tmp_path / f"{name}.py"
+    path.write_text(
+        "import pandas as pd\n"
+        "from mrmkt.backtest.strategy import Strategy, register\n"
+        "from mrmkt.backtest.strategy.base import MarketContext, ParamSpec, SignalSet\n"
+        f"@register({name!r})\n"
+        "class FileStrategy(Strategy):\n"
+        "    @classmethod\n"
+        "    def param_specs(cls):\n"
+        "        return {}\n"
+        "    def generate(self, close, high, low, context=None):\n"
+        "        entries = pd.DataFrame(False, index=close.index, columns=close.columns)\n"
+        "        exits = pd.DataFrame(False, index=close.index, columns=close.columns)\n"
+        "        entries.iloc[250, :] = True\n"
+        "        exits.iloc[255, :] = True\n"
+        "        return SignalSet(entries, exits)\n"
+        "    def describe(self):\n"
+        "        return 'file-loaded signals test strategy'\n"
+    )
+    signals_context.strategy_file = str(path)
+
+
 @when(parsers.parse('I score strategy "{strategy}" on tag "{tag}"'))
 def score_strategy(signals_context, strategy, tag):
     signals_context.result = _score(signals_context, tags=[tag], strategy_name=strategy)
+
+
+@when(parsers.parse('I score strategy "{strategy}" from file on tag "{tag}"'))
+def score_strategy_from_file(signals_context, strategy, tag):
+    signals_context.result = _score(
+        signals_context,
+        tags=[tag],
+        strategy_name=strategy,
+        strategy_file=signals_context.strategy_file,
+    )
 
 
 @when(
@@ -156,6 +190,27 @@ def aaa_rank_inputs(signals_context):
     assert_that(aaa.above_slow, not_none())
 
 
+@then('row "AAA" reports buy/sell levels and entry legs')
+def aaa_levels_and_legs(signals_context):
+    by_symbol = {row.symbol: row for row in _payload(signals_context).rows}
+    aaa = by_symbol["AAA"]
+    assert_that(aaa.buy_level, not_none())
+    assert_that(aaa.sell_level, not_none())
+    assert_that(aaa.vs_buy, not_none())
+    assert_that(aaa.vs_sell, not_none())
+    assert_that(aaa.touch_ok, not_none())
+    assert_that(aaa.dist_lo_ok, not_none())
+    assert_that(aaa.drawdown_ok, not_none())
+
+
+@then(parsers.parse('the CSV names strategy "{name}"'))
+def csv_names_strategy(signals_context, name):
+    assert_that(
+        render_csv(_payload(signals_context)),
+        contains_string(f"# strategy={name}"),
+    )
+
+
 @then("the CSV states no fill price is shown or implied")
 def no_fill_implied(signals_context):
     assert_that(
@@ -190,6 +245,10 @@ def numerics_parse(signals_context):
         "mom_value",
         "mom_rank",
         "pullback_dist",
+        "buy_level",
+        "sell_level",
+        "vs_buy",
+        "vs_sell",
     }
     seen = 0
     for row in rows:

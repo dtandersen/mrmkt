@@ -66,9 +66,13 @@ Columns: `rank,symbol,last_date,last_close,n_bars,sma20,sma63,sma200,`
 Per-symbol status at the signal bar: `entry_signal`, `exit_signal`, or
 `neutral`, with `signal_date` and that bar's `close` plus last
 entry/exit dates, closes, and days-since. `dist_lo`, `drawdown`,
-`vov_pct`, `above_fast`, `above_slow` apply to `buy-red`; `mom_value`,
-`mom_rank`, `pullback_dist`, `gate` apply to the `trend-pullback` and
-`momentum-rotation` candidates; other cells are empty.
+`vov_pct`, `above_fast`, `above_slow` apply to `buy-red`, plus the
+contemporaneous band read `buy_level`, `sell_level`, `vs_buy`
+(close vs LRR), `vs_sell` (TRR vs close) and the per-leg entry states
+`touch_ok` (low tagged LRR), `dist_lo_ok`, `drawdown_ok`, `vov_ok`;
+`mom_value`, `mom_rank`, `pullback_dist`, `gate` apply to the
+`trend-pullback` and `momentum-rotation` candidates; other cells are
+empty.
 
 Signal booleans are known only **after** a bar closes. The CSV states the
 fill convention explicitly: no fill price is shown or implied. `--benchmark`
@@ -81,7 +85,9 @@ not, plus `benchmark_tradable=true|false`.
 Columns: `symbol,signal_date,close,status,last_entry_date,`
 `last_entry_close,last_exit_date,last_exit_close,days_since_entry,`
 `days_since_exit,n_bars,dist_lo,drawdown,vov_pct,above_fast,above_slow,`
-`mom_value,mom_rank,pullback_dist,gate`.
+`mom_value,mom_rank,pullback_dist,gate,buy_level,sell_level,vs_buy,`
+`vs_sell,touch_ok,dist_lo_ok,drawdown_ok,vov_ok` (level/leg columns
+appended at the end, so existing column positions are unchanged).
 
 Backtest trade attribution carries `TradeSummary.symbol` from the fill
 records, so per-name performance stays attributable.

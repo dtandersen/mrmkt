@@ -7,8 +7,9 @@ and statistics use a transparent overlay: sizing scale is irrelevant
 because the overlay weights by return, so ``size_pct`` only sizes the
 unconstrained fill simulation and never the reported portfolio weights
 (validation plan open item — do not read position sizing into results).
-Days a name has no stored price contribute no mark and no open count
-rather than NaN-poisoning the series.
+Days a name has no stored price book no mark but keep the position
+counted open; the valid-to-valid change lands when prices resume, so
+gaps never erase P/L or free cap slots.
 """
 
 from dataclasses import dataclass, field
@@ -72,6 +73,12 @@ def run_portfolio(
         raise ValueError("close, entries, and exits must share an index")
     if not (list(close.columns) == list(entries.columns) == list(exits.columns)):
         raise ValueError("close, entries, and exits must share columns")
+    if not 0 < size_pct <= 100:
+        raise ValueError("size_pct must be between 0 and 100")
+    if not 0 < stop < 1:
+        raise ValueError("stop must be between 0 and 1")
+    if fees < 0:
+        raise ValueError("fees must be >= 0")
     records = simulate_fills(
         close, entries, exits, size_pct, fees, stop, freq, high, low
     )
@@ -93,6 +100,12 @@ def simulate_fills(
 
     Capital is effectively unconstrained so every signal fills; selection
     happens later in :func:`aggregate_trades`. Frames must be aligned."""
+    if not 0 < size_pct <= 100:
+        raise ValueError("size_pct must be between 0 and 100")
+    if not 0 < stop < 1:
+        raise ValueError("stop must be between 0 and 1")
+    if fees < 0:
+        raise ValueError("fees must be >= 0")
     if close.empty or entries.empty or exits.empty:
         raise ValueError("close, entries, and exits must be non-empty")
     if not (close.index.equals(entries.index) and close.index.equals(exits.index)):
@@ -117,13 +130,188 @@ def simulate_fills(
     return pf.trades.records_readable  # type: ignore[attr-defined]
 
 
+def simulate_limit_touch_fills(
+    close: pd.DataFrame,
+    high: pd.DataFrame,
+    low: pd.DataFrame,
+    entries: pd.DataFrame,
+    exits: pd.DataFrame,
+    limits: pd.DataFrame,
+    fill_lag: int,
+    stop: float,
+) -> pd.DataFrame:
+    """Simulate resting-limit fills with stops on the true fill basis.
+
+    ``entries``/``exits`` are post-lag fill-bar masks; ``limits`` holds the
+    resting limits known at each signal bar. A kept entry fills at its
+    limit (NaN limit = market fill at the fill-bar close). The stop
+    anchors to that actual fill — not the fill-bar close — so an intrabar
+    stop-out is priced off what the order really paid. Each bar, a stop
+    trigger wins ties against a strategy exit on the same bar. Like
+    :func:`simulate_fills`, capital is unconstrained and selection happens
+    later in :func:`aggregate_trades`; records share its schema. Entries
+    while already holding are ignored (no pyramiding), mirroring the
+    close-fill path.
+    """
+    if not 0 < stop < 1:
+        raise ValueError("stop must be between 0 and 1")
+    if fill_lag not in (0, 1):
+        raise ValueError("fill_lag must be 0 (signal close) or 1 (next close)")
+    ref = limits.shift(fill_lag)
+    columns = [
+        "Entry Timestamp",
+        "Exit Timestamp",
+        "Status",
+        "Avg Entry Price",
+        "Avg Exit Price",
+        "Column",
+    ]
+    rows: list = []
+    for col in entries.columns:
+        entry_mask = entries[col].fillna(False).to_numpy(dtype=bool)
+        exit_mask = exits[col].fillna(False).to_numpy(dtype=bool)
+        closes = np.asarray(pd.to_numeric(close[col], errors="coerce"), dtype=float)
+        lows = np.asarray(pd.to_numeric(low[col], errors="coerce"), dtype=float)
+        lims = np.asarray(pd.to_numeric(ref[col], errors="coerce"), dtype=float)
+        stamps = entries.index.to_numpy()
+        holding: tuple | None = None
+        for pos in range(len(stamps)):
+            if holding is not None:
+                stop_px = holding[1] * (1 - stop)
+                if np.isfinite(lows[pos]) and lows[pos] <= stop_px:
+                    rows.append(
+                        {
+                            "Entry Timestamp": holding[0],
+                            "Exit Timestamp": stamps[pos],
+                            "Status": "Closed",
+                            "Avg Entry Price": holding[1],
+                            "Avg Exit Price": stop_px,
+                            "Column": str(col),
+                        }
+                    )
+                    holding = None
+                    continue
+                exit_px = _nonzero_number(closes[pos])
+                if exit_mask[pos] and exit_px is not None:
+                    rows.append(
+                        {
+                            "Entry Timestamp": holding[0],
+                            "Exit Timestamp": stamps[pos],
+                            "Status": "Closed",
+                            "Avg Entry Price": holding[1],
+                            "Avg Exit Price": exit_px,
+                            "Column": str(col),
+                        }
+                    )
+                    holding = None
+                    continue
+            if holding is None and entry_mask[pos]:
+                price = _nonzero_number(lims[pos])
+                if price is None:
+                    price = _nonzero_number(closes[pos])
+                if price is None:
+                    continue
+                holding = (stamps[pos], price)
+        if holding is not None:
+            rows.append(
+                {
+                    "Entry Timestamp": holding[0],
+                    "Exit Timestamp": pd.NaT,
+                    "Status": "Open",
+                    "Avg Entry Price": holding[1],
+                    "Avg Exit Price": np.nan,
+                    "Column": str(col),
+                }
+            )
+    if not rows:
+        return pd.DataFrame({key: [] for key in columns})
+    records = pd.DataFrame(rows, columns=columns)
+    records["Entry Timestamp"] = pd.to_datetime(records["Entry Timestamp"])
+    records["Exit Timestamp"] = pd.to_datetime(records["Exit Timestamp"])
+    return records
+
+
+def _book_holding(
+    prices,
+    l0: int,
+    g0: int,
+    span: int,
+    day_sum,
+    open_count,
+    exit_px: float | None = None,
+    entry_px: float | None = None,
+) -> None:
+    """Book one holding window with gap-bridged marks and full occupancy.
+
+    Every day of the window counts open (a held position keeps its cap
+    slot even when its series has no bar). Each valid close books its
+    change since the last valid close on its own day, so P/L across a
+    data gap lands when prices resume instead of vanishing. When
+    ``exit_px`` is given, the final mark pins to the actual exit fill
+    (intrabar stops) relative to the last valid close. When ``entry_px``
+    is given (resting-limit fills priced away from the entry-bar close),
+    the first mark compounds from the fill price instead.
+    """
+    prev_px: float | None = _nonzero_number(entry_px)
+    if prev_px is None:
+        prev_px = _nonzero_number(prices[l0])
+    for k in range(1, span + 1):
+        px = prices[l0 + k]
+        open_count[g0 + k] += 1
+        if k == span and exit_px is not None and np.isfinite(exit_px):
+            # The exit fill is real even when the exit-day close is
+            # missing (e.g. an intrabar stop on a gapped bar): pin it to
+            # the last valid close instead of dropping the pin with the NaN.
+            if prev_px is not None and prev_px != 0:
+                mark = exit_px / prev_px - 1
+                if np.isfinite(mark):
+                    day_sum[g0 + k] += mark
+            continue
+        if not np.isfinite(px):
+            continue
+        if prev_px is not None and prev_px != 0:
+            mark = px / prev_px - 1
+            if np.isfinite(mark):
+                day_sum[g0 + k] += mark
+        prev_px = _nonzero_number(px) or prev_px
+
+
+def _nonzero_number(value) -> float | None:
+    """Finite nonzero float, else None (guards mark arithmetic)."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(result) or result == 0:
+        return None
+    return result
+
+
+def _lookup_entry_price(entry_prices, sym, entry_day) -> float | None:
+    """Actual entry fill for a resting-limit fill, else None (use Avg Entry)."""
+    if not entry_prices:
+        return None
+    try:
+        return _nonzero_number(entry_prices[(str(sym), entry_day)])
+    except KeyError:
+        return None
+
+
 def aggregate_trades(
     close: pd.DataFrame,
     records: pd.DataFrame,
     max_positions: int,
     fees_per_side: float = FEES_PER_SIDE,
+    entry_prices: dict | None = None,
 ) -> PortfolioResult:
-    """Chronological cap-sweep plus equal-weight daily series and stats."""
+    """Chronological cap-sweep plus equal-weight daily series and stats.
+
+    ``entry_prices`` optionally maps ``(symbol, entry_timestamp)`` to the
+    actual entry fill price (resting-limit fills); gross returns and first
+    marks compound from it instead of the entry-bar close.
+    """
+    if fees_per_side < 0:
+        raise ValueError("fees must be >= 0")
     try:
         day_of = {day: pos for pos, day in enumerate(close.index)}
         n_days = len(close.index)
@@ -147,19 +335,48 @@ def aggregate_trades(
                 continue
             prices = close[sym].to_numpy()
             l0 = int(np.searchsorted(close.index.to_numpy(), np.datetime64(entry_day)))
+            entry_px = _lookup_entry_price(entry_prices, sym, entry_day)
             if row["Status"] == "Closed":
                 exit_day = row["Exit Timestamp"]
                 g1 = day_of.get(exit_day)
                 if g1 is None:
                     continue
                 span = g1 - g0
-                if span <= 0:
+                if span < 0:
                     continue
-                marks = prices[l0 + 1 : l0 + span + 1] / prices[l0 : l0 + span] - 1
-                # Missing bars carry no mark and no open count (rather than
-                # NaN-poisoning the shared daily series); costs still book.
-                hit = np.arange(g0 + 1, g1 + 1)[np.isfinite(marks)]
-                day_sum[hit] += marks[np.isfinite(marks)]
+                if span == 0:
+                    # Same-bar round trip (e.g. an intrabar stop): no
+                    # close-to-close marks exist, so book the actual fill
+                    # prices plus both fees to the entry day. Dropping the
+                    # record here silently erases the trade from the equity
+                    # curve AND the trade stats.
+                    entry_base = (
+                        entry_px
+                        if entry_px is not None
+                        else float(row["Avg Entry Price"])
+                    )
+                    gross = float(row["Avg Exit Price"] / entry_base - 1)
+                    day_sum[g0] += gross
+                    day_cost[g0] += 2 * fees_per_side
+                    open_count[g0] += 1
+                    opened_today += 1
+                    trades.append(
+                        TradeSummary(
+                            symbol=str(sym),
+                            entry_date=entry_day,
+                            exit_date=exit_day,
+                            gross_return=gross,
+                            hold_days=0,
+                        )
+                    )
+                    continue
+                try:
+                    exit_px = float(row["Avg Exit Price"])
+                except (TypeError, ValueError):
+                    exit_px = None
+                _book_holding(
+                    prices, l0, g0, span, day_sum, open_count, exit_px, entry_px
+                )
                 # Attribute each side's friction to a day the position is
                 # counted open (entry fee to the first marked day, exit fee
                 # to the exit day): booking at g0 would drop the fee when
@@ -167,9 +384,11 @@ def aggregate_trades(
                 # excluding the entrant.
                 day_cost[g0 + 1] += fees_per_side
                 day_cost[g1] += fees_per_side
-                open_count[hit] += 1
                 opened_today += 1
-                gross = float(row["Avg Exit Price"] / row["Avg Entry Price"] - 1)
+                entry_base = (
+                    entry_px if entry_px is not None else float(row["Avg Entry Price"])
+                )
+                gross = float(row["Avg Exit Price"] / entry_base - 1)
                 trades.append(
                     TradeSummary(
                         symbol=str(sym),
@@ -181,13 +400,18 @@ def aggregate_trades(
                 )
             else:
                 span = n_days - 1 - g0
-                if span <= 0:
+                if span < 0:
                     continue
-                marks = prices[l0 + 1 :] / prices[l0:-1] - 1
-                hit = np.arange(g0 + 1, n_days)[np.isfinite(marks)]
-                day_sum[hit] += marks[np.isfinite(marks)]
+                if span == 0:
+                    # Opened on the final bar: no subsequent marks exist,
+                    # but the entry fee was paid. Book it to the entry day
+                    # with the position counted open so the fee is not lost.
+                    day_cost[g0] += fees_per_side
+                    open_count[g0] += 1
+                    opened_today += 1
+                    continue
+                _book_holding(prices, l0, g0, span, day_sum, open_count, None, entry_px)
                 day_cost[g0 + 1] += fees_per_side
-                open_count[hit] += 1
                 opened_today += 1
         invested = open_count > 0
         count = np.where(invested, open_count, 1)

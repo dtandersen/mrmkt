@@ -71,7 +71,12 @@ volatility-implied buy/sell bands anchored on a fast trailing mean;
 with defaults when omitted) with the vectorbt
 engine (long-only, 2% sizing, 8% stop) over symbols, `--all`, or `--tag`.
 The commands use the
-local, git-ignored `alpaca.yaml` and `dbschema.yml` files. BDD tests use in-memory
+local, git-ignored `alpaca.yaml` and `dbschema.yml` files (plus optional
+`config.yaml`). Config discovery checks `./.mrmkt/<name>` first, walking up
+toward the filesystem root git-style, then falls back to the legacy bare
+`./<name>` next to the invocation directory — so a satellite checkout can
+symlink one shared `.mrmkt/` dir (e.g. `ln -s ../mrmkt/.mrmkt .mrmkt`) and run
+`mrmkt` commands without copying secrets. BDD tests use in-memory
 repositories and a fake clock; they do not call Alpaca or PostgreSQL.
 
 ## Database
